@@ -574,14 +574,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     if(!currentFileObj || !newName || newName === currentFileObj.filename) return;
+
+    let finalNewName = newName;
+    const match = currentFileObj.filename.match(/\.([^.]+)$/);
+    const ext = match ? `.${match[1]}` : '.txt';
+    if (!finalNewName.endsWith('.txt') && !finalNewName.endsWith('.md')) {
+      finalNewName += ext;
+    }
+
     try {
       const th = currentFileObj.folderHandle || dirHandle;
-      const nf = await th.getFileHandle(newName, {create: true});
+      const nf = await th.getFileHandle(finalNewName, {create: true});
       const w = await nf.createWritable();
       await w.write(currentFileObj.content);
       await w.close();
       await th.removeEntry(currentFileObj.filename);
-      setCurrentFileObj({...currentFileObj, filename: newName, handle: nf});
+      setCurrentFileObj({...currentFileObj, filename: finalNewName, handle: nf});
       await loadFiles(dirHandle);
     } catch(e:any) { alert(e.message); }
   };
