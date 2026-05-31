@@ -180,11 +180,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           setAllFiles(fallbackData.fileObjs);
           setPhysicalFolders(fallbackData.pFolders);
           updateFilter(fallbackData.fileObjs, fallbackData.pFolders, searchQueries);
+
+          const lastCat = localStorage.getItem('lv_lastFileCategory');
+          const lastFile = localStorage.getItem('lv_lastFileName');
+          if (lastFile) {
+            const target = fallbackData.fileObjs.find((f: any) => (f.category || '') === (lastCat || '') && f.filename === lastFile);
+            if (target) {
+              setCurrentFileObj(target);
+              setCurrentContent(target.content);
+              setIsEditing(false);
+            }
+          }
         }
       } else {
         const handle = await loadFolderHandle();
         if (handle) {
-           // Original behavior kept
+          try {
+            if (await (handle as any).verifyPermission({ mode: 'readwrite' }) === 'granted') {
+              setDirHandle(handle);
+              setLoading(true);
+              await loadFiles(handle);
+              setLoading(false);
+            }
+          } catch(e) { console.warn(e); }
         }
       }
     };
@@ -238,6 +256,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAllFiles(files);
     setPhysicalFolders(pFolders);
     updateFilter(files, pFolders, searchQueries);
+
+    const lastCat = localStorage.getItem('lv_lastFileCategory');
+    const lastFile = localStorage.getItem('lv_lastFileName');
+    if (lastFile) {
+      const target = files.find(f => (f.category || '') === (lastCat || '') && f.filename === lastFile);
+      if (target) {
+        setCurrentFileObj(target);
+        setCurrentContent(target.content);
+        setIsEditing(false);
+      }
+    }
   };
 
   const updateFilter = (files: FileObj[], pFolders: PhysicalFolder[], queries: string[]) => {
@@ -399,6 +428,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setCurrentFileObj(f);
     setCurrentContent(f.content);
     setIsEditing(false);
+    localStorage.setItem('lv_lastFileCategory', f.category || '');
+    localStorage.setItem('lv_lastFileName', f.filename);
   };
 
   const toggleEdit = () => setIsEditing(!isEditing);
