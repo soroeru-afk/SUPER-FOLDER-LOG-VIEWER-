@@ -94,7 +94,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isHighlightOff, setIsHighlightOff] = useState(() => localStorage.getItem('lv_highlightOff') === '1');
-  const [speakerModeEnabled, setSpeakerModeEnabled] = useState(() => localStorage.getItem('lv_speakerMode') !== '0');
+  const [speakerModeEnabled, setSpeakerModeEnabled] = useState(() => localStorage.getItem('lv_speakerMode') === '1');
   
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [ttsSettings, setTtsSettings] = useState<TTSSettings>(() => {
@@ -573,7 +573,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       alert(t.main.fallbackRenameError);
       return;
     }
-    if(!currentFileObj) return;
+    if(!currentFileObj || !newName || newName === currentFileObj.filename) return;
     try {
       const th = currentFileObj.folderHandle || dirHandle;
       const nf = await th.getFileHandle(newName, {create: true});

@@ -41,7 +41,7 @@ export function applySettingsToDOM() {
   const footer = document.getElementById('footer');
   if (footer) footer.style.padding = `12px ${sp}px`;
   
-  const fontKey = localStorage.getItem('lv_font') || 'hiragino';
+  const fontKey = localStorage.getItem('lv_font') || 'meiryo';
   const fontVal = FONT_MAP[fontKey] || FONT_MAP.hiragino;
   document.documentElement.style.setProperty('--font-body', fontVal);
   const searchBox = document.getElementById('search-box');
@@ -55,7 +55,7 @@ export function initSettings() {
     lv_fontSize: '15', lv_fontWeight: '400', lv_lineHeight: '1.8', lv_letterSpacing: '0',
     lv_sbTitleSize: '13', lv_headingSize: '48', lv_sbWidth: '280', lv_contentWidth: '900',
     lv_cardPadding: '24', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '56',
-    lv_theme: 'mono', lv_font: 'hiragino'
+    lv_theme: 'mono', lv_font: 'meiryo'
   };
   Object.entries(defs).forEach(([k, v]) => {
     if (!localStorage.getItem(k)) localStorage.setItem(k, v);

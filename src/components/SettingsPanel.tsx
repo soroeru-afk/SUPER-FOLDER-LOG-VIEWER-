@@ -12,7 +12,7 @@ export const SettingsPanel = () => {
     fontSize: '15', fontWeight: '400', lineHeight: '1.8', letterSpacing: '0',
     sbTitleSize: '13', headingSize: '48', sbWidth: '280', contentWidth: '900',
     cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '56',
-    theme: 'mono', font: 'hiragino'
+    theme: 'mono', font: 'meiryo'
   });
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export const SettingsPanel = () => {
       msgGap: localStorage.getItem('lv_msgGap') || '16',
       pagePad: localStorage.getItem('lv_pagePad') || '56',
       theme: localStorage.getItem('lv_theme') || 'mono',
-      font: localStorage.getItem('lv_font') || 'hiragino'
+      font: localStorage.getItem('lv_font') || 'meiryo'
     });
   }, [settingsOpen]);
 
