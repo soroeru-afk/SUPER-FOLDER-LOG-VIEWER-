@@ -45,7 +45,7 @@ export interface AppState {
   moveToNewFolder: (folderName: string, isBulk: boolean) => Promise<void>;
   bulkDeleteFiles: () => Promise<void>;
   deleteCurrentFile: () => Promise<void>;
-  renameCurrentFile: (newName: string) => Promise<void>;
+  renameCurrentFile: () => Promise<void>;
   renameFolder: (oldName: string, folderHandle: any) => Promise<void>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
   lang: 'en' | 'ja';
@@ -568,19 +568,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch(e:any) { alert(e.message); }
   };
 
-  const renameCurrentFile = async (newName: string) => {
+  const renameCurrentFile = async () => {
     if (isFallbackMode) {
       alert(t.main.fallbackRenameError);
       return;
     }
-    if(!currentFileObj || !newName || newName === currentFileObj.filename) return;
+    if (!currentFileObj) return;
 
-    let finalNewName = newName;
+    const newName = prompt(t.main.renamePrompt, currentFileObj.filename);
+    if (newName === null) return; // User pressed Cancel
+    
+    const trimmedName = newName.trim();
+    if (!trimmedName || trimmedName === currentFileObj.filename) return;
+
+    let finalNewName = trimmedName;
     const match = currentFileObj.filename.match(/\.([^.]+)$/);
     const ext = match ? `.${match[1]}` : '.txt';
     if (!finalNewName.endsWith('.txt') && !finalNewName.endsWith('.md')) {
       finalNewName += ext;
     }
+
+    if (finalNewName === currentFileObj.filename) return;
 
     try {
       const th = currentFileObj.folderHandle || dirHandle;

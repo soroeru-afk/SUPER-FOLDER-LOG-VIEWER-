@@ -178,7 +178,7 @@ export const MainContent = () => {
               <button id="folder-edit-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'folder')}>
                 <FolderIcon /> {t.main.folderEdit}
               </button>
-              <button id="rename-file-btn" style={{display:'flex'}} onClick={() => renameCurrentFile(prompt(t.main.renamePrompt, currentFileObj.filename) || currentFileObj.filename)}>
+              <button id="rename-file-btn" style={{display:'flex'}} onClick={() => renameCurrentFile()}>
                 <EditIcon /> {t.main.rename}
               </button>
               <button id="play-audio-btn" style={{display:'flex', minWidth: '94px', justifyContent: 'center'}} onClick={() => {
