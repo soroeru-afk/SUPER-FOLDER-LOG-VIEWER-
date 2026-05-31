@@ -1,0 +1,8 @@
+{
+  "name": "■ SUPER FOLDER LOG VIEWER +",
+  "description": "This is a dedicated viewer that specializes in a \"specific folder\" on Google Drive or your local computer, and reconstructs the vast amount of text files accumulated there with a user-friendly interface.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
