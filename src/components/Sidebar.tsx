@@ -190,54 +190,50 @@ export const Sidebar = () => {
     if (rootFiles.length > 0) {
       if (allCategories.length > 0) elements.push(<div key="sep" style={{height:'1px',background:'rgba(255,255,255,0.05)',margin:'6px 10px'}} />);
       
-      if (sortMode === 'name') {
-        rootFiles.forEach(f => elements.push(renderFileBtn(f)));
+      const byMonth: Record<string, Record<string, FileObj[]>> = {};
+      rootFiles.forEach(f => {
+        const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
+        if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
+      });
+      if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
+      
+      const sortedMonths = Object.keys(byMonth).filter(k=>k!=='__nodate__');
+      if (sortMode === 'date' && sortDirection === 'asc') {
+        sortedMonths.sort((a,b)=>a.localeCompare(b));
       } else {
-        const byMonth: Record<string, Record<string, FileObj[]>> = {};
-        rootFiles.forEach(f => {
-          const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
-          if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
-        });
-        if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
-        
-        const sortedMonths = Object.keys(byMonth).filter(k=>k!=='__nodate__');
-        if (sortDirection === 'asc') {
-          sortedMonths.sort((a,b)=>a.localeCompare(b));
-        } else {
-          sortedMonths.sort((a,b)=>b.localeCompare(a));
-        }
-        
-        sortedMonths.forEach(mKey => {
-          const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
-          let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
-          if(searchQueries.length>0) mOpen=true;
-
-          const sortedDates = Object.keys(byMonth[mKey]);
-          if (sortDirection === 'asc') {
-            sortedDates.sort((a,b)=>a.localeCompare(b));
-          } else {
-            sortedDates.sort((a,b)=>b.localeCompare(a));
-          }
-
-          elements.push(
-            <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
-              <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen('month:'+mKey, !mOpen)}>
-                <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
-                <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
-                {isThisMonth && <span className="today-badge">THIS MONTH</span>}
-                <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
-                <span className="category-arrow">▶</span>
-              </button>
-              <div className={`category-files ${mOpen?'open':''}`}>
-                {sortedDates.map(dKey => {
-                  const isToday = dKey === today; const [,,dd] = dKey.split('-');
-                  return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
-                })}
-              </div>
-            </div>
-          );
-        });
+        sortedMonths.sort((a,b)=>b.localeCompare(a));
       }
+      
+      sortedMonths.forEach(mKey => {
+        const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
+        let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
+        if(searchQueries.length>0) mOpen=true;
+
+        const sortedDates = Object.keys(byMonth[mKey]);
+        if (sortMode === 'date' && sortDirection === 'asc') {
+          sortedDates.sort((a,b)=>a.localeCompare(b));
+        } else {
+          sortedDates.sort((a,b)=>b.localeCompare(a));
+        }
+
+        elements.push(
+          <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
+            <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen('month:'+mKey, !mOpen)}>
+              <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
+              <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
+              {isThisMonth && <span className="today-badge">THIS MONTH</span>}
+              <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
+              <span className="category-arrow">▶</span>
+            </button>
+            <div className={`category-files ${mOpen?'open':''}`}>
+              {sortedDates.map(dKey => {
+                const isToday = dKey === today; const [,,dd] = dKey.split('-');
+                return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
+              })}
+            </div>
+          </div>
+        );
+      });
     }
 
     return elements;
