@@ -21,7 +21,11 @@ export interface AppState {
   movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any } | null;
   loading: boolean;
   refreshing: boolean;
+  sortMode: 'date' | 'name';
+  sortDirection: 'asc' | 'desc';
 
+  setSortMode: (mode: 'date' | 'name') => void;
+  setSortDirection: (dir: 'asc' | 'desc') => void;
   openFolder: () => Promise<void>;
   reopenFolder: () => Promise<void>;
   refreshFolder: () => Promise<void>;
@@ -97,6 +101,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [speakerModeEnabled, setSpeakerModeEnabled] = useState(() => localStorage.getItem('lv_speakerMode') === '1');
   
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  
+  const [sortMode, setSortModeState] = useState<'date' | 'name'>(
+    () => (localStorage.getItem('lv_sortMode') as 'date' | 'name') || 'date'
+  );
+  const [sortDirection, setSortDirectionState] = useState<'asc' | 'desc'>(
+    () => (localStorage.getItem('lv_sortDirection') as 'asc' | 'desc') || 'desc'
+  );
+
+  const setSortMode = (mode: 'date' | 'name') => {
+    setSortModeState(mode);
+    localStorage.setItem('lv_sortMode', mode);
+  };
+
+  const setSortDirection = (dir: 'asc' | 'desc') => {
+    setSortDirectionState(dir);
+    localStorage.setItem('lv_sortDirection', dir);
+  };
+  
   const [ttsSettings, setTtsSettings] = useState<TTSSettings>(() => {
     return {
       rate: parseFloat(localStorage.getItem('lv_ttsRate') || '1.0'),
@@ -278,6 +300,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       });
     }
 
+    const getSortableName = (filename: string) => {
+      if (/^\d{8}_\d{4}_/.test(filename)) {
+        return filename.slice(14);
+      }
+      return filename;
+    };
+
+    filtered = [...filtered].sort((a, b) => {
+      if (sortMode === 'date') {
+        const dtA = (a.date || '') + (a.time || '');
+        const dtB = (b.date || '') + (b.time || '');
+        return sortDirection === 'asc' ? dtA.localeCompare(dtB) : dtB.localeCompare(dtA);
+      } else {
+        const nameA = getSortableName(a.filename);
+        const nameB = getSortableName(b.filename);
+        const cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+    });
+
     const catMap = new Map();
     if (queries.length === 0) {
       pFolders.forEach(pf => {
@@ -294,6 +336,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     setAllCategories(Array.from(catMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja')));
   };
+
+  useEffect(() => {
+    updateFilter(allFiles, physicalFolders, searchQueries);
+  }, [sortMode, sortDirection, allFiles, physicalFolders, searchQueries]);
 
   const openFolderFallback = () => {
     const input = document.createElement("input");
@@ -687,6 +733,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       dirHandle, isFallbackMode, allFiles, allCategories, physicalFolders, searchQueries,
       currentFileObj, currentContent, isEditing, selectedFiles, selectedFileMap, isSelectMode,
       settingsOpen, isHighlightOff, categoryOpenState, movePanelState, loading, refreshing,
+      sortMode, sortDirection, setSortMode, setSortDirection,
       openFolder, reopenFolder, refreshFolder, setSearchQuery, clearSearch, removeSearchQuery,
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,

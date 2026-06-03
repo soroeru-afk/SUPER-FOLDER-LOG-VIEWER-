@@ -26,6 +26,8 @@ export const translations = {
       today: "今日",
       thisMonth: "月(今月)",
       selectedCount: "件選択中",
+      sortByDate: "日付順",
+      sortByName: "名前順",
     },
     main: {
       edit: "編集",
@@ -111,6 +113,8 @@ export const translations = {
       today: "Today",
       thisMonth: " (This Month)",
       selectedCount: " selected",
+      sortByDate: "Date",
+      sortByName: "Name",
     },
     main: {
       edit: "Edit",

@@ -13,7 +13,7 @@ export const Sidebar = () => {
     selectedFiles, currentFileObj, selectFile, toggleFileSelection,
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
-    lang, setLang, t
+    lang, setLang, t, sortMode, sortDirection, setSortMode, setSortDirection
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -157,6 +157,26 @@ export const Sidebar = () => {
       });
     }
 
+    const getSortableName = (filename: string) => {
+      if (/^\d{8}_\d{4}_/.test(filename)) {
+        return filename.slice(14);
+      }
+      return filename;
+    };
+
+    filtered = [...filtered].sort((a, b) => {
+      if (sortMode === 'date') {
+        const dtA = (a.date || '') + (a.time || '');
+        const dtB = (b.date || '') + (b.time || '');
+        return sortDirection === 'asc' ? dtA.localeCompare(dtB) : dtB.localeCompare(dtA);
+      } else {
+        const nameA = getSortableName(a.filename);
+        const nameB = getSortableName(b.filename);
+        const cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+    });
+
     const rootFiles = filtered.filter(f => !f.category);
     if (allCategories.length === 0 && rootFiles.length === 0) {
       return <div id="empty-msg">{t.sidebar.noFilesFound}</div>;
@@ -170,36 +190,54 @@ export const Sidebar = () => {
     if (rootFiles.length > 0) {
       if (allCategories.length > 0) elements.push(<div key="sep" style={{height:'1px',background:'rgba(255,255,255,0.05)',margin:'6px 10px'}} />);
       
-      const byMonth: Record<string, Record<string, FileObj[]>> = {};
-      rootFiles.forEach(f => {
-        const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
-        if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
-      });
-      if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
-      
-      Object.keys(byMonth).filter(k=>k!=='__nodate__').sort((a,b)=>b.localeCompare(a)).forEach(mKey => {
-        const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
-        let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
-        if(searchQueries.length>0) mOpen=true;
+      if (sortMode === 'name') {
+        rootFiles.forEach(f => elements.push(renderFileBtn(f)));
+      } else {
+        const byMonth: Record<string, Record<string, FileObj[]>> = {};
+        rootFiles.forEach(f => {
+          const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
+          if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
+        });
+        if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
+        
+        const sortedMonths = Object.keys(byMonth).filter(k=>k!=='__nodate__');
+        if (sortDirection === 'asc') {
+          sortedMonths.sort((a,b)=>a.localeCompare(b));
+        } else {
+          sortedMonths.sort((a,b)=>b.localeCompare(a));
+        }
+        
+        sortedMonths.forEach(mKey => {
+          const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
+          let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
+          if(searchQueries.length>0) mOpen=true;
 
-        elements.push(
-          <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
-            <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen('month:'+mKey, !mOpen)}>
-              <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
-              <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
-              {isThisMonth && <span className="today-badge">THIS MONTH</span>}
-              <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
-              <span className="category-arrow">▶</span>
-            </button>
-            <div className={`category-files ${mOpen?'open':''}`}>
-              {Object.keys(byMonth[mKey]).sort((a,b)=>b.localeCompare(a)).map(dKey => {
-                const isToday = dKey === today; const [,,dd] = dKey.split('-');
-                return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
-              })}
+          const sortedDates = Object.keys(byMonth[mKey]);
+          if (sortDirection === 'asc') {
+            sortedDates.sort((a,b)=>a.localeCompare(b));
+          } else {
+            sortedDates.sort((a,b)=>b.localeCompare(a));
+          }
+
+          elements.push(
+            <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
+              <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen('month:'+mKey, !mOpen)}>
+                <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
+                <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
+                {isThisMonth && <span className="today-badge">THIS MONTH</span>}
+                <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
+                <span className="category-arrow">▶</span>
+              </button>
+              <div className={`category-files ${mOpen?'open':''}`}>
+                {sortedDates.map(dKey => {
+                  const isToday = dKey === today; const [,,dd] = dKey.split('-');
+                  return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
+                })}
+              </div>
             </div>
-          </div>
-        );
-      });
+          );
+        });
+      }
     }
 
     return elements;
@@ -267,8 +305,64 @@ export const Sidebar = () => {
         {renderBreadcrumbs()}
       </div>
 
-      <div id="file-list-header" style={{display: dirHandle ? 'flex' : 'none'}}>
-        <span id="file-count">{allFiles.length} files</span>
+      <div id="file-list-header" style={{display: dirHandle ? 'flex' : 'none', justifyContent: 'space-between', alignItems: 'center'}}>
+        <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
+          <span id="file-count">{allFiles.length} files</span>
+          <div className="sort-buttons" style={{display:'flex', gap:'4px'}}>
+            <button 
+              className={`sort-btn ${sortMode === 'date' ? 'active' : ''}`}
+              onClick={() => {
+                if (sortMode === 'date') {
+                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                  setSortMode('date');
+                  setSortDirection('desc');
+                }
+              }}
+              style={{
+                background: sortMode === 'date' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: sortMode === 'date' ? '#fff' : '#94a3b8',
+                fontSize: '9px',
+                padding: '2px 5px',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                fontFamily: 'inherit'
+              }}
+            >
+              {t.sidebar.sortByDate} {sortMode === 'date' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
+            <button 
+              className={`sort-btn ${sortMode === 'name' ? 'active' : ''}`}
+              onClick={() => {
+                if (sortMode === 'name') {
+                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                  setSortMode('name');
+                  setSortDirection('asc');
+                }
+              }}
+              style={{
+                background: sortMode === 'name' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: sortMode === 'name' ? '#fff' : '#94a3b8',
+                fontSize: '9px',
+                padding: '2px 5px',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                fontFamily: 'inherit'
+              }}
+            >
+              {t.sidebar.sortByName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
+          </div>
+        </div>
         <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
           <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
           <button id="highlight-toggle-btn" className={isHighlightOff ? 'off' : ''} onClick={toggleHighlight} title={t.app.highlight}>
