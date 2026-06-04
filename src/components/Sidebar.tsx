@@ -149,7 +149,7 @@ export const Sidebar = () => {
 
     sortedMonths.forEach(mKey => {
       const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
-      let mOpen = categoryOpenState[parentGroupKey + ':month:' + mKey] ?? isThisMonth;
+      let mOpen = categoryOpenState[parentGroupKey + ':month:' + mKey] ?? false;
       if(searchQueries.length>0) mOpen=true;
 
       const sortedVFolders = Object.keys(byMonth[mKey]);
@@ -174,7 +174,7 @@ export const Sidebar = () => {
               const filesInV = byMonth[mKey][vFolder];
               const icon = getVFolderIcon(vFolder);
               const hasTodayFile = filesInV.some(f => f.date === today);
-              const isDefaultOpen = vFolder === '00_【進行】' || hasTodayFile;
+              const isDefaultOpen = false;
               return renderCategoryGroup(
                 vFolder,
                 icon,
@@ -318,7 +318,7 @@ export const Sidebar = () => {
 
         sortedMonths.forEach(mKey => {
           const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
-          let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
+          let mOpen = categoryOpenState['month:'+mKey] ?? false;
           if(searchQueries.length>0) mOpen=true;
 
           const sortedVFolders = Object.keys(byMonth[mKey]);
@@ -343,7 +343,7 @@ export const Sidebar = () => {
                   const filesInV = byMonth[mKey][vFolder];
                   const icon = getVFolderIcon(vFolder);
                   const hasTodayFile = filesInV.some(f => f.date === today);
-                  const isDefaultOpen = vFolder === '00_【進行】' || hasTodayFile;
+                  const isDefaultOpen = false;
                   return renderCategoryGroup(
                     vFolder,
                     icon,
