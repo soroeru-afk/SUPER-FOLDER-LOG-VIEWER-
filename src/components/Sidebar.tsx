@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
 import { SearchIcon, FolderIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon } from './Icons';
 import { FileObj } from '../types';
-import { highlightText, escHtml } from '../utils';
+import { highlightText, escHtml, getVirtualFolder } from '../utils';
 
 export const Sidebar = () => {
   const {
@@ -110,9 +110,94 @@ export const Sidebar = () => {
     );
   };
 
+  const renderGroupedFiles = (files: FileObj[], today: string, parentGroupKey: string) => {
+    const byMonth: Record<string, Record<string, FileObj[]>> = {};
+    files.forEach(f => {
+      const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
+      const vFolder = getVirtualFolder(f.filename, f.date);
+      if(!byMonth[mKey]) byMonth[mKey] = {};
+      if(!byMonth[mKey][vFolder]) byMonth[mKey][vFolder] = [];
+      byMonth[mKey][vFolder].push(f);
+    });
+
+    const elements: React.ReactNode[] = [];
+    if (byMonth['__nodate__']) {
+      Object.keys(byMonth['__nodate__']).forEach(vFolder => {
+        byMonth['__nodate__'][vFolder].forEach(f => elements.push(renderFileBtn(f)));
+      });
+    }
+
+    const sortedMonths = Object.keys(byMonth).filter(k=>k!=='__nodate__');
+    if (sortMode === 'date' && sortDirection === 'asc') {
+      sortedMonths.sort((a,b)=>a.localeCompare(b));
+    } else {
+      sortedMonths.sort((a,b)=>b.localeCompare(a));
+    }
+
+    const getVFolderPriority = (vName: string) => {
+      if (vName === '00_【進行】') return 1;
+      if (vName === '【定型】') return 2;
+      if (vName.startsWith('- ')) return 3;
+      return 4;
+    };
+
+    const getVFolderIcon = (vName: string) => {
+      if (vName === '00_【進行】') return '📌';
+      if (vName === '【定型】') return '⚡';
+      return '📁';
+    };
+
+    sortedMonths.forEach(mKey => {
+      const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
+      let mOpen = categoryOpenState[parentGroupKey + ':month:' + mKey] ?? isThisMonth;
+      if(searchQueries.length>0) mOpen=true;
+
+      const sortedVFolders = Object.keys(byMonth[mKey]);
+      sortedVFolders.sort((a, b) => {
+        const priA = getVFolderPriority(a);
+        const priB = getVFolderPriority(b);
+        if (priA !== priB) return priA - priB;
+        return sortDirection === 'asc' ? a.localeCompare(b, undefined, {numeric: true}) : b.localeCompare(a, undefined, {numeric: true});
+      });
+
+      elements.push(
+        <div className="category-group" data-group-key={parentGroupKey + ':month:' + mKey} key={parentGroupKey + ':month:' + mKey}>
+          <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen(parentGroupKey + ':month:' + mKey, !mOpen)}>
+            <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
+            <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
+            {isThisMonth && <span className="today-badge">THIS MONTH</span>}
+            <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
+            <span className="category-arrow">▶</span>
+          </button>
+          <div className={`category-files ${mOpen?'open':''}`}>
+            {sortedVFolders.map(vFolder => {
+              const filesInV = byMonth[mKey][vFolder];
+              const icon = getVFolderIcon(vFolder);
+              const hasTodayFile = filesInV.some(f => f.date === today);
+              const isDefaultOpen = vFolder === '00_【進行】' || hasTodayFile;
+              return renderCategoryGroup(
+                vFolder,
+                icon,
+                filesInV,
+                `vdir:${parentGroupKey}:${mKey}:${vFolder}`,
+                hasTodayFile ? 'TODAY' : null,
+                isDefaultOpen
+              );
+            })}
+          </div>
+        </div>
+      );
+    });
+
+    return elements;
+  };
+
   const renderCategoryGroup = (label: string, icon: string, files: FileObj[], groupKey: string, badge: string | null, isDefaultOpen: boolean) => {
     let isOpen = categoryOpenState[groupKey] ?? isDefaultOpen;
     if (searchQueries.length > 0) isOpen = true;
+
+    const today = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
+    const shouldGroup = groupKey.startsWith('cat:');
 
     return (
       <div className="category-group" data-group-key={groupKey} key={groupKey}>
@@ -124,7 +209,7 @@ export const Sidebar = () => {
           onDrop={async e => {
             e.preventDefault(); e.currentTarget.classList.remove('drag-over');
             if (!window.__draggedFiles) return;
-            if (groupKey.startsWith('month:') || groupKey.startsWith('date:')) return; 
+            if (groupKey.startsWith('month:') || groupKey.startsWith('date:') || groupKey.startsWith('vdir:')) return; 
             let targetCatName: string|null = null, targetHandle: any = null;
             if (groupKey.startsWith('cat:')) {
               targetCatName = groupKey.slice(4);
@@ -141,7 +226,11 @@ export const Sidebar = () => {
           <span className="category-arrow">▶</span>
         </button>
         <div className={`category-files ${isOpen ? 'open' : ''}`}>
-          {files.map(f => renderFileBtn(f))}
+          {shouldGroup ? (
+            renderGroupedFiles(files, today, groupKey)
+          ) : (
+            files.map(f => renderFileBtn(f))
+          )}
         </div>
       </div>
     );
@@ -193,9 +282,16 @@ export const Sidebar = () => {
       const byMonth: Record<string, Record<string, FileObj[]>> = {};
       rootFiles.forEach(f => {
         const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
-        if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
+        const vFolder = getVirtualFolder(f.filename, f.date);
+        if(!byMonth[mKey]) byMonth[mKey] = {};
+        if(!byMonth[mKey][vFolder]) byMonth[mKey][vFolder] = [];
+        byMonth[mKey][vFolder].push(f);
       });
-      if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
+      if (byMonth['__nodate__']) {
+        Object.keys(byMonth['__nodate__']).forEach(vFolder => {
+          byMonth['__nodate__'][vFolder].forEach(f => elements.push(renderFileBtn(f)));
+        });
+      }
       
       const sortedMonths = Object.keys(byMonth).filter(k=>k!=='__nodate__');
       if (sortMode === 'date' && sortDirection === 'asc') {
@@ -204,17 +300,31 @@ export const Sidebar = () => {
         sortedMonths.sort((a,b)=>b.localeCompare(a));
       }
       
+      const getVFolderPriority = (vName: string) => {
+        if (vName === '00_【進行】') return 1;
+        if (vName === '【定型】') return 2;
+        if (vName.startsWith('- ')) return 3;
+        return 4;
+      };
+
+      const getVFolderIcon = (vName: string) => {
+        if (vName === '00_【進行】') return '📌';
+        if (vName === '【定型】') return '⚡';
+        return '📁';
+      };
+
       sortedMonths.forEach(mKey => {
         const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
         let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
         if(searchQueries.length>0) mOpen=true;
 
-        const sortedDates = Object.keys(byMonth[mKey]);
-        if (sortMode === 'date' && sortDirection === 'asc') {
-          sortedDates.sort((a,b)=>a.localeCompare(b));
-        } else {
-          sortedDates.sort((a,b)=>b.localeCompare(a));
-        }
+        const sortedVFolders = Object.keys(byMonth[mKey]);
+        sortedVFolders.sort((a, b) => {
+          const priA = getVFolderPriority(a);
+          const priB = getVFolderPriority(b);
+          if (priA !== priB) return priA - priB;
+          return sortDirection === 'asc' ? a.localeCompare(b, undefined, {numeric: true}) : b.localeCompare(a, undefined, {numeric: true});
+        });
 
         elements.push(
           <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
@@ -226,9 +336,19 @@ export const Sidebar = () => {
               <span className="category-arrow">▶</span>
             </button>
             <div className={`category-files ${mOpen?'open':''}`}>
-              {sortedDates.map(dKey => {
-                const isToday = dKey === today; const [,,dd] = dKey.split('-');
-                return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
+              {sortedVFolders.map(vFolder => {
+                const filesInV = byMonth[mKey][vFolder];
+                const icon = getVFolderIcon(vFolder);
+                const hasTodayFile = filesInV.some(f => f.date === today);
+                const isDefaultOpen = vFolder === '00_【進行】' || hasTodayFile;
+                return renderCategoryGroup(
+                  vFolder,
+                  icon,
+                  filesInV,
+                  `vdir:${mKey}:${vFolder}`,
+                  hasTodayFile ? 'TODAY' : null,
+                  isDefaultOpen
+                );
               })}
             </div>
           </div>

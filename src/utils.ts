@@ -72,6 +72,39 @@ export function parseFilename(name: string) {
   return { date: '', time: '', title: fallbackTitle };
 }
 
+export function getVirtualFolder(filename: string, date: string | null): string {
+  let cleanName = filename;
+  if (/^\d{8}_\d{4}_/.test(cleanName)) {
+    cleanName = cleanName.slice(14);
+  }
+  
+  if (cleanName.startsWith('00_【進行】_')) {
+    return '00_【進行】';
+  }
+  if (cleanName.startsWith('【定型】_')) {
+    return '【定型】';
+  }
+  if (cleanName.startsWith('- ')) {
+    const idx = cleanName.indexOf('_', 2);
+    if (idx !== -1) {
+      return cleanName.substring(0, idx);
+    } else {
+      return cleanName.substring(0, cleanName.lastIndexOf('.')) || cleanName;
+    }
+  }
+  
+  if (date) {
+    const parts = date.split('-');
+    const mm = parts[1];
+    const dd = parts[2];
+    if (mm && dd) {
+      return `${parseInt(mm)}/${parseInt(dd)}`;
+    }
+  }
+  return 'その他ログ';
+}
+
+
 export function escapeRegExp(string: string) { return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 export function escHtml(s: string) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 

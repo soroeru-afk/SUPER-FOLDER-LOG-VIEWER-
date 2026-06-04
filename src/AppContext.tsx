@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
-import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename } from './utils';
+import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename, getVirtualFolder } from './utils';
 
 export interface AppState {
   dirHandle: any | null;
@@ -558,11 +558,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const expandAllGroups = () => {
     const newState: Record<string, boolean> = {};
     allCategories.forEach(cat => { newState['cat:' + cat.name] = true; });
-    allFiles.filter(f => !f.category).forEach(f => {
+    allFiles.forEach(f => {
       const dKey = f.date || '__nodate__';
       if (dKey !== '__nodate__') {
-        newState['month:' + dKey.slice(0, 7)] = true;
-        newState['date:' + dKey] = true;
+        const mKey = dKey.slice(0, 7);
+        const vFolder = getVirtualFolder(f.filename, f.date);
+        if (f.category) {
+          newState[`cat:${f.category}:month:${mKey}`] = true;
+          newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = true;
+        } else {
+          newState['month:' + mKey] = true;
+          newState[`vdir:${mKey}:${vFolder}`] = true;
+        }
       }
     });
     setCategoryOpenState(newState);
@@ -571,11 +578,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const collapseAllGroups = () => {
     const newState: Record<string, boolean> = {};
     allCategories.forEach(cat => { newState['cat:' + cat.name] = false; });
-    allFiles.filter(f => !f.category).forEach(f => {
+    allFiles.forEach(f => {
       const dKey = f.date || '__nodate__';
       if (dKey !== '__nodate__') {
-        newState['month:' + dKey.slice(0, 7)] = false;
-        newState['date:' + dKey] = false;
+        const mKey = dKey.slice(0, 7);
+        const vFolder = getVirtualFolder(f.filename, f.date);
+        if (f.category) {
+          newState[`cat:${f.category}:month:${mKey}`] = false;
+          newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = false;
+        } else {
+          newState['month:' + mKey] = false;
+          newState[`vdir:${mKey}:${vFolder}`] = false;
+        }
       }
     });
     setCategoryOpenState(newState);
