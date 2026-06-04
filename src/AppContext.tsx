@@ -564,11 +564,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const mKey = dKey.slice(0, 7);
         const vFolder = getVirtualFolder(f.filename, f.date);
         if (f.category) {
-          newState[`cat:${f.category}:month:${mKey}`] = true;
-          newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = true;
+          if (f.category === 'AIエージェント専用') {
+            newState[`vdir:cat:${f.category}:${vFolder}`] = true;
+          } else {
+            newState[`cat:${f.category}:month:${mKey}`] = true;
+            newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = true;
+          }
         } else {
-          newState['month:' + mKey] = true;
-          newState[`vdir:${mKey}:${vFolder}`] = true;
+          if (dirHandle && dirHandle.name === 'AIエージェント専用') {
+            newState[`vdir:${vFolder}`] = true;
+          } else {
+            newState['month:' + mKey] = true;
+            newState[`vdir:${mKey}:${vFolder}`] = true;
+          }
         }
       }
     });
@@ -584,11 +592,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const mKey = dKey.slice(0, 7);
         const vFolder = getVirtualFolder(f.filename, f.date);
         if (f.category) {
-          newState[`cat:${f.category}:month:${mKey}`] = false;
-          newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = false;
+          if (f.category === 'AIエージェント専用') {
+            newState[`vdir:cat:${f.category}:${vFolder}`] = false;
+          } else {
+            newState[`cat:${f.category}:month:${mKey}`] = false;
+            newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = false;
+          }
         } else {
-          newState['month:' + mKey] = false;
-          newState[`vdir:${mKey}:${vFolder}`] = false;
+          if (dirHandle && dirHandle.name === 'AIエージェント専用') {
+            newState[`vdir:${vFolder}`] = false;
+          } else {
+            newState['month:' + mKey] = false;
+            newState[`vdir:${mKey}:${vFolder}`] = false;
+          }
         }
       }
     });
