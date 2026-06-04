@@ -60,6 +60,8 @@ export interface AppState {
   ttsSettings: TTSSettings;
   updateTtsSettings: (updates: Partial<TTSSettings>) => void;
   voices: SpeechSynthesisVoice[];
+  writingMode: 'horizontal' | 'vertical';
+  setWritingMode: (mode: 'horizontal' | 'vertical') => void;
 }
 
 export interface TTSSettings {
@@ -108,6 +110,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [sortDirection, setSortDirectionState] = useState<'asc' | 'desc'>(
     () => (localStorage.getItem('lv_sortDirection') as 'asc' | 'desc') || 'desc'
   );
+  const [writingMode, setWritingModeState] = useState<'horizontal' | 'vertical'>(
+    () => (localStorage.getItem('lv_writingMode') as 'horizontal' | 'vertical') || 'horizontal'
+  );
+
+  const setWritingMode = (mode: 'horizontal' | 'vertical') => {
+    setWritingModeState(mode);
+    localStorage.setItem('lv_writingMode', mode);
+  };
 
   const setSortMode = (mode: 'date' | 'name') => {
     setSortModeState(mode);
@@ -739,7 +749,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
-      ttsSettings, updateTtsSettings, voices
+      ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode
     }}>
       {children}
     </AppContext.Provider>

@@ -4,13 +4,14 @@ import { THEMES, FONT_MAP, applyThemeStyle } from '../theme';
 import { applySettingsToDOM } from '../settingsSync';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices } = useAppContext();
+  const { settingsOpen, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, writingMode } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
   const [vals, setVals] = useState({
     fontSize: '15', fontWeight: '400', lineHeight: '1.8', letterSpacing: '0',
     sbTitleSize: '13', headingSize: '48', sbWidth: '280', contentWidth: '900',
+    verticalHeight: '100',
     cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '56',
     theme: 'mono', font: 'meiryo'
   });
@@ -25,6 +26,7 @@ export const SettingsPanel = () => {
       headingSize: localStorage.getItem('lv_headingSize') || '48',
       sbWidth: localStorage.getItem('lv_sbWidth') || '280',
       contentWidth: localStorage.getItem('lv_contentWidth') || '900',
+      verticalHeight: localStorage.getItem('lv_verticalHeight') || '100',
       cardPadding: localStorage.getItem('lv_cardPadding') || '24',
       cardRadius: localStorage.getItem('lv_cardRadius') || '16',
       msgGap: localStorage.getItem('lv_msgGap') || '16',
@@ -166,6 +168,12 @@ export const SettingsPanel = () => {
               <div className="setting-label">{t.settings.contentWidth} <span id="content-width-val">{vals.contentWidth}px</span></div>
               <input className="setting-slider" type="range" min="480" max="1400" step="20" value={vals.contentWidth} onChange={e => updateSetting('contentWidth', e.target.value)} />
             </div>
+            {writingMode === 'vertical' && (
+              <div className="setting-row">
+                <div className="setting-label">{lang === 'en' ? 'Vertical Card Height' : '縦書きカードの高さ'} <span id="vertical-height-val">{vals.verticalHeight}%</span></div>
+                <input className="setting-slider" type="range" min="40" max="100" step="5" value={vals.verticalHeight} onChange={e => updateSetting('verticalHeight', e.target.value)} />
+              </div>
+            )}
             <div className="setting-row">
               <div className="setting-label">{t.settings.cardPadding} <span id="card-padding-val">{vals.cardPadding}px</span></div>
               <input className="setting-slider" type="range" min="10" max="48" step="2" value={vals.cardPadding} onChange={e => updateSetting('cardPadding', e.target.value)} />

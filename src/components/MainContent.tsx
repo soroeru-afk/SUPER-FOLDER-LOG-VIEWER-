@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
 import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon } from './Icons';
 import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml } from '../utils';
+import { applySettingsToDOM } from '../settingsSync';
 
 export const MainContent = () => {
   const {
@@ -10,8 +11,39 @@ export const MainContent = () => {
     openMovePanel, deleteCurrentFile, renameCurrentFile,
     movePanelState, closeMovePanels, physicalFolders, execBulkMove, moveToNewFolder,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
-    lang, t, speakerModeEnabled, ttsSettings, voices
+    lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode
   } = useAppContext();
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollAnimationFrameRef = useRef<number | null>(null);
+
+  const startScrolling = (direction: 'left' | 'right') => {
+    if (scrollAnimationFrameRef.current) return;
+    const speed = direction === 'left' ? -10 : 10;
+    const step = () => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollLeft += speed;
+        scrollAnimationFrameRef.current = requestAnimationFrame(step);
+      }
+    };
+    scrollAnimationFrameRef.current = requestAnimationFrame(step);
+  };
+
+  const stopScrolling = () => {
+    if (scrollAnimationFrameRef.current) {
+      cancelAnimationFrame(scrollAnimationFrameRef.current);
+      scrollAnimationFrameRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scrollAnimationFrameRef.current) {
+        cancelAnimationFrame(scrollAnimationFrameRef.current);
+      }
+    };
+  }, []);
 
   const [editValue, setEditValue] = useState("");
   useEffect(() => {
@@ -25,6 +57,17 @@ export const MainContent = () => {
     }, 200);
     return () => clearInterval(handleInterval);
   }, []);
+
+  useEffect(() => {
+    applySettingsToDOM();
+    if (writingMode === 'vertical') {
+      const contentArea = document.getElementById('content-area');
+      if (contentArea) {
+        contentArea.scrollTop = 0;
+        contentArea.scrollLeft = 0;
+      }
+    }
+  }, [writingMode, currentFileObj, isEditing, speakerModeEnabled]);
 
   const playFromIndex = (texts: string[], startIndex: number) => {
     window.speechSynthesis.cancel();
@@ -70,6 +113,72 @@ export const MainContent = () => {
       const allLines = msgs.flatMap(m => m.text.split('\n'));
       let globalLineIndex = 0;
 
+      if (writingMode === 'vertical') {
+        return (
+          <div className="vertical-scroll-wrapper">
+            <button 
+              className="scroll-arrow-btn left-arrow" 
+              onMouseDown={() => startScrolling('left')}
+              onMouseUp={stopScrolling}
+              onMouseLeave={stopScrolling}
+              onTouchStart={() => startScrolling('left')}
+              onTouchEnd={stopScrolling}
+              title="左へスクロール"
+            >
+              &lt;
+            </button>
+            <div className="vertical-scroll-content" ref={scrollContainerRef}>
+              <div id="messages" className="vertical-messages">
+                {msgs.map((m, i) => (
+                  <div className="vertical-msg-block" key={i}>
+                    {m.speaker !== '—' && (
+                      <div className="vertical-msg-speaker">
+                        <SpeakerIcon /> {escHtml(m.speaker)}
+                      </div>
+                    )}
+                    <div className="vertical-msg-body">
+                      {m.text.split('\n').map((l, j) => {
+                        const currentIndex = globalLineIndex++;
+                        return l ? (
+                          <p 
+                            key={j} 
+                            onClick={() => {
+                              if (isPlayingAudio) {
+                                window.speechSynthesis.cancel();
+                                setIsPlayingAudio(false);
+                              } else {
+                                playFromIndex(allLines, currentIndex);
+                                setIsPlayingAudio(true);
+                              }
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--sb-item-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            style={{ cursor: 'pointer', transition: 'background 0.2s', borderRadius: '4px', margin: '-4px 0', padding: '4px 0' }}
+                            dangerouslySetInnerHTML={{__html: highlightTextSafe(linkifyUrls(l), searchQueries)}}
+                            title={lang === 'en' ? 'Click to read from here' : 'クリックしてここから読み上げ'}
+                          />
+                        ) : <p key={j} style={{width: '12px'}} />;
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button 
+              className="scroll-arrow-btn right-arrow" 
+              onMouseDown={() => startScrolling('right')}
+              onMouseUp={stopScrolling}
+              onMouseLeave={stopScrolling}
+              onTouchStart={() => startScrolling('right')}
+              onTouchEnd={stopScrolling}
+              title="右へスクロール"
+            >
+              &gt;
+            </button>
+          </div>
+        );
+      }
+
       return (
         <div id="messages" style={{display: 'flex'}}>
           {msgs.map((m, i) => (
@@ -110,6 +219,62 @@ export const MainContent = () => {
     }
 
     const lines = currentContent ? currentContent.split('\n') : [];
+    if (writingMode === 'vertical') {
+      return (
+        <div className="vertical-card-fixed">
+          <div className="vertical-scroll-wrapper" style={{ height: '100%' }}>
+            <button 
+              className="scroll-arrow-btn left-arrow" 
+              onMouseDown={() => startScrolling('left')}
+              onMouseUp={stopScrolling}
+              onMouseLeave={stopScrolling}
+              onTouchStart={() => startScrolling('left')}
+              onTouchEnd={stopScrolling}
+              title="左へスクロール"
+            >
+              &lt;
+            </button>
+            <div className="vertical-scroll-content" ref={scrollContainerRef} style={{ height: '100%', minHeight: 'auto', maxHeight: 'none', padding: '0 2px' }}>
+              <div className="vertical-writing-text-inner">
+                {lines.length > 0 ? lines.map((l, i) => {
+                  return l ? (
+                    <span 
+                      key={i} 
+                      onClick={() => {
+                        if (isPlayingAudio) {
+                          window.speechSynthesis.cancel();
+                          setIsPlayingAudio(false);
+                        } else {
+                          playFromIndex(lines, i);
+                          setIsPlayingAudio(true);
+                        }
+                      }}
+                      style={{ cursor: 'pointer', display: 'block', transition: 'background 0.2s', borderRadius: '4px', margin: '-4px 0', padding: '4px 0' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--sb-item-hover)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      title={lang === 'en' ? 'Click to read' : 'クリックして読み上げ'}
+                      dangerouslySetInnerHTML={{__html: highlightTextSafe(linkifyUrls(l), searchQueries)}} 
+                    />
+                  ) : <div key={i} style={{width: '1.8em', display: 'block'}}></div>;
+                }) : (lang === 'en' ? '(No Content)' : '（内容なし）')}
+              </div>
+            </div>
+            <button 
+              className="scroll-arrow-btn right-arrow" 
+              onMouseDown={() => startScrolling('right')}
+              onMouseUp={stopScrolling}
+              onMouseLeave={stopScrolling}
+              onTouchStart={() => startScrolling('right')}
+              onTouchEnd={stopScrolling}
+              title="右へスクロール"
+            >
+              &gt;
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div id="plain-text" style={{display: 'block'}}>
         {lines.length > 0 ? lines.map((l, i) => {
@@ -147,7 +312,7 @@ export const MainContent = () => {
   const [newFolderName, setNewFolderName] = useState('');
 
   return (
-    <div id="main" onClick={closeMovePanels}>
+    <div id="main" className={writingMode === 'vertical' && !isEditing ? "vertical-mode-active" : ""} onClick={closeMovePanels}>
       
       {!currentFileObj && (
         <div id="welcome">
@@ -171,6 +336,22 @@ export const MainContent = () => {
                 <button className="tool-btn" onClick={toggleEdit}>
                   <ReadIcon /> {t.main.read}
                 </button>
+              )}
+              {!isEditing && (
+                <div className="layout-toggle-group">
+                  <button
+                    className={`layout-toggle-btn ${writingMode === 'horizontal' ? 'active' : ''}`}
+                    onClick={() => setWritingMode('horizontal')}
+                  >
+                    HORIZ
+                  </button>
+                  <button
+                    className={`layout-toggle-btn ${writingMode === 'vertical' ? 'active' : ''}`}
+                    onClick={() => setWritingMode('vertical')}
+                  >
+                    VERT
+                  </button>
+                </div>
               )}
               <button id="move-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'single')}>
                 <MoveIcon /> {t.main.moveTo}
@@ -205,7 +386,13 @@ export const MainContent = () => {
               )}
             </div>
 
-            {renderContent()}
+            {writingMode === 'vertical' && !isEditing ? (
+              <div className="vertical-content-wrapper-flex">
+                {renderContent()}
+              </div>
+            ) : (
+              renderContent()
+            )}
 
           </div>
         </div>

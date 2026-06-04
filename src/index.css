@@ -803,3 +803,299 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
 #bulk-delete-btn:hover { background: rgba(239,68,68,0.3); border-color: rgba(239,68,68,0.7); }
 #bulk-cancel-btn { background: rgba(255,255,255,0.07); border: none; border-radius: 8px; color: rgba(255,255,255,0.5); font-size: 11px; padding: 7px 10px; cursor: pointer; transition: background 0.12s; }
 #bulk-cancel-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+/* ─── 縦書き用スタイル ─── */
+.writing-mode-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  -webkit-writing-mode: vertical-rl;
+}
+
+.vertical-scroll-wrapper {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.vertical-scroll-content {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  -webkit-writing-mode: vertical-rl;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: var(--vertical-card-height, 60vh);
+  padding: 2px 2px 12px 2px;
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+
+.vertical-scroll-content::-webkit-scrollbar {
+  display: none;
+}
+
+.vertical-writing-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  -webkit-writing-mode: vertical-rl;
+  height: 100%;
+  white-space: pre-wrap;
+  padding: 24px 32px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.vertical-card-fixed {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  height: var(--vertical-card-height, 60vh);
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.25s, border-color 0.25s;
+}
+
+.vertical-writing-text-inner {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  -webkit-writing-mode: vertical-rl;
+  height: 100%;
+  white-space: pre-wrap;
+  padding: 24px 32px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.vertical-writing-text-inner span,
+.vertical-writing-text-inner div {
+  max-height: 100%;
+  box-sizing: border-box;
+  margin-left: 20px;
+}
+
+.vertical-writing-text-inner span:last-child,
+.vertical-writing-text-inner div:last-child {
+  margin-left: 0;
+}
+
+.vertical-messages {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  -webkit-writing-mode: vertical-rl;
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  height: 100%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.vertical-msg-block {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 12px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.vertical-msg-speaker {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  -webkit-writing-mode: vertical-rl;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--speaker-color);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.vertical-msg-body {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  -webkit-writing-mode: vertical-rl;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px 20px;
+  height: 100%;
+  line-height: 2.0;
+  font-size: 15px;
+  color: var(--main-text);
+  overflow-y: hidden;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.vertical-msg-body p {
+  margin-bottom: 0;
+  margin-left: 16px;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+
+.vertical-msg-body p:last-child {
+  margin-left: 0;
+}
+
+/* 縦書きモード時のナビゲーション矢印 */
+.scroll-arrow-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.3s ease, background 0.2s ease, transform 0.2s ease;
+  user-select: none;
+}
+
+.scroll-arrow-btn:hover {
+  background: rgba(15, 23, 42, 0.95);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.scroll-arrow-btn.left-arrow {
+  left: 10px;
+}
+
+.scroll-arrow-btn.right-arrow {
+  right: 10px;
+}
+
+/* マウスオーバー時に矢印を表示 */
+.vertical-scroll-wrapper:hover .scroll-arrow-btn {
+  opacity: 0.85;
+}
+
+/* HORIZ VERT トグルボタンのスタイル */
+.layout-toggle-group {
+  display: inline-flex;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+}
+
+.layout-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--btn-text);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-body);
+}
+
+.layout-toggle-btn:hover {
+  background: var(--btn-hover);
+}
+
+.layout-toggle-btn.active {
+  background: var(--btn-primary) !important;
+  color: #ffffff !important;
+}
+
+/* ─── 縦書き自動高さフィット（画面追従レイアウト） ─── */
+.vertical-mode-active {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.vertical-mode-active #content-area {
+  overflow-y: hidden !important;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.vertical-mode-active #content-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  align-items: stretch !important;
+}
+
+.vertical-content-wrapper-flex {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch !important;
+  width: 100% !important;
+}
+
+.vertical-mode-active .vertical-card-fixed {
+  height: var(--vertical-card-height-percent, 100%) !important;
+  width: 100% !important;
+  min-height: 0;
+  max-height: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+.vertical-mode-active .vertical-scroll-wrapper {
+  height: var(--vertical-card-height-percent, 100%) !important;
+  min-height: 0;
+  max-height: 100% !important;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.vertical-mode-active .vertical-card-fixed .vertical-scroll-wrapper {
+  height: 100% !important;
+}
+
+.vertical-mode-active .vertical-scroll-content {
+  flex: 1;
+  min-height: 0;
+  height: 100% !important;
+  max-height: none !important;
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* 縦書きモード時の余白・隙間調整 */
+.vertical-mode-active #content-area {
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+}
+
+.vertical-mode-active #file-heading {
+  margin-bottom: 16px !important;
+}
+
+.vertical-mode-active #toolbar {
+  margin-bottom: 16px !important;
+}
+
+
