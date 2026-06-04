@@ -12,7 +12,7 @@ export const SettingsPanel = () => {
     fontSize: '15', fontWeight: '400', lineHeight: '1.8', letterSpacing: '0',
     sbTitleSize: '13', headingSize: '48', sbWidth: '280', contentWidth: '900',
     verticalHeight: '100',
-    cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '56',
+    cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '120',
     theme: 'mono', font: 'meiryo'
   });
 
@@ -30,7 +30,7 @@ export const SettingsPanel = () => {
       cardPadding: localStorage.getItem('lv_cardPadding') || '24',
       cardRadius: localStorage.getItem('lv_cardRadius') || '16',
       msgGap: localStorage.getItem('lv_msgGap') || '16',
-      pagePad: localStorage.getItem('lv_pagePad') || '56',
+      pagePad: localStorage.getItem('lv_pagePad') || '120',
       theme: localStorage.getItem('lv_theme') || 'mono',
       font: localStorage.getItem('lv_font') || 'meiryo'
     });

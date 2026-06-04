@@ -10,7 +10,7 @@ export function applySettingsToDOM() {
   const cr = localStorage.getItem('lv_cardRadius') || '16';
   const mg = localStorage.getItem('lv_msgGap') || '16';
   const hs = parseInt(localStorage.getItem('lv_headingSize') || '48');
-  const sp = localStorage.getItem('lv_pagePad') || '56';
+  const sp = localStorage.getItem('lv_pagePad') || '120';
 
   document.querySelectorAll('.msg-body, #plain-text, #edit-area, .vertical-msg-body, .vertical-writing-text-inner').forEach(el => {
     const e = el as HTMLElement;
@@ -80,7 +80,7 @@ export function initSettings() {
     lv_fontSize: '15', lv_fontWeight: '400', lv_lineHeight: '1.8', lv_letterSpacing: '0',
     lv_sbTitleSize: '13', lv_headingSize: '48', lv_sbWidth: '280', lv_contentWidth: '900',
     lv_verticalHeight: '100',
-    lv_cardPadding: '24', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '56',
+    lv_cardPadding: '24', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '120',
     lv_theme: 'mono', lv_font: 'meiryo'
   };
   Object.entries(defs).forEach(([k, v]) => {
