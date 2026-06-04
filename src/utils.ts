@@ -78,6 +78,11 @@ export function getVirtualFolder(filename: string, date: string | null): string 
     cleanName = cleanName.slice(14);
   }
   
+  const cleanNameLower = cleanName.toLowerCase();
+  if (cleanNameLower === 'agents' || cleanNameLower === 'agents.md') {
+    return '00_【進行】';
+  }
+  
   if (cleanName.startsWith('00_【進行】_')) {
     return '00_【進行】';
   }
