@@ -60,14 +60,16 @@ export const MainContent = () => {
 
   useEffect(() => {
     applySettingsToDOM();
-    if (writingMode === 'vertical') {
-      const contentArea = document.getElementById('content-area');
-      if (contentArea) {
-        contentArea.scrollTop = 0;
-        contentArea.scrollLeft = 0;
+
+    if (writingMode === 'vertical' && !isEditing) {
+      const contentAreaEl = document.getElementById('content-area');
+      if (contentAreaEl) {
+        contentAreaEl.scrollTop = 0;
+        contentAreaEl.scrollLeft = 0;
       }
     }
   }, [writingMode, currentFileObj, isEditing, speakerModeEnabled]);
+
 
   const playFromIndex = (texts: string[], startIndex: number) => {
     window.speechSynthesis.cancel();
@@ -222,7 +224,7 @@ export const MainContent = () => {
     if (writingMode === 'vertical') {
       return (
         <div className="vertical-card-fixed">
-          <div className="vertical-scroll-wrapper" style={{ height: '100%' }}>
+          <div className="vertical-scroll-wrapper">
             <button 
               className="scroll-arrow-btn left-arrow" 
               onMouseDown={() => startScrolling('left')}
@@ -234,7 +236,7 @@ export const MainContent = () => {
             >
               &lt;
             </button>
-            <div className="vertical-scroll-content" ref={scrollContainerRef} style={{ height: '100%', minHeight: 'auto', maxHeight: 'none', padding: '0 2px' }}>
+            <div className="vertical-scroll-content" ref={scrollContainerRef} style={{ padding: '0 2px' }}>
               <div className="vertical-writing-text-inner">
                 {lines.length > 0 ? lines.map((l, i) => {
                   return l ? (
@@ -249,7 +251,7 @@ export const MainContent = () => {
                           setIsPlayingAudio(true);
                         }
                       }}
-                      style={{ cursor: 'pointer', display: 'block', transition: 'background 0.2s', borderRadius: '4px', margin: '-4px 0', padding: '4px 0' }}
+                      style={{ cursor: 'pointer', transition: 'background 0.2s', borderRadius: '4px', margin: '-4px 0', padding: '4px 0' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--sb-item-hover)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       title={lang === 'en' ? 'Click to read' : 'クリックして読み上げ'}
@@ -322,7 +324,7 @@ export const MainContent = () => {
       )}
 
       {currentFileObj && (
-        <div id="content-area" style={{display: 'block'}}>
+        <div id="content-area" key={writingMode}>
           <div id="bg-date">{currentFileObj.date ? currentFileObj.date.slice(5).replace('-','.') : ''}</div>
           <div id="content-inner">
             <div id="file-meta">{currentFileObj.filename}</div>

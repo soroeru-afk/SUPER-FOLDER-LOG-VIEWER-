@@ -20,14 +20,15 @@ export function applySettingsToDOM() {
     e.style.letterSpacing = ls + 'px';
   });
 
-  document.querySelectorAll('.msg-body, #plain-text, .vertical-msg-body, .vertical-writing-text-inner, .vertical-card-fixed').forEach(el => {
+  // padding/radius: カード枠(.vertical-card-fixed)は除外。縦書き時にpaddingがサイズ崩れの原因になるため
+  document.querySelectorAll('.msg-body, #plain-text, .vertical-msg-body, .vertical-writing-text-inner').forEach(el => {
     const e = el as HTMLElement;
-    if (e.classList.contains('vertical-card-fixed')) {
-      e.style.borderRadius = cr + 'px';
-    } else {
-      e.style.padding = cp + 'px ' + Math.round(parseInt(cp) * 1.2) + 'px';
-      e.style.borderRadius = cr + 'px';
-    }
+    e.style.padding = cp + 'px ' + Math.round(parseInt(cp) * 1.2) + 'px';
+  });
+  // borderRadiusはカード枠にも適用（paddingは適用しない）
+  document.querySelectorAll('.msg-body, #plain-text, .vertical-msg-body, .vertical-card-fixed').forEach(el => {
+    const e = el as HTMLElement;
+    e.style.borderRadius = cr + 'px';
   });
 
   const msgs = document.getElementById('messages');
@@ -42,36 +43,24 @@ export function applySettingsToDOM() {
   document.documentElement.style.setProperty('--content-max-width', cw + 'px');
   
   const vh = localStorage.getItem('lv_verticalHeight') || '100';
-  document.documentElement.style.setProperty('--vertical-card-height-percent', vh + '%');
+  document.documentElement.style.setProperty('--vertical-card-height', vh + '%');
   
   const writingMode = localStorage.getItem('lv_writingMode') || 'horizontal';
   const isVertical = writingMode === 'vertical';
 
   const contentArea = document.getElementById('content-area');
   if (contentArea) {
-    if (isVertical) {
-      contentArea.style.padding = `16px ${sp}px 16px`;
-    } else {
-      contentArea.style.padding = `48px ${sp}px 40px`;
-    }
+    contentArea.style.padding = `48px ${sp}px 40px`;
   }
   
   const fileHeading = document.getElementById('file-heading');
   if (fileHeading) {
-    if (isVertical) {
-      fileHeading.style.marginBottom = '16px';
-    } else {
-      fileHeading.style.marginBottom = '32px';
-    }
+    fileHeading.style.marginBottom = '32px';
   }
 
   const toolbar = document.getElementById('toolbar');
   if (toolbar) {
-    if (isVertical) {
-      toolbar.style.marginBottom = '16px';
-    } else {
-      toolbar.style.marginBottom = '28px';
-    }
+    toolbar.style.marginBottom = '28px';
   }
 
   const footer = document.getElementById('footer');

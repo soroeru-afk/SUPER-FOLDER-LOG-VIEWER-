@@ -434,6 +434,8 @@ body.highlight-off mark {
 }
 
 #content-area {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   overflow-y: auto;
   padding: 48px 56px 40px;
@@ -443,8 +445,12 @@ body.highlight-off mark {
 #content-area::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
 
 #content-inner {
+  width: 100%;
   max-width: var(--content-max-width);
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 #bg-date {
@@ -813,8 +819,11 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
 
 .vertical-scroll-wrapper {
   position: relative;
-  width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .vertical-scroll-content {
@@ -826,6 +835,8 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
   display: flex;
   flex-direction: row;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: var(--vertical-card-height, 60vh);
   padding: 2px 2px 12px 2px;
   box-sizing: border-box;
@@ -842,7 +853,6 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
   -webkit-writing-mode: vertical-rl;
   height: 100%;
   white-space: pre-wrap;
-  padding: 24px 32px;
   box-sizing: border-box;
   flex-shrink: 0;
 }
@@ -853,10 +863,13 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
   border-radius: 16px;
   height: var(--vertical-card-height, 60vh);
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
   transition: background 0.25s, border-color 0.25s;
+  padding: 0 !important; /* カード枠にはpaddingを当てない（縦書き時サイズ崩れ防止） */
 }
 
 .vertical-writing-text-inner {
@@ -865,13 +878,14 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
   -webkit-writing-mode: vertical-rl;
   height: 100%;
   white-space: pre-wrap;
-  padding: 24px 32px;
   box-sizing: border-box;
   flex-shrink: 0;
+  padding: 24px 20px; /* テキストの余白はここで確保 */
 }
 
 .vertical-writing-text-inner span,
 .vertical-writing-text-inner div {
+  display: block;
   max-height: 100%;
   box-sizing: border-box;
   margin-left: 20px;
@@ -890,6 +904,7 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
   flex-direction: row;
   gap: 20px;
   height: 100%;
+  width: 100%;
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -1017,85 +1032,85 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
   color: #ffffff !important;
 }
 
-/* ─── 縦書き自動高さフィット（画面追従レイアウト） ─── */
+/* ─── 縦書きモードレイアウト（JS実測px指定・確実版） ─── */
 .vertical-mode-active {
   height: 100vh;
   overflow: hidden;
 }
 
+/* content-area を flex 列に：JSが wrapper 高さを測定するための基盤 */
 .vertical-mode-active #content-area {
   overflow-y: hidden !important;
-  display: flex;
+  display: flex !important;
   flex-direction: column;
-  height: 100%;
-  box-sizing: border-box;
 }
 
+/* content-inner: flex:1 で content-area の内側を埋める */
 .vertical-mode-active #content-inner {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-  min-height: 0;
-  align-items: stretch !important;
-}
-
-.vertical-content-wrapper-flex {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  width: 100%;
   align-items: stretch !important;
-  width: 100% !important;
+  box-sizing: border-box;
 }
 
-.vertical-mode-active .vertical-card-fixed {
-  height: var(--vertical-card-height-percent, 100%) !important;
-  width: 100% !important;
-  min-height: 0;
-  max-height: 100% !important;
+/* meta/heading/toolbar は自然な高さで固定（縮まない） */
+.vertical-mode-active #file-meta,
+.vertical-mode-active #file-heading,
+.vertical-mode-active #toolbar {
+  flex-shrink: 0;
+}
+
+/* JS が style.height をpxで設定する。flex:noneも JS が設定 */
+.vertical-content-wrapper-flex {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 以下の要素は親(wrapper)のpx高さを height:100% で継承 */
+.vertical-mode-active .vertical-card-fixed {
+  height: var(--vertical-card-height, 100%) !important; /* base CSS の 60vh を上書き */
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 !important;
 }
 
 .vertical-mode-active .vertical-scroll-wrapper {
-  height: var(--vertical-card-height-percent, 100%) !important;
-  min-height: 0;
-  max-height: 100% !important;
+  height: 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
-}
-
-.vertical-mode-active .vertical-card-fixed .vertical-scroll-wrapper {
-  height: 100% !important;
+  min-height: 0;
 }
 
 .vertical-mode-active .vertical-scroll-content {
-  flex: 1;
-  min-height: 0;
-  height: 100% !important;
+  height: 100% !important; /* base CSS の 60vh を上書き */
   max-height: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   display: flex;
   flex-direction: row;
   overflow-x: auto;
   overflow-y: hidden;
+  min-height: 0;
 }
-
-/* 縦書きモード時の余白・隙間調整 */
-.vertical-mode-active #content-area {
-  padding-top: 16px !important;
-  padding-bottom: 16px !important;
-}
-
-.vertical-mode-active #file-heading {
-  margin-bottom: 16px !important;
-}
-
-.vertical-mode-active #toolbar {
-  margin-bottom: 16px !important;
-}
-
-
