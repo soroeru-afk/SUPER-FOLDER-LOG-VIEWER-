@@ -178,7 +178,7 @@ export const Sidebar = () => {
     if (searchQueries.length > 0) isOpen = true;
 
     const today = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
-    const shouldGroup = groupKey === 'cat:AIエージェント専用';
+    const shouldGroup = groupKey === 'cat:00_AIエージェント専用' || groupKey === 'cat:AIエージェント専用';
 
     return (
       <div className="category-group" data-group-key={groupKey} key={groupKey}>
@@ -302,7 +302,7 @@ export const Sidebar = () => {
     if (rootFiles.length > 0) {
       if (allCategories.length > 0) elements.push(<div key="sep" style={{height:'1px',background:'rgba(255,255,255,0.05)',margin:'6px 10px'}} />);
       
-      const shouldGroupRoot = dirHandle && dirHandle.name === 'AIエージェント専用';
+      const shouldGroupRoot = dirHandle && (dirHandle.name === '00_AIエージェント専用' || dirHandle.name === 'AIエージェント専用');
       
       if (shouldGroupRoot) {
         const byVFolder: Record<string, FileObj[]> = {};
