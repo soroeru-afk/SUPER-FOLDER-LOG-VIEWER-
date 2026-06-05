@@ -13,7 +13,8 @@ export const SettingsPanel = () => {
     sbTitleSize: '13', headingSize: '48', sbWidth: '280', contentWidth: '900',
     verticalHeight: '100',
     cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '120',
-    theme: 'mono', font: 'meiryo'
+    theme: 'mono', font: 'meiryo',
+    sbCatSize: '10', folderColor: '#FBBF24'
   });
 
   useEffect(() => {
@@ -32,7 +33,9 @@ export const SettingsPanel = () => {
       msgGap: localStorage.getItem('lv_msgGap') || '16',
       pagePad: localStorage.getItem('lv_pagePad') || '120',
       theme: localStorage.getItem('lv_theme') || 'mono',
-      font: localStorage.getItem('lv_font') || 'meiryo'
+      font: localStorage.getItem('lv_font') || 'meiryo',
+      sbCatSize: localStorage.getItem('lv_sbCatSize') || '10',
+      folderColor: localStorage.getItem('lv_folderColor') || '#FBBF24'
     });
   }, [settingsOpen]);
 
@@ -101,6 +104,10 @@ export const SettingsPanel = () => {
             <div className="setting-row">
               <div className="setting-label">{t.settings.sbTitleSize} <span id="sb-title-size-val">{vals.sbTitleSize}px</span></div>
               <input className="setting-slider" type="range" min="9" max="20" step="1" value={vals.sbTitleSize} onChange={e => updateSetting('sbTitleSize', e.target.value)} />
+            </div>
+            <div className="setting-row">
+              <div className="setting-label">{lang === 'en' ? 'Category Text Size' : 'カテゴリー文字サイズ'} <span id="sb-cat-size-val">{vals.sbCatSize}px</span></div>
+              <input className="setting-slider" type="range" min="8" max="18" step="1" value={vals.sbCatSize} onChange={e => updateSetting('sbCatSize', e.target.value)} />
             </div>
             <div className="setting-row">
               <div className="setting-label">{t.settings.headingSize} <span id="heading-size-val">{vals.headingSize}px</span></div>
@@ -207,6 +214,30 @@ export const SettingsPanel = () => {
                     <div className="theme-preview-label">{t.label}</div>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="setting-row" style={{marginTop: '20px'}}>
+              <div className="setting-label">{lang === 'en' ? 'Folder Icon Color' : 'フォルダーアイコン色'}</div>
+              <div style={{display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center'}}>
+                {['#FBBF24', '#60A5FA', '#34D399', '#F87171', '#A78BFA', '#9CA3AF', '#FFF'].map(col => (
+                  <button 
+                    key={col} 
+                    onClick={() => updateSetting('folderColor', col)}
+                    style={{
+                      width: '24px', height: '24px', borderRadius: '50%', background: col,
+                      border: vals.folderColor === col ? '2px solid var(--panel-text)' : '2px solid transparent',
+                      cursor: 'pointer'
+                    }}
+                  />
+                ))}
+                <div style={{ width: '1px', height: '20px', background: 'var(--panel-border)', margin: '0 4px' }} />
+                <input 
+                  type="color" 
+                  value={vals.folderColor || '#FBBF24'} 
+                  onChange={e => updateSetting('folderColor', e.target.value)} 
+                  style={{ width: '28px', height: '28px', padding: 0, border: '1px solid var(--panel-border)', cursor: 'pointer', background: 'transparent', borderRadius: '4px' }}
+                />
               </div>
             </div>
           </div>

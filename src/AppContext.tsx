@@ -250,9 +250,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       for await (const item of dirH.values()) {
         if (item.kind === 'file' && (item.name.endsWith('.txt') || item.name.endsWith('.md'))) {
           entries.push({ handle: item, category: cat, folderHandle: cat ? dirH : null });
-        } else if (!cat && item.kind === 'directory') {
-          pFolders.push({ name: item.name, handle: item });
-          await collect(item, item.name);
+        } else if (item.kind === 'directory') {
+          if (dirH.name === 'AIエージェント専用' || cat === 'AIエージェント専用' || (cat && cat.startsWith('AIエージェント専用/'))) {
+            continue;
+          }
+          const subCat = cat ? cat + '/' + item.name : item.name;
+          pFolders.push({ name: subCat, handle: item });
+          await collect(item, subCat);
         }
       }
     }
