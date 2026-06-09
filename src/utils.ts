@@ -83,7 +83,7 @@ export function getVirtualFolder(filename: string, date: string | null): string 
     return '00_【進行】';
   }
   
-  if (cleanName.startsWith('00_【進行】_')) {
+  if (cleanName.startsWith('00_【進行】_') || cleanName.startsWith('00-') || cleanName.includes('_【進行】_')) {
     return '00_【進行】';
   }
   if (cleanName.startsWith('【定型】_')) {
