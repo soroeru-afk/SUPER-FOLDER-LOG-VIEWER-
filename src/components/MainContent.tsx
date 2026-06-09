@@ -45,6 +45,23 @@ export const MainContent = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const handleWheelEvent = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft -= e.deltaY;
+      }
+    };
+
+    el.addEventListener('wheel', handleWheelEvent, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheelEvent);
+    };
+  });
+
   const [editValue, setEditValue] = useState("");
   useEffect(() => {
     setEditValue(currentContent);
