@@ -128,9 +128,9 @@ export const Sidebar = () => {
     };
 
     const getVFolderIcon = (vName: string) => {
-      if (vName === '00_【進行】') return '📌';
-      if (vName === '【定型】') return '⚡';
-      return '📁';
+      if (vName === '00_【進行】') return <span>📌</span>;
+      if (vName === '【定型】') return <span>⚡</span>;
+      return <FolderIcon />;
     };
 
     const sortedVFolders = Object.keys(byVFolder);
@@ -154,7 +154,8 @@ export const Sidebar = () => {
           filesInV,
           `vdir:${parentGroupKey}:${vFolder}`,
           hasTodayFile ? 'TODAY' : null,
-          isDefaultOpen
+          isDefaultOpen,
+          1
         )
       );
     });
@@ -162,12 +163,22 @@ export const Sidebar = () => {
     return elements;
   };
 
-  const renderCategoryGroup = (label: string, icon: string, files: FileObj[], groupKey: string, badge: string | null, isDefaultOpen: boolean) => {
+  const renderCategoryGroup = (
+    label: string,
+    icon: React.ReactNode,
+    files: FileObj[],
+    groupKey: string,
+    badge: string | null,
+    isDefaultOpen: boolean,
+    depth: number = 0,
+    childrenGroups?: React.ReactNode,
+    totalCount?: number
+  ) => {
     let isOpen = categoryOpenState[groupKey] ?? isDefaultOpen;
     if (searchQueries.length > 0) isOpen = true;
 
     const today = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
-    const shouldGroup = groupKey === 'cat:AIエージェント専用';
+    const shouldGroup = groupKey === 'cat:00_AIエージェント専用' || groupKey === 'cat:AIエージェント専用';
 
     return (
       <div className="category-group" data-group-key={groupKey} key={groupKey}>
@@ -189,13 +200,14 @@ export const Sidebar = () => {
             await execBulkMove(window.__draggedFiles, targetHandle, targetCatName);
           }}
         >
-          <span className="category-icon">{icon}</span>
+          {icon && <span className="category-icon" style={{ opacity: depth > 0 ? 0.7 : 1 }}>{icon}</span>}
           <span className="category-name">{label}</span>
           {badge && <span className="today-badge">{badge}</span>}
-          <span className="category-count">{files.length}</span>
+          <span className="category-count">{totalCount !== undefined ? totalCount : files.length}</span>
           <span className="category-arrow">▶</span>
         </button>
         <div className={`category-files ${isOpen ? 'open' : ''}`}>
+          {childrenGroups}
           {shouldGroup ? (
             renderGroupedFiles(files, today, groupKey)
           ) : (
@@ -241,15 +253,56 @@ export const Sidebar = () => {
       return <div id="empty-msg">{t.sidebar.noFilesFound}</div>;
     }
 
-    const elements: React.ReactNode[] = [];
+    type CategoryNode = { name: string; files: FileObj[]; children: CategoryNode[]; totalCount: number; };
+    const nodeMap = new Map<string, CategoryNode>();
+    const treeTop: CategoryNode[] = [];
+
     allCategories.forEach(cat => {
-      elements.push(renderCategoryGroup(cat.name, '📁', cat.files, 'cat:'+cat.name, null, false));
+      nodeMap.set(cat.name, { name: cat.name, files: cat.files, children: [], totalCount: cat.files.length });
+    });
+
+    allCategories.forEach(cat => {
+      const node = nodeMap.get(cat.name)!;
+      const parts = cat.name.split('/');
+      if (parts.length > 1) {
+        parts.pop();
+        const parentName = parts.join('/');
+        const parent = nodeMap.get(parentName);
+        if (parent) {
+          parent.children.push(node);
+        } else {
+          treeTop.push(node);
+        }
+      } else {
+        treeTop.push(node);
+      }
+    });
+
+    const computeTotalCount = (node: CategoryNode): number => {
+      let count = node.files.length;
+      for (const child of node.children) {
+        count += computeTotalCount(child);
+      }
+      node.totalCount = count;
+      return count;
+    };
+    treeTop.forEach(node => computeTotalCount(node));
+
+    const buildCategoryTree = (node: CategoryNode, depth: number): React.ReactNode => {
+      const shortName = node.name.split('/').pop() || node.name;
+      const childNodes = node.children.map(child => buildCategoryTree(child, depth + 1));
+      return renderCategoryGroup(shortName, depth === 0 ? <FolderIcon /> : null, node.files, 'cat:'+node.name, null, false, depth, childNodes, node.totalCount);
+    };
+
+    const elements: React.ReactNode[] = [];
+    treeTop.forEach(node => {
+      elements.push(buildCategoryTree(node, 0));
     });
 
     if (rootFiles.length > 0) {
       if (allCategories.length > 0) elements.push(<div key="sep" style={{height:'1px',background:'rgba(255,255,255,0.05)',margin:'6px 10px'}} />);
       
-      const shouldGroupRoot = dirHandle && dirHandle.name === 'AIエージェント専用';
+      const shouldGroupRoot = dirHandle && (dirHandle.name === '00_AIエージェント専用' || dirHandle.name === 'AIエージェント専用');
       
       if (shouldGroupRoot) {
         const byVFolder: Record<string, FileObj[]> = {};

@@ -35,6 +35,8 @@ export function applySettingsToDOM() {
   if (msgs) msgs.style.gap = mg + 'px';
 
   document.documentElement.style.setProperty('--sidebar-title-size', (localStorage.getItem('lv_sbTitleSize') || '13') + 'px');
+  document.documentElement.style.setProperty('--sb-category-size', (localStorage.getItem('lv_sbCatSize') || '10') + 'px');
+  document.documentElement.style.setProperty('--sb-folder-color', localStorage.getItem('lv_folderColor') || '');
   document.documentElement.style.setProperty('--heading-font-size', hs + 'px');
   document.documentElement.style.setProperty('--heading-letter-spacing', hs >= 56 ? '-2px' : hs >= 48 ? '-1px' : '0px');
   document.documentElement.style.setProperty('--sb-width', (localStorage.getItem('lv_sbWidth') || '280') + 'px');
@@ -81,7 +83,8 @@ export function initSettings() {
     lv_sbTitleSize: '13', lv_headingSize: '48', lv_sbWidth: '280', lv_contentWidth: '900',
     lv_verticalHeight: '100',
     lv_cardPadding: '24', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '120',
-    lv_theme: 'mono', lv_font: 'meiryo'
+    lv_theme: 'mono', lv_font: 'meiryo',
+    lv_sbCatSize: '10', lv_folderColor: '#FBBF24'
   };
   Object.entries(defs).forEach(([k, v]) => {
     if (!localStorage.getItem(k)) localStorage.setItem(k, v);

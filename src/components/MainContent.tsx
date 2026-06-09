@@ -417,13 +417,13 @@ export const MainContent = () => {
           {movePanelState.type === 'single' || movePanelState.type === 'bulk' ? (
             <>
               <div className="move-panel-title">{t.main.moveBulkAction}</div>
-              <div>
+              <div style={{ maxHeight: '40vh', overflowY: 'auto' }} className="move-panel-scroll">
                 <button className="move-folder-btn" style={{color: 'var(--panel-text)', fontSize: '13px', opacity: 1}} onClick={async (e) => { e.stopPropagation(); const isBulk = movePanelState.type === 'bulk'; await execBulkMove(isBulk ? Array.from(selectedFileMap.values()) : [currentFileObj!], null, null); closeMovePanels(); }}>
-                  {t.main.moveToRoot}
+                  <FolderIcon /> {t.main.moveToRoot}
                 </button>
                 {physicalFolders.map(cat => (
                   <button key={cat.name} className="move-folder-btn" onClick={async (e) => { e.stopPropagation(); const isBulk = movePanelState.type === 'bulk'; await execBulkMove(isBulk ? Array.from(selectedFileMap.values()) : [currentFileObj!], cat.handle, cat.name); closeMovePanels(); }}>
-                    📁 {cat.name}
+                    <FolderIcon /> {cat.name}
                   </button>
                 ))}
                 {physicalFolders.length === 0 && <div style={{padding:'12px',opacity:0.5,fontSize:'12px'}}>{t.main.noDestFolder}</div>}
@@ -462,13 +462,13 @@ export const MainContent = () => {
           ) : (
             <>
               <div className="move-panel-title">{t.main.folderEditTitle}</div>
-              <div>
+              <div style={{ maxHeight: '40vh', overflowY: 'auto' }} className="move-panel-scroll">
                 {physicalFolders.length === 0 ? (
                   <div className="folder-edit-empty">{t.main.noFolders}</div>
                 ) : (
                   physicalFolders.map(cat => (
                     <div className="folder-edit-row" key={cat.name}>
-                      <div className="folder-edit-name">📁 {cat.name}</div>
+                      <div className="folder-edit-name"><FolderIcon /> {cat.name}</div>
                       <button className="folder-edit-action" title={t.main.rename} onClick={() => renameFolder(cat.name, cat.handle)}>✏️</button>
                       <button className="folder-edit-action" title={t.main.delete} style={{color: 'rgba(255,100,100,0.7)'}} onClick={() => deleteFolder(cat.name, cat.handle)}>🗑️</button>
                     </div>

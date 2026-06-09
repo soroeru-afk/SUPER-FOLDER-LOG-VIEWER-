@@ -1114,3 +1114,33 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
   overflow-y: hidden;
   min-height: 0;
 }
+
+/* 文字サイズ用 */
+.category-header { font-size: var(--sb-category-size, 10px); }
+.category-files .category-header { font-size: calc(var(--sb-category-size, 10px) - 1px); } /* 子階層は1px小さくする */
+
+/* Foldersの色用 */
+.category-icon { color: var(--sb-folder-color, currentColor); }
+#open-btn svg { color: var(--sb-folder-color, currentColor); }
+#reopen-btn svg { color: var(--sb-folder-color, currentColor); }
+
+/* MainContent内の FolderIcon装飾 */
+.move-folder-btn svg { flex-shrink: 0; color: var(--sb-folder-color, currentColor); opacity: 0.85; }
+.folder-edit-name { display: flex; align-items: center; gap: 8px; }
+.folder-edit-name svg { flex-shrink: 0; color: var(--sb-folder-color, currentColor); opacity: 0.85; }
+
+/* Move Panel Scrollbar */
+.move-panel-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.move-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.move-panel-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+.move-panel-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+

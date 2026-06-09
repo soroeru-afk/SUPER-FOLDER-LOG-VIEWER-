@@ -250,9 +250,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       for await (const item of dirH.values()) {
         if (item.kind === 'file' && (item.name.endsWith('.txt') || item.name.endsWith('.md'))) {
           entries.push({ handle: item, category: cat, folderHandle: cat ? dirH : null });
-        } else if (!cat && item.kind === 'directory') {
-          pFolders.push({ name: item.name, handle: item });
-          await collect(item, item.name);
+        } else if (item.kind === 'directory') {
+          if (dirH.name === '00_AIエージェント専用' || dirH.name === 'AIエージェント専用' || cat === '00_AIエージェント専用' || cat === 'AIエージェント専用' || (cat && (cat.startsWith('00_AIエージェント専用/') || cat.startsWith('AIエージェント専用/')))) {
+            continue;
+          }
+          const subCat = cat ? cat + '/' + item.name : item.name;
+          pFolders.push({ name: subCat, handle: item });
+          await collect(item, subCat);
         }
       }
     }
@@ -564,14 +568,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const mKey = dKey.slice(0, 7);
         const vFolder = getVirtualFolder(f.filename, f.date);
         if (f.category) {
-          if (f.category === 'AIエージェント専用') {
+          if (f.category === '00_AIエージェント専用' || f.category === 'AIエージェント専用') {
             newState[`vdir:cat:${f.category}:${vFolder}`] = true;
           } else {
             newState[`cat:${f.category}:month:${mKey}`] = true;
             newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = true;
           }
         } else {
-          if (dirHandle && dirHandle.name === 'AIエージェント専用') {
+          if (dirHandle && (dirHandle.name === '00_AIエージェント専用' || dirHandle.name === 'AIエージェント専用')) {
             newState[`vdir:${vFolder}`] = true;
           } else {
             newState['month:' + mKey] = true;
@@ -592,14 +596,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const mKey = dKey.slice(0, 7);
         const vFolder = getVirtualFolder(f.filename, f.date);
         if (f.category) {
-          if (f.category === 'AIエージェント専用') {
+          if (f.category === '00_AIエージェント専用' || f.category === 'AIエージェント専用') {
             newState[`vdir:cat:${f.category}:${vFolder}`] = false;
           } else {
             newState[`cat:${f.category}:month:${mKey}`] = false;
             newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = false;
           }
         } else {
-          if (dirHandle && dirHandle.name === 'AIエージェント専用') {
+          if (dirHandle && (dirHandle.name === '00_AIエージェント専用' || dirHandle.name === 'AIエージェント専用')) {
             newState[`vdir:${vFolder}`] = false;
           } else {
             newState['month:' + mKey] = false;
