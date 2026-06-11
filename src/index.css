@@ -1145,27 +1145,23 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
 }
 
 /* ─── ペーパーモード用スタイル ─── */
-body.paper-mode-active {
-  --main-bg: #f4ebe1 !important;
-  --main-text: #1a1a1a !important;
-  --card-bg: #faf6f0 !important;
-  --card-border: #e6dac8 !important;
-  --heading-color: #000000 !important;
-  --speaker-color: rgba(0,0,0,0.6) !important;
-  --btn-bg: #faf6f0 !important;
-  --btn-text: #1a1a1a !important;
-  --btn-border: #e6dac8 !important;
-  --btn-hover: #e2d3c0 !important;
-  --sb-item-hover: rgba(0,0,0,0.05) !important;
-}
-
 body.paper-mode-active #plain-text,
 body.paper-mode-active .msg-body,
 body.paper-mode-active .vertical-card-fixed,
 body.paper-mode-active #edit-area {
-  background: var(--card-bg) !important;
-  color: var(--main-text) !important;
-  border-color: var(--card-border) !important;
+  background: #f4ebe1 !important;
+  color: #1a1a1a !important;
+  border-color: #e6dac8 !important;
+}
+
+body.paper-mode-active .msg-speaker {
+  color: rgba(26, 26, 26, 0.6) !important;
+}
+
+body.paper-mode-active #plain-text span,
+body.paper-mode-active .msg-body p,
+body.paper-mode-active .vertical-writing-text-inner span {
+  color: #1a1a1a !important;
 }
 
 body.paper-mode-active #plain-text span:hover,
@@ -1173,5 +1169,6 @@ body.paper-mode-active .msg-body p:hover,
 body.paper-mode-active .vertical-writing-text-inner span:hover {
   background: rgba(0, 0, 0, 0.05) !important;
 }
+
 
 
