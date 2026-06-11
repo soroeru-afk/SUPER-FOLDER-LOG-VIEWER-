@@ -89,14 +89,14 @@ export const MainContent = () => {
   }, [isPaperMode]);
 
   const currentIndex = currentFileObj && filteredFiles ? filteredFiles.findIndex(f => f.filename === currentFileObj.filename && f.category === currentFileObj.category) : -1;
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex !== -1 && currentIndex < filteredFiles.length - 1;
+  const hasPrev = currentIndex !== -1 && currentIndex < filteredFiles.length - 1; // older file exists (past)
+  const hasNext = currentIndex > 0; // newer file exists (future)
 
   const handlePrev = () => {
-    if (hasPrev) selectFile(filteredFiles[currentIndex - 1]);
+    if (hasPrev) selectFile(filteredFiles[currentIndex + 1]); // older file (past)
   };
   const handleNext = () => {
-    if (hasNext) selectFile(filteredFiles[currentIndex + 1]);
+    if (hasNext) selectFile(filteredFiles[currentIndex - 1]); // newer file (future)
   };
 
   useEffect(() => {
@@ -105,13 +105,13 @@ export const MainContent = () => {
       if (e.target instanceof HTMLElement) {
         const tagName = e.target.tagName.toLowerCase();
         if (tagName !== "textarea" && tagName !== "input") {
-          if (e.key === "k" && hasPrev) {
-            e.preventDefault();
-            handlePrev();
-          }
-          if (e.key === "j" && hasNext) {
+          if (e.key === "k" && hasNext) {
             e.preventDefault();
             handleNext();
+          }
+          if (e.key === "j" && hasPrev) {
+            e.preventDefault();
+            handlePrev();
           }
         }
       }
@@ -435,7 +435,7 @@ export const MainContent = () => {
                     className="tool-btn"
                     onClick={handlePrev}
                     disabled={!hasPrev}
-                    title="前へ (k)"
+                    title="古いファイルへ（過去） (j)"
                   >
                     PREV
                   </button>
@@ -443,7 +443,7 @@ export const MainContent = () => {
                     className="tool-btn"
                     onClick={handleNext}
                     disabled={!hasNext}
-                    title="次へ (j)"
+                    title="新しいファイルへ（未来） (k)"
                   >
                     NEXT
                   </button>
