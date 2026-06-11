@@ -4,6 +4,7 @@ import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData,
 
 export interface AppState {
   dirHandle: any | null;
+  savedFolderName: string | null;
   isFallbackMode: boolean;
   allFiles: FileObj[];
   filteredFiles: FileObj[];
@@ -84,6 +85,7 @@ import { translations, Language } from './i18n';
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dirHandle, setDirHandle] = useState<any | null>(null);
+  const [savedFolderName, setSavedFolderName] = useState<string | null>(null);
   const [allFiles, setAllFiles] = useState<FileObj[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<FileObj[]>([]);
   const [allCategories, setAllCategories] = useState<CategoryObj[]>([]);
@@ -229,6 +231,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       } else {
         const handle = await loadFolderHandle();
         if (handle) {
+          setSavedFolderName(handle.name);
           try {
             if (await (handle as any).verifyPermission({ mode: 'readwrite' }) === 'granted') {
               setDirHandle(handle);
@@ -431,6 +434,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
       setDirHandle(handle);
+      setSavedFolderName(handle.name);
       setIsFallbackMode(false);
       await saveFolderHandle(handle);
       setLoading(true);
@@ -448,6 +452,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const fallbackData = await loadFallbackData();
       if (fallbackData) {
         setDirHandle({ name: fallbackData.rootFolderName, isFallback: true });
+        setSavedFolderName(fallbackData.rootFolderName);
         setIsFallbackMode(true);
         setAllFiles(fallbackData.fileObjs);
         setPhysicalFolders(fallbackData.pFolders);
@@ -460,6 +465,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (await (handle as any).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
       setDirHandle(handle);
+      setSavedFolderName(handle.name);
       setLoading(true);
       await loadFiles(handle);
       setLoading(false);
@@ -777,7 +783,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      dirHandle, isFallbackMode, allFiles, filteredFiles, allCategories, physicalFolders, searchQueries,
+      dirHandle, savedFolderName, isFallbackMode, allFiles, filteredFiles, allCategories, physicalFolders, searchQueries,
       currentFileObj, currentContent, isEditing, selectedFiles, selectedFileMap, isSelectMode,
       settingsOpen, isHighlightOff, categoryOpenState, movePanelState, loading, refreshing,
       sortMode, sortDirection, setSortMode, setSortDirection,

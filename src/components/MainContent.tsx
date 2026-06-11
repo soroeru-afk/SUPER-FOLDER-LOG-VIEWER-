@@ -6,12 +6,13 @@ import { applySettingsToDOM } from '../settingsSync';
 
 export const MainContent = () => {
   const {
-    dirHandle, allFiles, filteredFiles, searchQueries,
+    dirHandle, savedFolderName, allFiles, filteredFiles, searchQueries,
     currentFileObj, currentContent, isEditing, toggleEdit, saveFile, selectFile,
     openMovePanel, deleteCurrentFile, renameCurrentFile,
     movePanelState, closeMovePanels, physicalFolders, execBulkMove, moveToNewFolder,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
-    lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode
+    lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
+    reopenFolder
   } = useAppContext();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -380,8 +381,43 @@ export const MainContent = () => {
       
       {!currentFileObj && (
         <div id="welcome">
-          <div id="welcome-big">{t.main.selectFolderArchive}</div>
-          <p>{t.main.selectFolderDesc}</p>
+          {(!dirHandle && savedFolderName) ? (
+            <>
+              <div id="welcome-big" style={{ fontSize: '28px', color: 'var(--sb-accent)' }}>📂 {lang === 'en' ? 'Previous Folder Detected' : '前回のフォルダが記憶されています'}</div>
+              <p style={{ margin: '12px 0 24px 0', opacity: 0.8 }}>
+                {lang === 'en' 
+                  ? `To view and edit logs in "${savedFolderName}", please reconnect to grant folder access.`
+                  : `前回のフォルダ「${savedFolderName}」のログを表示・編集するには、再接続してアクセス権を許可してください。`}
+              </p>
+              <button 
+                onClick={reopenFolder}
+                style={{
+                  background: 'var(--sb-accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '16px 28px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  margin: '20px auto',
+                  boxShadow: '0 8px 24px rgba(59, 130, 246, 0.35)',
+                  transition: 'all 0.2s ease-in-out'
+                }}
+              >
+                <FolderIcon />
+                <span>{lang === 'en' ? `Reconnect to "${savedFolderName}"` : `「${savedFolderName}」に再接続する`}</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <div id="welcome-big">{t.main.selectFolderArchive}</div>
+              <p>{t.main.selectFolderDesc}</p>
+            </>
+          )}
         </div>
       )}
 
