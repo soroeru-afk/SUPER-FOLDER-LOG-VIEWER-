@@ -6,8 +6,8 @@ import { applySettingsToDOM } from '../settingsSync';
 
 export const MainContent = () => {
   const {
-    dirHandle, allFiles, searchQueries,
-    currentFileObj, currentContent, isEditing, toggleEdit, saveFile,
+    dirHandle, allFiles, filteredFiles, searchQueries,
+    currentFileObj, currentContent, isEditing, toggleEdit, saveFile, selectFile,
     openMovePanel, deleteCurrentFile, renameCurrentFile,
     movePanelState, closeMovePanels, physicalFolders, execBulkMove, moveToNewFolder,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
@@ -74,6 +74,51 @@ export const MainContent = () => {
     }, 200);
     return () => clearInterval(handleInterval);
   }, []);
+
+  const [isPaperMode, setIsPaperMode] = useState(false);
+
+  useEffect(() => {
+    if (isPaperMode) {
+      document.body.classList.add('paper-mode-active');
+    } else {
+      document.body.classList.remove('paper-mode-active');
+    }
+    return () => {
+      document.body.classList.remove('paper-mode-active');
+    };
+  }, [isPaperMode]);
+
+  const currentIndex = currentFileObj && filteredFiles ? filteredFiles.findIndex(f => f.filename === currentFileObj.filename && f.category === currentFileObj.category) : -1;
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex !== -1 && currentIndex < filteredFiles.length - 1;
+
+  const handlePrev = () => {
+    if (hasPrev) selectFile(filteredFiles[currentIndex - 1]);
+  };
+  const handleNext = () => {
+    if (hasNext) selectFile(filteredFiles[currentIndex + 1]);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditing) return;
+      if (e.target instanceof HTMLElement) {
+        const tagName = e.target.tagName.toLowerCase();
+        if (tagName !== "textarea" && tagName !== "input") {
+          if (e.key === "k" && hasPrev) {
+            e.preventDefault();
+            handlePrev();
+          }
+          if (e.key === "j" && hasNext) {
+            e.preventDefault();
+            handleNext();
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEditing, hasPrev, hasNext, currentIndex, filteredFiles]);
 
   useEffect(() => {
     applySettingsToDOM();
@@ -371,6 +416,38 @@ export const MainContent = () => {
                     VERT
                   </button>
                 </div>
+              )}
+              {!isEditing && (
+                <>
+                  <button
+                    className="tool-btn"
+                    onClick={() => setIsPaperMode(!isPaperMode)}
+                    title="ペーパーモード"
+                    style={{
+                      background: isPaperMode ? '#e6dac8' : 'var(--btn-bg)',
+                      color: isPaperMode ? '#1a1a1a' : 'var(--btn-text)',
+                      borderColor: isPaperMode ? '#bcaaa4' : 'var(--btn-border)',
+                    }}
+                  >
+                    PAPER / {isPaperMode ? "ON" : "OFF"}
+                  </button>
+                  <button
+                    className="tool-btn"
+                    onClick={handlePrev}
+                    disabled={!hasPrev}
+                    title="前へ (k)"
+                  >
+                    PREV
+                  </button>
+                  <button
+                    className="tool-btn"
+                    onClick={handleNext}
+                    disabled={!hasNext}
+                    title="次へ (j)"
+                  >
+                    NEXT
+                  </button>
+                </>
               )}
               <button id="move-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'single')}>
                 <MoveIcon /> {t.main.moveTo}

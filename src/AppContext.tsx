@@ -6,6 +6,7 @@ export interface AppState {
   dirHandle: any | null;
   isFallbackMode: boolean;
   allFiles: FileObj[];
+  filteredFiles: FileObj[];
   allCategories: CategoryObj[];
   physicalFolders: PhysicalFolder[];
   searchQueries: string[];
@@ -84,6 +85,7 @@ import { translations, Language } from './i18n';
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dirHandle, setDirHandle] = useState<any | null>(null);
   const [allFiles, setAllFiles] = useState<FileObj[]>([]);
+  const [filteredFiles, setFilteredFiles] = useState<FileObj[]>([]);
   const [allCategories, setAllCategories] = useState<CategoryObj[]>([]);
   const [physicalFolders, setPhysicalFolders] = useState<PhysicalFolder[]>([]);
   const [searchQueries, setSearchQueries] = useState<string[]>([]);
@@ -349,6 +351,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     setAllCategories(Array.from(catMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja')));
+    setFilteredFiles(filtered);
   };
 
   useEffect(() => {
@@ -774,7 +777,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      dirHandle, isFallbackMode, allFiles, allCategories, physicalFolders, searchQueries,
+      dirHandle, isFallbackMode, allFiles, filteredFiles, allCategories, physicalFolders, searchQueries,
       currentFileObj, currentContent, isEditing, selectedFiles, selectedFileMap, isSelectMode,
       settingsOpen, isHighlightOff, categoryOpenState, movePanelState, loading, refreshing,
       sortMode, sortDirection, setSortMode, setSortDirection,
