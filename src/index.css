@@ -480,11 +480,15 @@ body.highlight-off mark {
   font-weight: 900;
   letter-spacing: var(--heading-letter-spacing);
   line-height: 1.15;
-  min-height: 2.3em;
+  height: 2.3em;
   margin-bottom: 32px;
   color: var(--heading-color);
   word-break: break-word;
   overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 #toolbar {
