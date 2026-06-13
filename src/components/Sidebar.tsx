@@ -122,14 +122,14 @@ export const Sidebar = () => {
 
     const getVFolderPriority = (vName: string) => {
       if (vName === '00_【進行】') return 1;
-      if (vName === '【定型】') return 2;
+      if (vName === '【定型】' || vName === '【定型スキル】') return 2;
       if (vName.startsWith('- ')) return 3;
       return 4;
     };
 
     const getVFolderIcon = (vName: string) => {
       if (vName === '00_【進行】') return <span>📌</span>;
-      if (vName === '【定型】') return <span>⚡</span>;
+      if (vName === '【定型】' || vName === '【定型スキル】') return <span>⚡</span>;
       return <FolderIcon />;
     };
 
