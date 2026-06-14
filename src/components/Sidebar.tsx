@@ -468,17 +468,17 @@ export const Sidebar = () => {
           {showMarkPanel && (
             <div className="search-mark-panel" style={{
               position: 'absolute',
-              top: 'calc(100% + 4px)',
+              bottom: 'calc(100% + 4px)',
               left: 0,
               right: 0,
               background: 'var(--panel-bg)',
               border: '1px solid var(--btn-border)',
-              borderRadius: '8px',
-              padding: '6px 8px',
+              borderRadius: '6px',
+              padding: '2px 4px',
               display: 'flex',
-              gap: '4px',
+              gap: '2px',
               zIndex: 100,
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 -4px 10px rgba(0, 0, 0, 0.4)',
               justifyContent: 'space-around',
               alignItems: 'center'
             }}>
@@ -489,9 +489,9 @@ export const Sidebar = () => {
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    fontSize: '15px',
-                    padding: '4px 6px',
-                    borderRadius: '6px',
+                    fontSize: '12px',
+                    padding: '2px 4px',
+                    borderRadius: '4px',
                     transition: 'background 0.1s',
                     color: 'var(--text)'
                   }}
