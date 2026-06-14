@@ -763,27 +763,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       baseName = filename.slice(prefix.length);
     }
     
-    // カッコ判定
+    // 拡張子とベース名を分離してカッコ判定を行う
+    let dotIdx = baseName.lastIndexOf('.');
+    let nameWithoutExt = dotIdx !== -1 ? baseName.slice(0, dotIdx) : baseName;
+    let ext = dotIdx !== -1 ? baseName.slice(dotIdx) : "";
+
     let hasBracket = false;
     let bracketOpen = "";
     let bracketClose = "";
-    if ((baseName.startsWith("「") && baseName.endsWith("」")) || (baseName.startsWith("『") && baseName.endsWith("』"))) {
+    let innerName = nameWithoutExt;
+    if ((nameWithoutExt.startsWith("「") && nameWithoutExt.endsWith("」")) || (nameWithoutExt.startsWith("『") && nameWithoutExt.endsWith("』"))) {
       hasBracket = true;
-      bracketOpen = baseName[0];
-      bracketClose = baseName[baseName.length - 1];
-      baseName = baseName.slice(1, -1);
+      bracketOpen = nameWithoutExt[0];
+      bracketClose = nameWithoutExt[nameWithoutExt.length - 1];
+      innerName = nameWithoutExt.slice(1, -1);
     }
 
     let hasExistingMarker = false;
     let existingMarker = "";
-    let restOfName = baseName;
+    let restOfName = innerName;
     
     const ALL_DETECT_MARKERS = [...MARKERS, ...OLD_MARKERS];
     for (const m of ALL_DETECT_MARKERS) {
-      if (baseName.startsWith(m)) {
+      if (innerName.startsWith(m)) {
         hasExistingMarker = true;
         existingMarker = m;
-        restOfName = baseName.slice(m.length).replace(/^\s+/, "");
+        restOfName = innerName.slice(m.length).replace(/^\s+/, "");
         break;
       }
     }
@@ -804,6 +809,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (hasBracket) {
       newBaseName = `${bracketOpen}${newBaseName}${bracketClose}`;
     }
+    // 拡張子を戻す
+    newBaseName = newBaseName + ext;
     
     const finalNewName = prefix + newBaseName;
     if (finalNewName === filename) return;

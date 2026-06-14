@@ -541,10 +541,12 @@ export const MainContent = () => {
                   baseName = filename.slice(prefixMatch[1].length);
                 }
 
-                // カッコ判定
-                let bracketInnerName = baseName;
-                if ((baseName.startsWith("「") && baseName.endsWith("」")) || (baseName.startsWith("『") && baseName.endsWith("』"))) {
-                  bracketInnerName = baseName.slice(1, -1);
+                // 拡張子とベース名を分離してカッコ判定を行う
+                let dotIdx = baseName.lastIndexOf('.');
+                let nameWithoutExt = dotIdx !== -1 ? baseName.slice(0, dotIdx) : baseName;
+                let bracketInnerName = nameWithoutExt;
+                if ((nameWithoutExt.startsWith("「") && nameWithoutExt.endsWith("」")) || (nameWithoutExt.startsWith("『") && nameWithoutExt.endsWith("』"))) {
+                  bracketInnerName = nameWithoutExt.slice(1, -1);
                 }
 
                 // 新マークの検出
