@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
 import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon } from './Icons';
-import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, decorateMarkers } from '../utils';
+import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, decorateMarkers, getVirtualFolder } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
 
 export const MainContent = () => {
@@ -744,7 +744,15 @@ export const MainContent = () => {
               
               {(currentFileObj.category || dirHandle) && (
                  <div id="location-badge" style={{display: 'flex'}}>
-                   <FolderIcon /> {currentFileObj.category || dirHandle?.name}
+                   <FolderIcon /> {(() => {
+                     const cat = currentFileObj.category || dirHandle?.name || "";
+                     if (cat.toUpperCase().includes("00_AIエージェント専用")) {
+                       const vFolder = getVirtualFolder(currentFileObj.filename, currentFileObj.date);
+                       const cleanVFolder = vFolder.replace(/^00_/, "");
+                       return `${cat} / ${cleanVFolder}`;
+                     }
+                     return cat;
+                   })()}
                    {!currentFileObj.category && <span style={{opacity:0.5,fontWeight:'normal',fontSize:'10px'}}> {t.main.rootPath}</span>}
                  </div>
               )}
