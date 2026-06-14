@@ -113,11 +113,13 @@ export function getVirtualFolder(filename: string, date: string | null): string 
   }
   if (cleanName.startsWith('- ')) {
     const idx = cleanName.indexOf('_', 2);
+    let catName = "";
     if (idx !== -1) {
-      return cleanName.substring(0, idx);
+      catName = cleanName.substring(0, idx);
     } else {
-      return cleanName.substring(0, cleanName.lastIndexOf('.')) || cleanName;
+      catName = cleanName.substring(0, cleanName.lastIndexOf('.')) || cleanName;
     }
+    return catName.toUpperCase();
   }
   
   if (date) {
