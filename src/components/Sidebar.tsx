@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../AppContext';
 import { SearchIcon, FolderIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon } from './Icons';
 import { FileObj } from '../types';
@@ -17,6 +17,7 @@ export const Sidebar = () => {
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [showMarkPanel, setShowMarkPanel] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect='move'; };
   const handleDrop = (e: React.DragEvent) => {
@@ -456,8 +457,69 @@ export const Sidebar = () => {
             id="search-box" type="text" placeholder={t.sidebar.searchHint} 
             ref={searchInputRef}
             onChange={(e) => setSearchQuery(e.target.value)} 
+            onFocus={() => setShowMarkPanel(true)}
+            onBlur={() => {
+              setTimeout(() => setShowMarkPanel(false), 200);
+            }}
           />
           {searchQueries.length > 0 && <button id="search-clear-btn" onClick={() => { clearSearch(); if(searchInputRef.current) searchInputRef.current.value = ''; }} title="クリア">✕</button>}
+
+          {/* クイックマークサジェストパネル */}
+          {showMarkPanel && (
+            <div className="search-mark-panel" style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              left: 0,
+              right: 0,
+              background: 'var(--panel-bg)',
+              border: '1px solid var(--btn-border)',
+              borderRadius: '8px',
+              padding: '6px 8px',
+              display: 'flex',
+              gap: '4px',
+              zIndex: 100,
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+              justifyContent: 'space-around',
+              alignItems: 'center'
+            }}>
+              {["★", "☆", "✔", "💡", "📌", "⚠️"].map(marker => (
+                <button
+                  key={marker}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '15px',
+                    padding: '4px 6px',
+                    borderRadius: '6px',
+                    transition: 'background 0.1s',
+                    color: 'var(--text)'
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
+                  onClick={() => {
+                    if (searchInputRef.current) {
+                      const val = searchInputRef.current.value.trim();
+                      let newVal = '';
+                      if (val.includes(marker)) {
+                        newVal = val.replace(new RegExp(`\\s*${marker}\\s*`, 'g'), ' ').trim();
+                      } else {
+                        newVal = val ? `${val} ${marker}` : marker;
+                      }
+                      searchInputRef.current.value = newVal;
+                      setSearchQuery(newVal);
+                    }
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--btn-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  title={`${marker} ${lang === 'en' ? 'Filter' : 'で絞り込み'}`}
+                >
+                  {marker}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {renderBreadcrumbs()}
