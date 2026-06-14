@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
 import { SearchIcon, FolderIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon } from './Icons';
 import { FileObj } from '../types';
-import { highlightText, escHtml, getVirtualFolder } from '../utils';
+import { highlightText, escHtml, getVirtualFolder, decorateMarkers } from '../utils';
 
 export const Sidebar = () => {
   const {
@@ -103,9 +103,9 @@ export const Sidebar = () => {
           </div>
         )}
         {f.date && <div className="file-date">{f.dateSource==='os'?<span style={{opacity:0.5,fontSize:'9px'}}>📅 </span>:null}{f.date.replace(/-/g,'.')} {f.time}</div>}
-        <div className="file-title" dangerouslySetInnerHTML={{__html: titleHtml}} />
-        {previewHtml && <div dangerouslySetInnerHTML={{__html: previewHtml}} />}
-        <div className="file-fname" dangerouslySetInnerHTML={{__html: highlightText(f.filename, searchQueries)}} />
+        <div className="file-title" dangerouslySetInnerHTML={{__html: decorateMarkers(titleHtml)}} />
+        {previewHtml && <div dangerouslySetInnerHTML={{__html: decorateMarkers(previewHtml)}} />}
+        <div className="file-fname" dangerouslySetInnerHTML={{__html: decorateMarkers(highlightText(f.filename, searchQueries))}} />
       </button>
     );
   };

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
 import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon } from './Icons';
-import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml } from '../utils';
+import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, decorateMarkers } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
 
 export const MainContent = () => {
   const {
     dirHandle, savedFolderName, allFiles, filteredFiles, searchQueries,
     currentFileObj, currentContent, isEditing, toggleEdit, saveFile, selectFile,
-    openMovePanel, deleteCurrentFile, renameCurrentFile,
+    openMovePanel, deleteCurrentFile, renameCurrentFile, toggleFileMarker,
     movePanelState, closeMovePanels, physicalFolders, execBulkMove, moveToNewFolder,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
@@ -371,7 +371,7 @@ export const MainContent = () => {
     if (!currentFileObj) return '';
     const firstSentence = extractFirstSentence(currentContent);
     const displayTitle = (firstSentence && firstSentence.length > 2) ? firstSentence : currentFileObj.title;
-    return highlightText(displayTitle, searchQueries);
+    return decorateMarkers(highlightText(displayTitle, searchQueries));
   };
 
   const [newFolderName, setNewFolderName] = useState('');
@@ -491,6 +491,62 @@ export const MainContent = () => {
               <button id="folder-edit-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'folder')}>
                 <FolderIcon /> {t.main.folderEdit}
               </button>
+              {/* マーカークイック追加ボタン */}
+              {currentFileObj && (
+                <div className="file-markers-quick-bar" style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'rgba(15,23,42,0.4)', padding: '2px 6px', borderRadius: '10px', border: '1px solid var(--btn-border)' }}>
+                  {["★", "☆", "✔", "💡", "📌", "⚠️"].map(marker => {
+                    let hasMarker = false;
+                    const filename = currentFileObj.filename;
+                    let baseName = filename;
+                    const prefixMatch = filename.match(/^(\d{8}_\d{4}_)/);
+                    if (prefixMatch) {
+                      baseName = filename.slice(prefixMatch[1].length);
+                    }
+                    hasMarker = baseName.startsWith(marker);
+
+                    let activeBg = 'rgba(251, 191, 36, 0.25)'; // 黄色
+                    let activeBorder = 'rgba(251, 191, 36, 0.5)';
+                    if (marker === '✔') {
+                      activeBg = 'rgba(16, 185, 129, 0.25)'; // 緑
+                      activeBorder = 'rgba(16, 185, 129, 0.5)';
+                    } else if (marker === '⚠️') {
+                      activeBg = 'rgba(239, 68, 68, 0.25)'; // 赤
+                      activeBorder = 'rgba(239, 68, 68, 0.5)';
+                    }
+
+                    return (
+                      <button
+                        key={marker}
+                        className={`marker-quick-btn ${hasMarker ? 'active' : ''}`}
+                        style={{
+                          background: hasMarker ? activeBg : 'transparent',
+                          border: hasMarker ? `1px solid ${activeBorder}` : '1px solid transparent',
+                          cursor: 'pointer',
+                          padding: '3px 7px',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          transition: 'all 0.15s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--text)'
+                        }}
+                        onClick={() => toggleFileMarker(marker)}
+                        title={`${marker} ${lang === 'en' ? 'Toggle Marker' : 'マークをトグル'}`}
+                        onMouseEnter={e => {
+                          if (!hasMarker) e.currentTarget.style.background = 'var(--btn-hover)';
+                        }}
+                        onMouseLeave={e => {
+                          if (!hasMarker) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        {marker}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <button id="rename-file-btn" style={{display:'flex'}} onClick={() => renameCurrentFile()}>
                 <EditIcon /> {t.main.rename}
               </button>
