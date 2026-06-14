@@ -38,6 +38,21 @@ export const MainContent = () => {
   const [showToolbarMarkPanel, setShowToolbarMarkPanel] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowToolbarMarkPanel(false);
+      }
+    };
+    if (showToolbarMarkPanel) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [showToolbarMarkPanel]);
 
   const scrollAnimationFrameRef = useRef<number | null>(null);
 
@@ -534,28 +549,59 @@ export const MainContent = () => {
 
                 return (
                   <div 
+                    ref={dropdownRef}
                     className="file-markers-dropdown-wrap" 
                     style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
-                    onMouseLeave={() => setShowToolbarMarkPanel(false)}
                   >
                     <button
                       id="toolbar-mark-trigger"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 18px',
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        letterSpacing: '1.5px',
-                        cursor: 'pointer',
-                        border: '1px solid var(--btn-border)',
-                        background: hasAnyMarker ? 'rgba(251, 191, 36, 0.15)' : 'var(--btn-bg)',
-                        color: hasAnyMarker ? '#fbbf24' : 'var(--btn-text)',
-                        fontFamily: 'var(--font-body)',
-                        transition: 'all 0.12s'
-                      }}
+                      style={(() => {
+                        const isStarType = activeMarker === '★' || activeMarker === '☆';
+                        let btnBg = 'var(--btn-bg)';
+                        let btnColor = 'var(--btn-text)';
+                        let btnBorder = '1px solid var(--btn-border)';
+                        
+                        if (hasAnyMarker) {
+                          if (activeMarker === '✔') {
+                            btnBg = 'rgba(16, 185, 129, 0.12)';
+                            btnColor = '#10b981';
+                            btnBorder = '1px solid rgba(16, 185, 129, 0.4)';
+                          } else if (activeMarker === '⚠️') {
+                            btnBg = 'rgba(239, 68, 68, 0.12)';
+                            btnColor = '#ef4444';
+                            btnBorder = '1px solid rgba(239, 68, 68, 0.4)';
+                          } else if (isStarType) {
+                            btnBg = 'rgba(251, 191, 36, 0.12)';
+                            btnColor = '#fbbf24';
+                            btnBorder = '1px solid rgba(251, 191, 36, 0.4)';
+                          } else {
+                            btnBg = 'rgba(255, 255, 255, 0.08)';
+                            btnColor = 'var(--text)';
+                            btnBorder = '1px solid var(--btn-border)';
+                          }
+                        } else if (activeMarker === '☆') {
+                          btnBg = 'rgba(251, 191, 36, 0.08)';
+                          btnColor = '#fbbf24';
+                          btnBorder = '1px solid rgba(251, 191, 36, 0.3)';
+                        }
+
+                        return {
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 18px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          letterSpacing: '1.5px',
+                          cursor: 'pointer',
+                          border: btnBorder,
+                          background: btnBg,
+                          color: btnColor,
+                          fontFamily: 'var(--font-body)',
+                          transition: 'all 0.12s'
+                        };
+                      })()}
                       onClick={() => setShowToolbarMarkPanel(!showToolbarMarkPanel)}
                       title={lang === 'en' ? 'Toggle Marker' : 'マークを切り替え'}
                     >
@@ -603,7 +649,7 @@ export const MainContent = () => {
                                 padding: '4px 8px',
                                 borderRadius: '6px',
                                 fontSize: '14px',
-                                color: 'var(--text)',
+                                color: marker === '★' ? '#fbbf24' : 'var(--text)',
                                 transition: 'background 0.1s'
                               }}
                               onClick={() => {
