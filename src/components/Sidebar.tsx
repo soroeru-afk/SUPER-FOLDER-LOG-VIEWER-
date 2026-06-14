@@ -469,17 +469,17 @@ export const Sidebar = () => {
             <div className="search-mark-panel" style={{
               position: 'absolute',
               bottom: 'calc(100% + 4px)',
-              left: 0,
               right: 0,
+              left: 'auto',
+              width: 'max-content',
               background: 'var(--panel-bg)',
               border: '1px solid var(--btn-border)',
               borderRadius: '6px',
-              padding: '2px 4px',
+              padding: '2px 6px',
               display: 'flex',
-              gap: '2px',
+              gap: '4px',
               zIndex: 100,
               boxShadow: '0 -4px 10px rgba(0, 0, 0, 0.4)',
-              justifyContent: 'space-around',
               alignItems: 'center'
             }}>
               {["★", "☆", "✔", "💡", "📌", "⚠️"].map(marker => (
