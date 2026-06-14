@@ -570,7 +570,8 @@ export const MainContent = () => {
                             btnBg = 'rgba(239, 68, 68, 0.12)';
                             btnColor = '#ef4444';
                             btnBorder = '1px solid rgba(239, 68, 68, 0.4)';
-                          } else if (isStarType) {
+                          } else if (activeMarker === '★') {
+                            // 通常の星（★）が選択されている時のみ、黄色の背景・枠線・文字を適用
                             btnBg = 'rgba(251, 191, 36, 0.12)';
                             btnColor = '#fbbf24';
                             btnBorder = '1px solid rgba(251, 191, 36, 0.4)';
@@ -580,9 +581,10 @@ export const MainContent = () => {
                             btnBorder = '1px solid var(--btn-border)';
                           }
                         } else if (activeMarker === '☆') {
-                          btnBg = 'rgba(251, 191, 36, 0.08)';
-                          btnColor = '#fbbf24';
-                          btnBorder = '1px solid rgba(251, 191, 36, 0.3)';
+                          // デフォルトの☆の時は黄色を入れず、他の通常ボタンと同じ白抜きスタイルにする
+                          btnBg = 'var(--btn-bg)';
+                          btnColor = 'var(--btn-text)';
+                          btnBorder = '1px solid var(--btn-border)';
                         }
 
                         return {
@@ -605,7 +607,10 @@ export const MainContent = () => {
                       onClick={() => setShowToolbarMarkPanel(!showToolbarMarkPanel)}
                       title={lang === 'en' ? 'Toggle Marker' : 'マークを切り替え'}
                     >
-                      <span style={{ fontSize: '13px' }}>{activeMarker}</span>
+                      <span style={{ 
+                        fontSize: '13px', 
+                        color: (activeMarker === '★' || activeMarker === '☆') ? '#fbbf24' : 'inherit'
+                      }}>{activeMarker}</span>
                       {lang === 'en' ? 'MARK' : 'マーク'}
                     </button>
                     

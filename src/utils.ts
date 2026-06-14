@@ -194,7 +194,7 @@ export function extractFirstSentence(text: string) {
 export function decorateMarkers(html: string): string {
   return html
     .replace(/(★)/g, '<span class="file-marker-star" style="color: #fbbf24; font-weight: bold; margin-right: 2px;">$1</span>')
-    .replace(/(☆)/g, '<span class="file-marker-star-empty" style="color: #94a3b8; margin-right: 2px;">$1</span>')
+    .replace(/(☆)/g, '<span class="file-marker-star-empty" style="color: #fbbf24; margin-right: 2px;">$1</span>')
     .replace(/(✔)/g, '<span class="file-marker-check" style="color: #10b981; font-weight: bold; margin-right: 2px;">$1</span>')
     .replace(/(💡)/g, '<span class="file-marker-idea" style="margin-right: 2px;">$1</span>')
     .replace(/(📌)/g, '<span class="file-marker-pin" style="margin-right: 2px;">$1</span>')

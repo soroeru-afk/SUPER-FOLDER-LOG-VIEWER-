@@ -38,7 +38,7 @@ export const Sidebar = () => {
             <React.Fragment key={i}>
               <div className="breadcrumb-separator">{'>'}</div>
               <div className="breadcrumb-item">
-                🏷️ {q} 
+                <span dangerouslySetInnerHTML={{ __html: `🏷️ ${decorateMarkers(q)}` }} />
                 <span className="breadcrumb-remove" title="このキーワードを削除" onClick={(e) => {
                   e.stopPropagation();
                   removeSearchQuery(q);
@@ -493,7 +493,7 @@ export const Sidebar = () => {
                     padding: '2px 4px',
                     borderRadius: '4px',
                     transition: 'background 0.1s',
-                    color: 'var(--text)'
+                    color: marker === '★' ? '#fbbf24' : 'var(--text)'
                   }}
                   onMouseDown={(e) => {
                     e.preventDefault();
