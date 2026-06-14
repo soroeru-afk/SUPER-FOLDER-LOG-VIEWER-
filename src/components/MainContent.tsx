@@ -535,7 +535,7 @@ export const MainContent = () => {
                 const MARKERS = ["★", "✔", "💡", "📌", "⚠️"];
                 const filename = currentFileObj.filename;
                 let baseName = filename;
-                const prefixMatch = filename.match(/^(\d{8}_\d{4}_-\s*)/);
+                const prefixMatch = filename.match(/^(\d{8}_\d{4}_(?:-\s*)?)/);
                 if (prefixMatch) {
                   baseName = filename.slice(prefixMatch[1].length);
                 }
@@ -544,6 +544,14 @@ export const MainContent = () => {
                     activeMarker = m;
                     hasAnyMarker = true;
                     break;
+                  }
+                }
+
+                // 手動マーク制限: 先頭(日付直後)にマークがないが、タイトル内にマークがある場合は編集不可（非表示）とする
+                if (!hasAnyMarker) {
+                  const hasEmbeddedMarker = MARKERS.some(m => baseName.includes(m));
+                  if (hasEmbeddedMarker) {
+                    return null;
                   }
                 }
 

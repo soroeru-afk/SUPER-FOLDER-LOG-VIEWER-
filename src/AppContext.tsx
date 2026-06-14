@@ -756,7 +756,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     
     let prefix = "";
     let baseName = filename;
-    const prefixMatch = filename.match(/^(\d{8}_\d{4}_-\s*)/);
+    const prefixMatch = filename.match(/^(\d{8}_\d{4}_(?:-\s*)?)/);
     if (prefixMatch) {
       prefix = prefixMatch[1];
       baseName = filename.slice(prefix.length);
