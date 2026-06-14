@@ -270,24 +270,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     
     pFolders.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
     
-    const files = await Promise.all(entries.map(async entry => {
-      const p = parseFilename(entry.handle.name);
-      const file = await entry.handle.getFile();
-      const content = await file.text();
-      let d = p.date, t = p.time, src = '';
-      if (!d) {
-        const lm = new Date(file.lastModified);
-        d = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
-        t = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}`;
-        src = 'os';
+    const filesPromises = await Promise.all(entries.map(async entry => {
+      try {
+        const p = parseFilename(entry.handle.name);
+        const file = await entry.handle.getFile();
+        const content = await file.text();
+        let d = p.date, t = p.time, src = '';
+        if (!d) {
+          const lm = new Date(file.lastModified);
+          d = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
+          t = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}`;
+          src = 'os';
+        }
+        return { 
+          filename: entry.handle.name, handle: entry.handle, 
+          category: entry.category, folderHandle: entry.folderHandle, 
+          date: d, time: t, title: p.title || entry.handle.name.replace(/\.[^.]+$/,''), 
+          dateSource: src, content 
+        };
+      } catch (e) {
+        console.warn("Skipping file due to getFile error (likely renamed or deleted):", entry.handle.name, e);
+        return null;
       }
-      return { 
-        filename: entry.handle.name, handle: entry.handle, 
-        category: entry.category, folderHandle: entry.folderHandle, 
-        date: d, time: t, title: p.title || entry.handle.name.replace(/\.[^.]+$/,''), 
-        dateSource: src, content 
-      };
     }));
+    const files = filesPromises.filter((f): f is Exclude<typeof f, null> => f !== null);
     
     files.sort((a, b) => {
       const dtA = (a.date || '') + (a.time || '');
