@@ -533,23 +533,42 @@ export const MainContent = () => {
                 let activeMarker = "☆";
                 let hasAnyMarker = false;
                 const MARKERS = ["★", "✔", "💡", "📌", "⚠️"];
+                const OLD_MARKERS = ["●", "■", "▲", "▼", "◆", "★", "☆", "✓"];
                 const filename = currentFileObj.filename;
                 let baseName = filename;
                 const prefixMatch = filename.match(/^(\d{8}_\d{4}_(?:-\s*)?)/);
                 if (prefixMatch) {
                   baseName = filename.slice(prefixMatch[1].length);
                 }
+
+                // カッコ判定
+                let bracketInnerName = baseName;
+                if ((baseName.startsWith("「") && baseName.endsWith("」")) || (baseName.startsWith("『") && baseName.endsWith("』"))) {
+                  bracketInnerName = baseName.slice(1, -1);
+                }
+
+                // 新マークの検出
                 for (const m of MARKERS) {
-                  if (baseName.startsWith(m)) {
+                  if (bracketInnerName.startsWith(m)) {
                     activeMarker = m;
                     hasAnyMarker = true;
                     break;
                   }
                 }
 
-                // 手動マーク制限: 先頭(日付直後)にマークがないが、タイトル内にマークがある場合は編集不可（非表示）とする
+                // 旧マークの検出
                 if (!hasAnyMarker) {
-                  const hasEmbeddedMarker = MARKERS.some(m => baseName.includes(m));
+                  for (const m of OLD_MARKERS) {
+                    if (bracketInnerName.startsWith(m)) {
+                      hasAnyMarker = true; // システム上で「マークあり」として認識させ、解除(❌)や別マークへの置き換えを可能にする
+                      break;
+                    }
+                  }
+                }
+
+                // 手動マーク制限: 先頭(日付直後またはカッコ内先頭)にマークがないが、タイトル内にマークがある場合は編集不可（非表示）とする
+                if (!hasAnyMarker) {
+                  const hasEmbeddedMarker = [...MARKERS, ...OLD_MARKERS].some(m => bracketInnerName.includes(m));
                   if (hasEmbeddedMarker) {
                     return null;
                   }

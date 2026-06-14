@@ -752,6 +752,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!currentFileObj) return;
 
     const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
+    const OLD_MARKERS = ["●", "■", "▲", "▼", "◆", "★", "☆", "✓"];
     const filename = currentFileObj.filename;
     
     let prefix = "";
@@ -762,11 +763,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       baseName = filename.slice(prefix.length);
     }
     
+    // カッコ判定
+    let hasBracket = false;
+    let bracketOpen = "";
+    let bracketClose = "";
+    if ((baseName.startsWith("「") && baseName.endsWith("」")) || (baseName.startsWith("『") && baseName.endsWith("』"))) {
+      hasBracket = true;
+      bracketOpen = baseName[0];
+      bracketClose = baseName[baseName.length - 1];
+      baseName = baseName.slice(1, -1);
+    }
+
     let hasExistingMarker = false;
     let existingMarker = "";
     let restOfName = baseName;
     
-    for (const m of MARKERS) {
+    const ALL_DETECT_MARKERS = [...MARKERS, ...OLD_MARKERS];
+    for (const m of ALL_DETECT_MARKERS) {
       if (baseName.startsWith(m)) {
         hasExistingMarker = true;
         existingMarker = m;
@@ -785,6 +798,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } else {
       // 別のマークを付与
       newBaseName = `${marker} ${restOfName}`;
+    }
+
+    // カッコを包み直す
+    if (hasBracket) {
+      newBaseName = `${bracketOpen}${newBaseName}${bracketClose}`;
     }
     
     const finalNewName = prefix + newBaseName;
