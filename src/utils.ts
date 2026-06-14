@@ -64,11 +64,15 @@ export function parseFilename(name: string) {
   const m = name.match(/^(\d{4})-?(\d{2})-?(\d{2})_(\d{2})-?(\d{2})\.?_(.+)\.[^.]+$/);
   if (m) {
     let title = m[6];
-    title = title.replace(/^[「【]/, '').replace(/[」】]$/, '');
+    if ((title.startsWith('「') && title.endsWith('」')) || (title.startsWith('【') && title.endsWith('】'))) {
+      title = title.slice(1, -1);
+    }
     return { date: `${m[1]}-${m[2]}-${m[3]}`, time: `${m[4]}:${m[5]}`, title: title };
   }
   let fallbackTitle = name.replace(/\.[^.]+$/, '');
-  fallbackTitle = fallbackTitle.replace(/^[「【]/, '').replace(/[」】]$/, '');
+  if ((fallbackTitle.startsWith('「') && fallbackTitle.endsWith('」')) || (fallbackTitle.startsWith('【') && fallbackTitle.endsWith('】'))) {
+    fallbackTitle = fallbackTitle.slice(1, -1);
+  }
   return { date: '', time: '', title: fallbackTitle };
 }
 
