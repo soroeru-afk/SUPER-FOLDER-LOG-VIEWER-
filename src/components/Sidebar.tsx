@@ -482,7 +482,7 @@ export const Sidebar = () => {
               boxShadow: '0 -4px 10px rgba(0, 0, 0, 0.4)',
               alignItems: 'center'
             }}>
-              {["★", "☆", "✔", "💡", "📌", "⚠️"].map(marker => (
+              {["★", "✔", "💡", "📌", "⚠️"].map(marker => (
                 <button
                   key={marker}
                   style={{

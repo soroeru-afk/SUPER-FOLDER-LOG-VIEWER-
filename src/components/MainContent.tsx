@@ -35,6 +35,8 @@ export const MainContent = () => {
     return baseName === 'agents.md' || baseName.startsWith('00_【進行】_') || baseName.startsWith('00-');
   };
 
+  const [showToolbarMarkPanel, setShowToolbarMarkPanel] = useState(false);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollAnimationFrameRef = useRef<number | null>(null);
@@ -512,60 +514,118 @@ export const MainContent = () => {
                 <FolderIcon /> {t.main.folderEdit}
               </button>
               {/* マーカークイック追加ボタン */}
-              {currentFileObj && !isSystemFile(currentFileObj.filename) && (
-                <div className="file-markers-quick-bar" style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'rgba(15,23,42,0.4)', padding: '2px 6px', borderRadius: '10px', border: '1px solid var(--btn-border)' }}>
-                  {["★", "☆", "✔", "💡", "📌", "⚠️"].map(marker => {
-                    let hasMarker = false;
-                    const filename = currentFileObj.filename;
-                    let baseName = filename;
-                    const prefixMatch = filename.match(/^(\d{8}_\d{4}_)/);
-                    if (prefixMatch) {
-                      baseName = filename.slice(prefixMatch[1].length);
-                    }
-                    hasMarker = baseName.startsWith(marker);
+              {currentFileObj && !isSystemFile(currentFileObj.filename) && (() => {
+                let activeMarker = "☆";
+                let hasAnyMarker = false;
+                const MARKERS = ["★", "✔", "💡", "📌", "⚠️"];
+                const filename = currentFileObj.filename;
+                let baseName = filename;
+                const prefixMatch = filename.match(/^(\d{8}_\d{4}_)/);
+                if (prefixMatch) {
+                  baseName = filename.slice(prefixMatch[1].length);
+                }
+                for (const m of MARKERS) {
+                  if (baseName.startsWith(m)) {
+                    activeMarker = m;
+                    hasAnyMarker = true;
+                    break;
+                  }
+                }
 
-                    let activeBg = 'rgba(251, 191, 36, 0.25)'; // 黄色
-                    let activeBorder = 'rgba(251, 191, 36, 0.5)';
-                    if (marker === '✔') {
-                      activeBg = 'rgba(16, 185, 129, 0.25)'; // 緑
-                      activeBorder = 'rgba(16, 185, 129, 0.5)';
-                    } else if (marker === '⚠️') {
-                      activeBg = 'rgba(239, 68, 68, 0.25)'; // 赤
-                      activeBorder = 'rgba(239, 68, 68, 0.5)';
-                    }
-
-                    return (
-                      <button
-                        key={marker}
-                        className={`marker-quick-btn ${hasMarker ? 'active' : ''}`}
+                return (
+                  <div 
+                    className="file-markers-dropdown-wrap" 
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+                    onMouseLeave={() => setShowToolbarMarkPanel(false)}
+                  >
+                    <button
+                      id="toolbar-mark-trigger"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 18px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        letterSpacing: '1.5px',
+                        cursor: 'pointer',
+                        border: '1px solid var(--btn-border)',
+                        background: hasAnyMarker ? 'rgba(251, 191, 36, 0.15)' : 'var(--btn-bg)',
+                        color: hasAnyMarker ? '#fbbf24' : 'var(--btn-text)',
+                        fontFamily: 'var(--font-body)',
+                        transition: 'all 0.12s'
+                      }}
+                      onClick={() => setShowToolbarMarkPanel(!showToolbarMarkPanel)}
+                      title={lang === 'en' ? 'Toggle Marker' : 'マークを切り替え'}
+                    >
+                      <span style={{ fontSize: '13px' }}>{activeMarker}</span>
+                      {lang === 'en' ? 'MARK' : 'マーク'}
+                    </button>
+                    
+                    {showToolbarMarkPanel && (
+                      <div 
+                        className="toolbar-mark-panel" 
                         style={{
-                          background: hasMarker ? activeBg : 'transparent',
-                          border: hasMarker ? `1px solid ${activeBorder}` : '1px solid transparent',
-                          cursor: 'pointer',
-                          padding: '3px 7px',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          transition: 'all 0.15s',
+                          position: 'absolute',
+                          top: 'calc(100% + 4px)',
+                          right: 0,
+                          background: 'var(--panel-bg)',
+                          border: '1px solid var(--btn-border)',
+                          borderRadius: '8px',
+                          padding: '4px 6px',
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--text)'
-                        }}
-                        onClick={() => toggleFileMarker(marker)}
-                        title={`${marker} ${lang === 'en' ? 'Toggle Marker' : 'マークをトグル'}`}
-                        onMouseEnter={e => {
-                          if (!hasMarker) e.currentTarget.style.background = 'var(--btn-hover)';
-                        }}
-                        onMouseLeave={e => {
-                          if (!hasMarker) e.currentTarget.style.background = 'transparent';
+                          gap: '4px',
+                          zIndex: 100,
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+                          alignItems: 'center'
                         }}
                       >
-                        {marker}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                        {["★", "✔", "💡", "📌", "⚠️"].map(marker => {
+                          const isCurrent = activeMarker === marker;
+                          let activeBg = 'rgba(251, 191, 36, 0.2)';
+                          let activeBorder = 'rgba(251, 191, 36, 0.4)';
+                          if (marker === '✔') {
+                            activeBg = 'rgba(16, 185, 129, 0.2)';
+                            activeBorder = 'rgba(16, 185, 129, 0.4)';
+                          } else if (marker === '⚠️') {
+                            activeBg = 'rgba(239, 68, 68, 0.2)';
+                            activeBorder = 'rgba(239, 68, 68, 0.4)';
+                          }
+
+                          return (
+                            <button
+                              key={marker}
+                              style={{
+                                background: isCurrent ? activeBg : 'transparent',
+                                border: isCurrent ? `1px solid ${activeBorder}` : '1px solid transparent',
+                                cursor: 'pointer',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '14px',
+                                color: 'var(--text)',
+                                transition: 'background 0.1s'
+                              }}
+                              onClick={() => {
+                                toggleFileMarker(marker);
+                                setShowToolbarMarkPanel(false);
+                              }}
+                              onMouseEnter={e => {
+                                if (!isCurrent) e.currentTarget.style.background = 'var(--btn-hover)';
+                              }}
+                              onMouseLeave={e => {
+                                if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                              }}
+                            >
+                              {marker}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {currentFileObj && !isSystemFile(currentFileObj.filename) && (
                 <button id="rename-file-btn" style={{display:'flex'}} onClick={() => renameCurrentFile()}>
