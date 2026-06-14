@@ -723,12 +723,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const th = currentFileObj.folderHandle || dirHandle;
-      const nf = await th.getFileHandle(finalNewName, {create: true});
-      const w = await nf.createWritable();
-      await w.write(currentFileObj.content);
-      await w.close();
-      await th.removeEntry(currentFileObj.filename);
-      setCurrentFileObj({...currentFileObj, filename: finalNewName, handle: nf});
+      if (currentFileObj.handle && typeof currentFileObj.handle.move === 'function') {
+        await currentFileObj.handle.move(finalNewName);
+        setCurrentFileObj({...currentFileObj, filename: finalNewName});
+      } else {
+        const nf = await th.getFileHandle(finalNewName, {create: true});
+        const w = await nf.createWritable();
+        await w.write(currentFileObj.content);
+        await w.close();
+        await th.removeEntry(currentFileObj.filename);
+        setCurrentFileObj({...currentFileObj, filename: finalNewName, handle: nf});
+      }
       await loadFiles(dirHandle);
     } catch(e:any) { alert(e.message); }
   };
@@ -776,14 +781,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const th = currentFileObj.folderHandle || dirHandle;
-      const nf = await th.getFileHandle(finalNewName, {create: true});
-      const w = await nf.createWritable();
-      await w.write(currentFileObj.content);
-      await w.close();
-      await th.removeEntry(filename);
-      
-      const updatedObj = { ...currentFileObj, filename: finalNewName, handle: nf };
-      setCurrentFileObj(updatedObj);
+      if (currentFileObj.handle && typeof currentFileObj.handle.move === 'function') {
+        await currentFileObj.handle.move(finalNewName);
+        setCurrentFileObj({ ...currentFileObj, filename: finalNewName });
+      } else {
+        const nf = await th.getFileHandle(finalNewName, {create: true});
+        const w = await nf.createWritable();
+        await w.write(currentFileObj.content);
+        await w.close();
+        await th.removeEntry(filename);
+        setCurrentFileObj({ ...currentFileObj, filename: finalNewName, handle: nf });
+      }
       await loadFiles(dirHandle);
     } catch(e:any) { 
       alert(e.message); 

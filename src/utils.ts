@@ -74,6 +74,24 @@ export function parseFilename(name: string) {
 
 export function getVirtualFolder(filename: string, date: string | null): string {
   let cleanName = filename;
+  
+  // 分類処理のために、一時的に先頭のマーカー（★, ☆, ✔, 💡, 📌, ⚠️）を取り除く
+  const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
+  let prefix = "";
+  let baseName = filename;
+  const prefixMatch = filename.match(/^(\d{8}_\d{4}_)/);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+    baseName = filename.slice(prefix.length);
+  }
+  for (const m of MARKERS) {
+    if (baseName.startsWith(m)) {
+      baseName = baseName.slice(m.length).replace(/^\s+/, "");
+      break;
+    }
+  }
+  cleanName = prefix + baseName;
+
   if (/^\d{8}_\d{4}_/.test(cleanName)) {
     cleanName = cleanName.slice(14);
   }
