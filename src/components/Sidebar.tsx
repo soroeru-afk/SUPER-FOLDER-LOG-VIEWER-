@@ -18,6 +18,16 @@ export const Sidebar = () => {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [showMarkPanel, setShowMarkPanel] = useState(false);
+  const [groupsExpanded, setGroupsExpanded] = useState(false);
+
+  const handleToggleExpand = () => {
+    if (groupsExpanded) {
+      collapseAllGroups();
+    } else {
+      expandAllGroups();
+    }
+    setGroupsExpanded(!groupsExpanded);
+  };
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect='move'; };
   const handleDrop = (e: React.DragEvent) => {
@@ -588,8 +598,13 @@ export const Sidebar = () => {
           <button id="highlight-toggle-btn" className={isHighlightOff ? 'off' : ''} onClick={toggleHighlight} title={t.app.highlight}>
             <HighlightIcon /> HL
           </button>
-          <button onClick={expandAllGroups} title="全て展開" className="header-icon-btn">＋</button>
-          <button onClick={collapseAllGroups} title="全て折りたたむ" className="header-icon-btn">－</button>
+          <button 
+            onClick={handleToggleExpand} 
+            title={groupsExpanded ? (lang === 'en' ? "Collapse All" : "全て折りたたむ") : (lang === 'en' ? "Expand All" : "全て展開")} 
+            className="header-icon-btn"
+          >
+            {groupsExpanded ? '－' : '＋'}
+          </button>
           <button id="refresh-btn" onClick={refreshFolder} title="更新">
             <RefreshIcon className={refreshing ? 'spin' : ''} />
           </button>
