@@ -535,7 +535,7 @@ export const MainContent = () => {
                 const MARKERS = ["★", "✔", "💡", "📌", "⚠️"];
                 const filename = currentFileObj.filename;
                 let baseName = filename;
-                const prefixMatch = filename.match(/^(\d{8}_\d{4}_)/);
+                const prefixMatch = filename.match(/^(\d{8}_\d{4}_-\s*)/);
                 if (prefixMatch) {
                   baseName = filename.slice(prefixMatch[1].length);
                 }
@@ -632,8 +632,8 @@ export const MainContent = () => {
                           alignItems: 'center'
                         }}
                       >
-                        {["★", "✔", "💡", "📌", "⚠️"].map(marker => {
-                          const isCurrent = activeMarker === marker;
+                        {["★", "✔", "💡", "📌", "⚠️", "❌"].map(marker => {
+                          const isCurrent = marker === '❌' ? !hasAnyMarker : (activeMarker === marker);
                           let activeBg = 'rgba(251, 191, 36, 0.2)';
                           let activeBorder = 'rgba(251, 191, 36, 0.4)';
                           if (marker === '✔') {
@@ -642,6 +642,9 @@ export const MainContent = () => {
                           } else if (marker === '⚠️') {
                             activeBg = 'rgba(239, 68, 68, 0.2)';
                             activeBorder = 'rgba(239, 68, 68, 0.4)';
+                          } else if (marker === '❌') {
+                            activeBg = 'rgba(239, 68, 68, 0.15)';
+                            activeBorder = 'rgba(239, 68, 68, 0.3)';
                           }
 
                           return (
@@ -661,6 +664,7 @@ export const MainContent = () => {
                                 toggleFileMarker(marker);
                                 setShowToolbarMarkPanel(false);
                               }}
+                              title={marker === '❌' ? (lang === 'en' ? 'Remove Marker' : 'マークを解除') : `${marker}`}
                               onMouseEnter={e => {
                                 if (!isCurrent) e.currentTarget.style.background = 'var(--btn-hover)';
                               }}

@@ -756,7 +756,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     
     let prefix = "";
     let baseName = filename;
-    const prefixMatch = filename.match(/^(\d{8}_\d{4}_)/);
+    const prefixMatch = filename.match(/^(\d{8}_\d{4}_-\s*)/);
     if (prefixMatch) {
       prefix = prefixMatch[1];
       baseName = filename.slice(prefix.length);
@@ -776,9 +776,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
     
     let newBaseName = "";
-    if (hasExistingMarker && existingMarker === marker) {
+    if (marker === "❌" || marker === "") {
+      // マークを剥がす
+      newBaseName = restOfName;
+    } else if (hasExistingMarker && existingMarker === marker) {
+      // 同じマークの場合は剥がす
       newBaseName = restOfName;
     } else {
+      // 別のマークを付与
       newBaseName = `${marker} ${restOfName}`;
     }
     
