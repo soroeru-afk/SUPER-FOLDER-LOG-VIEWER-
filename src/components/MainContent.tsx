@@ -15,6 +15,26 @@ export const MainContent = () => {
     reopenFolder
   } = useAppContext();
 
+  const isSystemFile = (filename: string) => {
+    const ln = filename.toLowerCase();
+    // マーク付きのファイル名も考慮する
+    const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
+    let baseName = ln;
+    for (const m of MARKERS) {
+      if (baseName.startsWith(m.toLowerCase())) {
+        baseName = baseName.slice(m.length).trim();
+        break;
+      }
+    }
+    // 日付プレフィックスを取り除く
+    const prefixMatch = baseName.match(/^(\d{8}_\d{4}_)/);
+    if (prefixMatch) {
+      baseName = baseName.slice(prefixMatch[1].length);
+    }
+
+    return baseName === 'agents.md' || baseName.startsWith('00_【進行】_') || baseName.startsWith('00-');
+  };
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollAnimationFrameRef = useRef<number | null>(null);
@@ -492,7 +512,7 @@ export const MainContent = () => {
                 <FolderIcon /> {t.main.folderEdit}
               </button>
               {/* マーカークイック追加ボタン */}
-              {currentFileObj && (
+              {currentFileObj && !isSystemFile(currentFileObj.filename) && (
                 <div className="file-markers-quick-bar" style={{ display: 'flex', gap: '4px', alignItems: 'center', background: 'rgba(15,23,42,0.4)', padding: '2px 6px', borderRadius: '10px', border: '1px solid var(--btn-border)' }}>
                   {["★", "☆", "✔", "💡", "📌", "⚠️"].map(marker => {
                     let hasMarker = false;
@@ -547,9 +567,11 @@ export const MainContent = () => {
                 </div>
               )}
 
-              <button id="rename-file-btn" style={{display:'flex'}} onClick={() => renameCurrentFile()}>
-                <EditIcon /> {t.main.rename}
-              </button>
+              {currentFileObj && !isSystemFile(currentFileObj.filename) && (
+                <button id="rename-file-btn" style={{display:'flex'}} onClick={() => renameCurrentFile()}>
+                  <EditIcon /> {t.main.rename}
+                </button>
+              )}
               <button id="play-audio-btn" style={{display:'flex', minWidth: '94px', justifyContent: 'center'}} onClick={() => {
                 if (isPlayingAudio) {
                   window.speechSynthesis.cancel();
