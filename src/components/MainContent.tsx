@@ -648,32 +648,42 @@ export const MainContent = () => {
                           }
 
                           return (
-                            <button
-                              key={marker}
-                              style={{
-                                background: isCurrent ? activeBg : 'transparent',
-                                border: isCurrent ? `1px solid ${activeBorder}` : '1px solid transparent',
-                                cursor: 'pointer',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                fontSize: '14px',
-                                color: marker === '★' ? '#fbbf24' : 'var(--text)',
-                                transition: 'background 0.1s'
-                              }}
-                              onClick={() => {
-                                toggleFileMarker(marker);
-                                setShowToolbarMarkPanel(false);
-                              }}
-                              title={marker === '❌' ? (lang === 'en' ? 'Remove Marker' : 'マークを解除') : `${marker}`}
-                              onMouseEnter={e => {
-                                if (!isCurrent) e.currentTarget.style.background = 'var(--btn-hover)';
-                              }}
-                              onMouseLeave={e => {
-                                if (!isCurrent) e.currentTarget.style.background = 'transparent';
-                              }}
-                            >
-                              {marker}
-                            </button>
+                            <React.Fragment key={marker}>
+                              {marker === '❌' && (
+                                <div style={{ 
+                                  width: '1px', 
+                                  height: '16px', 
+                                  background: 'var(--btn-border)', 
+                                  margin: '0 4px',
+                                  alignSelf: 'center'
+                                }} />
+                              )}
+                              <button
+                                style={{
+                                  background: isCurrent ? activeBg : 'transparent',
+                                  border: isCurrent ? `1px solid ${activeBorder}` : '1px solid transparent',
+                                  cursor: 'pointer',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '14px',
+                                  color: marker === '★' ? '#fbbf24' : 'var(--text)',
+                                  transition: 'background 0.1s'
+                                }}
+                                onClick={() => {
+                                  toggleFileMarker(marker);
+                                  setShowToolbarMarkPanel(false);
+                                }}
+                                title={marker === '❌' ? (lang === 'en' ? 'Remove Marker' : 'マークを解除') : `${marker}`}
+                                onMouseEnter={e => {
+                                  if (!isCurrent) e.currentTarget.style.background = 'var(--btn-hover)';
+                                }}
+                                onMouseLeave={e => {
+                                  if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                                }}
+                              >
+                                {marker}
+                              </button>
+                            </React.Fragment>
                           );
                         })}
                       </div>
