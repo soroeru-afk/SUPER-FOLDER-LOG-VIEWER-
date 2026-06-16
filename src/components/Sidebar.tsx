@@ -13,12 +13,14 @@ export const Sidebar = () => {
     selectedFiles, currentFileObj, selectFile, toggleFileSelection,
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
+    bulkToggleFileMarker,
     lang, setLang, t, sortMode, sortDirection, setSortMode, setSortDirection
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [showMarkPanel, setShowMarkPanel] = useState(false);
   const [groupsExpanded, setGroupsExpanded] = useState(false);
+  const [showBulkMarkMenu, setShowBulkMarkMenu] = useState(false);
 
   const handleToggleExpand = () => {
     if (groupsExpanded) {
@@ -421,7 +423,7 @@ export const Sidebar = () => {
   })();
 
   return (
-    <div id="sidebar" onClick={() => { if (settingsOpen) toggleSettings(); closeMovePanels(); }}>
+    <div id="sidebar" onClick={() => { if (settingsOpen) toggleSettings(); closeMovePanels(); setShowBulkMarkMenu(false); }}>
       <div id="app-brand" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '8px', paddingBottom: '16px'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end'}}>
           <div id="app-name">SUPER FOLDER<br/><span>LOG VIEWER</span></div>
@@ -613,11 +615,76 @@ export const Sidebar = () => {
 
       {isSelectMode && (
         <div id="bulk-bar" className="visible">
-          <div id="bulk-bar-inner">
+          <div id="bulk-bar-inner" style={{ position: 'relative' }}>
             <span id="bulk-count">{lang === 'en' ? `${selectedFiles.size}${t.sidebar.selectedCount}` : `${selectedFiles.size}${t.sidebar.selectedCount}`}</span>
             <button id="bulk-cancel-btn" onClick={toggleSelectMode}>{t.sidebar.cancelSelect}</button>
             <button id="bulk-delete-btn" onClick={bulkDeleteFiles}>{t.sidebar.bulkDelete}</button>
             <button id="bulk-move-btn" onClick={e => openMovePanel(e, 'bulk')}>{t.sidebar.bulkMove}</button>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <button 
+                id="bulk-mark-btn" 
+                onClick={(e) => { e.stopPropagation(); setShowBulkMarkMenu(!showBulkMarkMenu); }}
+                style={{
+                  background: 'var(--btn-bg, rgba(255,255,255,0.08))',
+                  border: '1px solid var(--btn-border, rgba(255,255,255,0.15))',
+                  color: 'var(--text, #e2e8f0)',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  height: '24px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                🏷️ {t.sidebar.bulkMark}
+              </button>
+              {showBulkMarkMenu && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 8px)',
+                  right: '0px',
+                  left: 'auto',
+                  transform: 'none',
+                  background: 'var(--panel-bg, #1e293b)',
+                  border: '1px solid var(--btn-border, rgba(255,255,255,0.15))',
+                  borderRadius: '6px',
+                  padding: '4px 6px',
+                  display: 'flex',
+                  gap: '4px',
+                  zIndex: 110,
+                  boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.5)',
+                  whiteSpace: 'nowrap'
+                }} onClick={e => e.stopPropagation()}>
+                  {["★", "☆", "✔", "💡", "📌", "⚠️", "❌"].map(marker => (
+                    <button
+                      key={marker}
+                      onClick={() => {
+                        bulkToggleFileMarker(marker);
+                        setShowBulkMarkMenu(false);
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        padding: '4px 6px',
+                        borderRadius: '4px',
+                        transition: 'background 0.1s',
+                        color: marker === '★' ? '#fbbf24' : 'var(--text)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--btn-hover, rgba(255,255,255,0.1))'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      title={marker === '❌' ? (lang === 'en' ? 'Remove Mark' : 'マークをはずす') : marker}
+                    >
+                      {marker}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
