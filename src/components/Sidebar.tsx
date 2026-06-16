@@ -658,7 +658,7 @@ export const Sidebar = () => {
                   boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.5)',
                   whiteSpace: 'nowrap'
                 }} onClick={e => e.stopPropagation()}>
-                  {["★", "☆", "✔", "💡", "📌", "⚠️", "❌"].map(marker => (
+                  {["★", "✔", "💡", "📌", "⚠️", "❌"].map(marker => (
                     <button
                       key={marker}
                       onClick={() => {
