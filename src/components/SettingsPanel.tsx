@@ -286,12 +286,12 @@ export const SettingsPanel = () => {
             <div className="setting-row">
               <div className="setting-label">ボイス (VOICE)</div>
               <select
-                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'ocean' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '8px', padding: '8px', fontSize: '11px', outline: 'none' }}
+                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'dark' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'dark' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '8px', padding: '8px', fontSize: '11px', outline: 'none' }}
                 value={ttsSettings.voiceURI}
                 onChange={e => updateTtsSettings({ voiceURI: e.target.value })}
               >
                 {voices.map(v => (
-                  <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
+                  <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : vals.theme === 'dark' ? '#1D1C21' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'dark' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
                 ))}
               </select>
             </div>
