@@ -53,6 +53,7 @@ export interface AppState {
   deleteCurrentFile: () => Promise<void>;
   renameCurrentFile: () => Promise<void>;
   toggleFileMarker: (marker: string) => Promise<void>;
+  bulkToggleFileMarker: (marker: string) => Promise<void>;
   renameFolder: (oldName: string, folderHandle: any) => Promise<void>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
   lang: 'en' | 'ja';
@@ -834,6 +835,104 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const bulkToggleFileMarker = async (marker: string) => {
+    if (isFallbackMode) {
+      alert(t.main.fallbackRenameError);
+      return;
+    }
+    if (selectedFileMap.size === 0) return;
+
+    const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
+    const OLD_MARKERS = ["●", "■", "▲", "▼", "◆", "★", "☆", "✓"];
+    const ALL_DETECT_MARKERS = [...MARKERS, ...OLD_MARKERS];
+
+    setLoading(true);
+
+    let updatedCurrentFileObj = currentFileObj;
+
+    for (const f of selectedFileMap.values()) {
+      const filename = f.filename;
+      let prefix = "";
+      let baseName = filename;
+      const prefixMatch = filename.match(/^(\d{8}_\d{4}_(?:-\s*)?)/);
+      if (prefixMatch) {
+        prefix = prefixMatch[1];
+        baseName = filename.slice(prefix.length);
+      }
+
+      let dotIdx = baseName.lastIndexOf('.');
+      let nameWithoutExt = dotIdx !== -1 ? baseName.slice(0, dotIdx) : baseName;
+      let ext = dotIdx !== -1 ? baseName.slice(dotIdx) : "";
+
+      let hasBracket = false;
+      let bracketOpen = "";
+      let bracketClose = "";
+      let innerName = nameWithoutExt;
+      if ((nameWithoutExt.startsWith("「") && nameWithoutExt.endsWith("」")) || (nameWithoutExt.startsWith("『") && nameWithoutExt.endsWith("』"))) {
+        hasBracket = true;
+        bracketOpen = nameWithoutExt[0];
+        bracketClose = nameWithoutExt[nameWithoutExt.length - 1];
+        innerName = nameWithoutExt.slice(1, -1);
+      }
+
+      let hasExistingMarker = false;
+      let existingMarker = "";
+      let restOfName = innerName;
+      
+      for (const m of ALL_DETECT_MARKERS) {
+        if (innerName.startsWith(m)) {
+          hasExistingMarker = true;
+          existingMarker = m;
+          restOfName = innerName.slice(m.length).replace(/^\s+/, "");
+          break;
+        }
+      }
+
+      let newBaseName = "";
+      if (marker === "❌" || marker === "") {
+        newBaseName = restOfName;
+      } else if (hasExistingMarker && existingMarker === marker) {
+        newBaseName = restOfName;
+      } else {
+        newBaseName = `${marker} ${restOfName}`;
+      }
+
+      if (hasBracket) {
+        newBaseName = `${bracketOpen}${newBaseName}${bracketClose}`;
+      }
+      newBaseName = newBaseName + ext;
+      
+      const finalNewName = prefix + newBaseName;
+      if (finalNewName === filename) continue;
+
+      try {
+        const th = f.folderHandle || dirHandle;
+        if (f.handle && typeof f.handle.move === 'function') {
+          await f.handle.move(finalNewName);
+          if (updatedCurrentFileObj && updatedCurrentFileObj.filename === f.filename && updatedCurrentFileObj.category === f.category) {
+            updatedCurrentFileObj = { ...updatedCurrentFileObj, filename: finalNewName };
+          }
+        } else {
+          const nf = await th.getFileHandle(finalNewName, {create: true});
+          const w = await nf.createWritable();
+          await w.write(f.content);
+          await w.close();
+          await th.removeEntry(filename);
+          if (updatedCurrentFileObj && updatedCurrentFileObj.filename === f.filename && updatedCurrentFileObj.category === f.category) {
+            updatedCurrentFileObj = { ...updatedCurrentFileObj, filename: finalNewName, handle: nf };
+          }
+        }
+      } catch(e: any) {
+        console.error(`Failed to rename file ${filename} to ${finalNewName}:`, e);
+      }
+    }
+
+    setCurrentFileObj(updatedCurrentFileObj);
+    await loadFiles(dirHandle);
+    toggleSelectMode();
+    setLoading(false);
+  };
+
   const renameFolder = async (oldName: string, folderHandle: any) => {
     const newName = prompt(`${t.main.renameFolderPrompt} ${oldName}\n\n${t.main.renamePrompt}`, oldName);
     if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
@@ -893,7 +992,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
-      renameCurrentFile, toggleFileMarker, renameFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      renameCurrentFile, toggleFileMarker, bulkToggleFileMarker, renameFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode
     }}>
       {children}
