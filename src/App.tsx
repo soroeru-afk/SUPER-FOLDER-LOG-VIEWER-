@@ -31,11 +31,17 @@ export default function App() {
       if (savedW && savedH) {
         const w = parseInt(savedW, 10);
         const h = parseInt(savedH, 10);
-        window.resizeTo(w, h);
-        if (savedX && savedY) {
-          const x = parseInt(savedX, 10);
-          const y = parseInt(savedY, 10);
-          window.moveTo(x, y);
+        
+        // 異常に小さいサイズで保存されている場合はデフォルトサイズにする
+        if (w >= 400 && h >= 300) {
+          window.resizeTo(w, h);
+          if (savedX && savedY) {
+            const x = parseInt(savedX, 10);
+            const y = parseInt(savedY, 10);
+            window.moveTo(x, y);
+          }
+        } else {
+          window.resizeTo(1440, 900);
         }
       } else {
         // デフォルトサイズ: 横書き/縦書きが快適に見える広めのサイズ
@@ -53,7 +59,8 @@ export default function App() {
         const y = window.screenY !== undefined ? window.screenY : window.screenTop;
         const w = window.outerWidth;
         const h = window.outerHeight;
-        if (w > 0 && h > 0) {
+        // 最小化時などの極端に小さいサイズ、または不正なサイズは保存対象外にする
+        if (w >= 400 && h >= 300) {
           localStorage.setItem('super_folder_win_x', String(x));
           localStorage.setItem('super_folder_win_y', String(y));
           localStorage.setItem('super_folder_win_w', String(w));
