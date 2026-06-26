@@ -235,11 +235,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (handle) {
           setSavedFolderName(handle.name);
           try {
-            if (await (handle as any).verifyPermission({ mode: 'readwrite' }) === 'granted') {
+            const permission = await (handle as any).queryPermission({ mode: 'readwrite' });
+            if (permission === 'granted') {
               setDirHandle(handle);
               setLoading(true);
               await loadFiles(handle);
               setLoading(false);
+            } else {
+              // 権限がない場合、まずはキャッシュデータからとりあえず表示する
+              const fallbackData = await loadFallbackData();
+              if (fallbackData) {
+                setDirHandle(handle);
+                setIsFallbackMode(true);
+                setAllFiles(fallbackData.fileObjs);
+                setPhysicalFolders(fallbackData.pFolders);
+                updateFilter(fallbackData.fileObjs, fallbackData.pFolders, searchQueries);
+
+                const lastCat = localStorage.getItem('lv_lastFileCategory');
+                const lastFile = localStorage.getItem('lv_lastFileName');
+                if (lastFile) {
+                  const target = fallbackData.fileObjs.find((f: any) => (f.category || '') === (lastCat || '') && f.filename === lastFile);
+                  if (target) {
+                    setCurrentFileObj(target);
+                    setCurrentContent(target.content);
+                    setIsEditing(false);
+                  }
+                }
+              }
             }
           } catch(e) { console.warn(e); }
         }
@@ -300,9 +322,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const dtA = (a.date || '') + (a.time || '');
       const dtB = (b.date || '') + (b.time || '');
       return dtB.localeCompare(dtA);
-    });
-
-    setAllFiles(files);
+    });    setAllFiles(files);
     setPhysicalFolders(pFolders);
     updateFilter(files, pFolders, searchQueries);
 
@@ -316,6 +336,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setIsEditing(false);
       }
     }
+
+    // 読み込みが完了した時点でIndexedDBにキャッシュ保存する
+    await saveFallbackData({ fileObjs: files, pFolders, rootFolderName: handle.name }).catch(e => console.warn(e));
   };
 
   const updateFilter = (files: FileObj[], pFolders: PhysicalFolder[], queries: string[]) => {
@@ -474,6 +497,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (await (handle as any).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
       setDirHandle(handle);
       setSavedFolderName(handle.name);
+      setIsFallbackMode(false); // 権限が取得できたらFallbackMode（仮表示）を解除する
       setLoading(true);
       await loadFiles(handle);
       setLoading(false);
