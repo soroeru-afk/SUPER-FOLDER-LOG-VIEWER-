@@ -420,11 +420,10 @@ export const MainContent = () => {
         <div id="welcome">
           {loading ? (
             <>
-              <div id="welcome-big" style={{ fontSize: '28px', color: 'var(--sb-accent)' }}>🔄 {lang === 'en' ? 'Loading Folder...' : 'フォルダーを読み込み中です...'}</div>
-              <p style={{ margin: '12px 0 24px 0', opacity: 0.8 }}>
-                {lang === 'en' 
-                  ? 'Please wait while folder contents are being processed.'
-                  : 'フォルダー内のファイルをスキャンしています。しばらくお待ちください。'}
+              <div id="welcome-big">{t.main.selectFolderArchive}</div>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                <span className="spin" style={{ display: 'inline-block' }}>🔄</span>
+                <span>{lang === 'en' ? 'LOADING FOLDER...' : 'フォルダーを読み込み中です...'}</span>
               </p>
             </>
           ) : (!dirHandle && savedFolderName) ? (
