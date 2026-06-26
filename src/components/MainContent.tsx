@@ -12,7 +12,7 @@ export const MainContent = () => {
     movePanelState, closeMovePanels, physicalFolders, execBulkMove, moveToNewFolder,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
-    reopenFolder
+    reopenFolder, loading
   } = useAppContext();
 
   const isSystemFile = (filename: string) => {
@@ -418,7 +418,16 @@ export const MainContent = () => {
       
       {!currentFileObj && (
         <div id="welcome">
-          {(!dirHandle && savedFolderName) ? (
+          {loading ? (
+            <>
+              <div id="welcome-big" style={{ fontSize: '28px', color: 'var(--sb-accent)' }}>🔄 {lang === 'en' ? 'Loading Folder...' : 'フォルダーを読み込み中です...'}</div>
+              <p style={{ margin: '12px 0 24px 0', opacity: 0.8 }}>
+                {lang === 'en' 
+                  ? 'Please wait while folder contents are being processed.'
+                  : 'フォルダー内のファイルをスキャンしています。しばらくお待ちください。'}
+              </p>
+            </>
+          ) : (!dirHandle && savedFolderName) ? (
             <>
               <div id="welcome-big" style={{ fontSize: '28px', color: 'var(--sb-accent)' }}>📂 {lang === 'en' ? 'Previous Folder Detected' : '前回のフォルダが記憶されています'}</div>
               <p style={{ margin: '12px 0 24px 0', opacity: 0.8 }}>
