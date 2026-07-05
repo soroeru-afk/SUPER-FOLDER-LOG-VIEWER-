@@ -21,6 +21,7 @@ export interface AppState {
   isHighlightOff: boolean;
   categoryOpenState: Record<string, boolean>;
   movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any } | null;
+  renameDialogState: { isOpen: boolean, currentName: string } | null;
   loading: boolean;
   refreshing: boolean;
   sortMode: 'date' | 'name';
@@ -51,7 +52,9 @@ export interface AppState {
   moveToNewFolder: (folderName: string, isBulk: boolean) => Promise<void>;
   bulkDeleteFiles: () => Promise<void>;
   deleteCurrentFile: () => Promise<void>;
-  renameCurrentFile: () => Promise<void>;
+  renameCurrentFile: () => void;
+  execRename: (newName: string) => Promise<void>;
+  closeRenameDialog: () => void;
   toggleFileMarker: (marker: string) => Promise<void>;
   bulkToggleFileMarker: (marker: string) => Promise<void>;
   renameFolder: (oldName: string, folderHandle: any) => Promise<void>;
@@ -187,6 +190,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [categoryOpenState, setCategoryOpenState] = useState<Record<string, boolean>>({});
   
   const [movePanelState, setMovePanelState] = useState<{isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any} | null>(null);
+  const [renameDialogState, setRenameDialogState] = useState<{isOpen: boolean, currentName: string} | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -730,15 +734,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch(e:any) { alert(e.message); }
   };
 
-  const renameCurrentFile = async () => {
+  const renameCurrentFile = () => {
     if (isFallbackMode) {
       alert(t.main.fallbackRenameError);
       return;
     }
     if (!currentFileObj) return;
 
-    const newName = prompt(t.main.renamePrompt, currentFileObj.filename);
-    if (newName === null) return; // User pressed Cancel
+    setRenameDialogState({ isOpen: true, currentName: currentFileObj.filename });
+  };
+
+  const closeRenameDialog = () => setRenameDialogState(null);
+
+  const execRename = async (newName: string) => {
+    if (!currentFileObj) return;
     
     const trimmedName = newName.trim();
     if (!trimmedName || trimmedName === currentFileObj.filename) return;
@@ -750,7 +759,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       finalNewName += ext;
     }
 
-    if (finalNewName === currentFileObj.filename) return;
+    if (finalNewName === currentFileObj.filename) {
+      closeRenameDialog();
+      return;
+    }
 
     try {
       const th = currentFileObj.folderHandle || dirHandle;
@@ -766,6 +778,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setCurrentFileObj({...currentFileObj, filename: finalNewName, handle: nf});
       }
       await loadFiles(dirHandle);
+      closeRenameDialog();
     } catch(e:any) { alert(e.message); }
   };
 
@@ -1016,7 +1029,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
-      renameCurrentFile, toggleFileMarker, bulkToggleFileMarker, renameFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      renameCurrentFile, execRename, renameDialogState, closeRenameDialog, toggleFileMarker, bulkToggleFileMarker, renameFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode
     }}>
       {children}

@@ -3,6 +3,7 @@ import { AppProvider } from './AppContext';
 import { Sidebar } from './components/Sidebar';
 import { MainContent } from './components/MainContent';
 import { SettingsPanel } from './components/SettingsPanel';
+import { RenameModal } from './components/RenameModal';
 import { applySettingsToDOM } from './settingsSync';
 
 export default function App() {
@@ -86,6 +87,7 @@ export default function App() {
       <Sidebar />
       <SettingsPanel />
       <MainContent />
+      <RenameModal />
     </AppProvider>
   );
 }
