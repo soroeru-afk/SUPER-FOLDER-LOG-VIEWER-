@@ -100,10 +100,10 @@
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  background: rgba(59,130,246,0.12);
-  border: 1px solid rgba(59,130,246,0.3);
+  background: var(--sb-item-hover);
+  border: 1px solid var(--sb-accent);
   border-radius: 10px;
-  color: #60A5FA;
+  color: var(--sb-accent);
   font-size: 12px;
   font-weight: bold;
   cursor: pointer;
@@ -111,8 +111,8 @@
   margin-bottom: 10px;
   font-family: var(--font-body);
 }
-#reopen-btn:hover { background: rgba(59,130,246,0.2); }
-#reopen-btn svg { flex-shrink: 0; opacity: 0.8; }
+#reopen-btn:hover { background: var(--sb-item-active); }
+#reopen-btn svg { flex-shrink: 0; opacity: 0.8; color: var(--sb-accent); }
 
 /* ─── リセット ─── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -613,8 +613,8 @@ body.highlight-off mark {
 #welcome-big {
   font-size: 13vw;
   font-weight: 900;
-  color: var(--heading-color);
-  opacity: 0.04;
+  color: var(--card-border);
+  opacity: 0.7;
   letter-spacing: -4px;
   line-height: 1;
   margin-bottom: 24px;
@@ -1127,7 +1127,7 @@ body.select-mode .file-item.selected .file-title { color: #93C5FD; }
 /* Foldersの色用 */
 .category-icon { color: var(--sb-folder-color, currentColor); }
 #open-btn svg { color: var(--sb-folder-color, currentColor); }
-#reopen-btn svg { color: var(--sb-folder-color, currentColor); }
+#reopen-btn svg { color: var(--sb-accent, currentColor); }
 
 /* MainContent内の FolderIcon装飾 */
 .move-folder-btn svg { flex-shrink: 0; color: var(--sb-folder-color, currentColor); opacity: 0.85; }
