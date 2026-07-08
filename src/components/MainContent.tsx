@@ -245,6 +245,7 @@ export const MainContent = () => {
                           <p 
                             key={j} 
                             onClick={() => {
+                              if (window.getSelection()?.toString().trim()) return;
                               if (isPlayingAudio) {
                                 window.speechSynthesis.cancel();
                                 setIsPlayingAudio(false);
@@ -297,6 +298,7 @@ export const MainContent = () => {
                     <p 
                       key={j} 
                       onClick={() => {
+                        if (window.getSelection()?.toString().trim()) return;
                         if (isPlayingAudio) {
                           window.speechSynthesis.cancel();
                           setIsPlayingAudio(false);
@@ -343,6 +345,7 @@ export const MainContent = () => {
                     <span 
                       key={i} 
                       onClick={() => {
+                        if (window.getSelection()?.toString().trim()) return;
                         if (isPlayingAudio) {
                           window.speechSynthesis.cancel();
                           setIsPlayingAudio(false);
@@ -384,6 +387,7 @@ export const MainContent = () => {
             <span 
               key={i} 
               onClick={() => {
+                if (window.getSelection()?.toString().trim()) return;
                 if (isPlayingAudio) {
                   window.speechSynthesis.cancel();
                   setIsPlayingAudio(false);
