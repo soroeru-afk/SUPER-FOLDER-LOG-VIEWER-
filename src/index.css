@@ -1154,7 +1154,7 @@ body.paper-mode-active #plain-text,
 body.paper-mode-active .msg-body,
 body.paper-mode-active .vertical-card-fixed,
 body.paper-mode-active #edit-area {
-  background: #f4ebe1 !important;
+  background: #FFF8ED !important;
   color: #1a1a1a !important;
   border-color: #e6dac8 !important;
 }
