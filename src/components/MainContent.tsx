@@ -36,7 +36,7 @@ export const MainContent = () => {
   const scrollToTop = () => {
     const contentArea = document.getElementById('content-area');
     if (contentArea) {
-      contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+      contentArea.scrollTo({ top: 0, behavior: 'instant' });
     }
   };
 
