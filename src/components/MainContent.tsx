@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon } from './Icons';
+import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, ArrowUpIcon } from './Icons';
 import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, decorateMarkers, getVirtualFolder } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
 
@@ -14,6 +14,32 @@ export const MainContent = () => {
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
     reopenFolder, loading
   } = useAppContext();
+
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const contentArea = document.getElementById('content-area');
+    if (!contentArea) return;
+
+    const handleScroll = () => {
+      if (contentArea.scrollTop > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    contentArea.addEventListener('scroll', handleScroll);
+    return () => contentArea.removeEventListener('scroll', handleScroll);
+  }, [currentFileObj, isEditing]);
+
+  const scrollToTop = () => {
+    const contentArea = document.getElementById('content-area');
+    if (contentArea) {
+      contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
 
   const isSystemFile = (filename: string) => {
     const ln = filename.toLowerCase();
@@ -870,6 +896,44 @@ export const MainContent = () => {
         </div>
       )}
 
+      {showScrollTop && writingMode !== 'vertical' && !isEditing && (
+        <button 
+          id="scroll-to-top-btn"
+          onClick={scrollToTop}
+          title={lang === 'en' ? 'Back to top' : '一番上に戻る'}
+          style={{
+            position: 'fixed',
+            bottom: '60px',
+            right: '40px',
+            width: '50px',
+            height: '50px',
+            borderRadius: '50%',
+            background: '#ffffff',
+            color: '#1a1a1a',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 150,
+            transition: 'all 0.2s ease-in-out',
+            outline: 'none'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'scale(1.08)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.1)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08)';
+          }}
+        >
+          <ArrowUpIcon />
+        </button>
+      )}
+
     </div>
   );
 };
+
