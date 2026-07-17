@@ -694,10 +694,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const moveToNewFolder = async (folderName: string, isBulk: boolean) => {
     if (!folderName) return;
+    const sanitized = folderName.trim().replace(/[\\/]/g, '-').replace(/[:*?"<>|]/g, '_');
+    if (sanitized === '') return;
+    if (sanitized !== folderName.trim()) {
+      alert('フォルダー名に使用できない文字（\\ / : * ? " < > |）が含まれていたため、自動的に置換（- や _）しました。');
+    }
     try {
-      const nh = await dirHandle.getDirectoryHandle(folderName, {create: true});
+      const nh = await dirHandle.getDirectoryHandle(sanitized, {create: true});
       const files = isBulk ? Array.from(selectedFileMap.values()) : (currentFileObj ? [currentFileObj] : []);
-      await execBulkMove(files, nh, folderName);
+      await execBulkMove(files, nh, sanitized);
     } catch(e: any) { alert(e.message); }
   };
 
@@ -973,7 +978,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const renameFolder = async (oldName: string, folderHandle: any) => {
     const newName = prompt(`${t.main.renameFolderPrompt} ${oldName}\n\n${t.main.renamePrompt}`, oldName);
     if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
-    const trimmed = newName.trim();
+    const trimmed = newName.trim().replace(/[\\/]/g, '-').replace(/[:*?"<>|]/g, '_');
+    if (trimmed !== newName.trim()) {
+      alert('フォルダー名に使用できない文字（\\ / : * ? " < > |）が含まれていたため、自動的に置換（- や _）しました。');
+    }
     try {
       const newFolderHandle = await dirHandle.getDirectoryHandle(trimmed, { create: true });
       for await (const item of folderHandle.values()) {
