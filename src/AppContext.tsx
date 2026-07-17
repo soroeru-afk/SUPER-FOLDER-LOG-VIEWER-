@@ -58,6 +58,7 @@ export interface AppState {
   toggleFileMarker: (marker: string) => Promise<void>;
   bulkToggleFileMarker: (marker: string) => Promise<void>;
   renameFolder: (oldName: string, folderHandle: any) => Promise<void>;
+  createFolder: (parentPath: string | null) => Promise<void>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
   lang: 'en' | 'ja';
   setLang: (lang: 'en' | 'ja') => void;
@@ -975,6 +976,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   };
 
+  const createFolder = async (parentPath: string | null) => {
+    if (isFallbackMode) {
+      alert(t.main.fallbackDeleteError || "この機能は現在の環境では利用できません。");
+      return;
+    }
+    const msg = parentPath 
+      ? `「${parentPath.split('/').pop()}」の中に新規サブフォルダーを作成します。\n\nフォルダー名を入力してください:`
+      : `一番上の階層に新規フォルダーを作成します。\n\nフォルダー名を入力してください:`;
+    const newName = prompt(msg);
+    if (!newName || newName.trim() === '') return;
+    
+    const trimmed = newName.trim().replace(/[\\/]/g, '-').replace(/[:*?"<>|]/g, '_');
+    if (trimmed !== newName.trim()) {
+      alert('フォルダー名に使用できない文字（\\ / : * ? " < > |）が含まれていたため、自動的に置換（- や _）しました。');
+    }
+
+    try {
+      let parentHandle = dirHandle;
+      if (parentPath) {
+        const parts = parentPath.split('/');
+        for (const p of parts) {
+          if (!p) continue;
+          parentHandle = await parentHandle.getDirectoryHandle(p);
+        }
+      }
+      await parentHandle.getDirectoryHandle(trimmed, { create: true });
+      await loadFiles(dirHandle);
+    } catch(e:any){ alert(e.message); }
+  };
+
   const renameFolder = async (oldName: string, folderHandle: any) => {
     const parts = oldName.split('/');
     const actualOldName = parts[parts.length - 1];
@@ -1068,7 +1099,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
-      renameCurrentFile, execRename, renameDialogState, closeRenameDialog, toggleFileMarker, bulkToggleFileMarker, renameFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      renameCurrentFile, execRename, renameDialogState, closeRenameDialog, toggleFileMarker, 
+      bulkToggleFileMarker, renameFolder, createFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode
     }}>
       {children}

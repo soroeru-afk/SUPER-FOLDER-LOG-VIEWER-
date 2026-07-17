@@ -21,6 +21,32 @@ export const Sidebar = () => {
   const [showMarkPanel, setShowMarkPanel] = useState(false);
   const [groupsExpanded, setGroupsExpanded] = useState(false);
   const [showBulkMarkMenu, setShowBulkMarkMenu] = useState(false);
+  const [isDraggingSidebar, setIsDraggingSidebar] = useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingSidebar) return;
+      const newWidth = Math.max(200, Math.min(800, e.clientX));
+      document.documentElement.style.setProperty('--sb-width', `${newWidth}px`);
+    };
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isDraggingSidebar) {
+        setIsDraggingSidebar(false);
+        const newWidth = Math.max(200, Math.min(800, e.clientX));
+        localStorage.setItem('lv_sbWidth', newWidth.toString());
+      }
+    };
+    if (isDraggingSidebar) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.classList.add('sidebar-dragging');
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.classList.remove('sidebar-dragging');
+    };
+  }, [isDraggingSidebar]);
 
   const handleToggleExpand = () => {
     if (groupsExpanded) {
@@ -222,7 +248,12 @@ export const Sidebar = () => {
           }}
         >
           {icon && <span className="category-icon" style={{ opacity: depth > 0 ? 0.7 : 1 }}>{icon}</span>}
-          <span className="category-name">{label}</span>
+          <span className="category-name" style={{flex: 1}}>{label}</span>
+          <div className="add-subfolder-btn" title="サブフォルダー作成" onClick={(e) => {
+            e.stopPropagation();
+            const targetCatName = groupKey.startsWith('cat:') ? groupKey.slice(4) : label;
+            createFolder(targetCatName);
+          }}>＋</div>
           {badge && <span className="today-badge">{badge}</span>}
           <span className="category-count">{totalCount !== undefined ? totalCount : files.length}</span>
           <span className="category-arrow">▶</span>
@@ -431,7 +462,7 @@ export const Sidebar = () => {
   })();
 
   return (
-    <div id="sidebar" onClick={() => { if (settingsOpen) toggleSettings(); closeMovePanels(); setShowBulkMarkMenu(false); }}>
+    <div id="sidebar" onClick={() => { if (settingsOpen) toggleSettings(); closeMovePanels(); setShowBulkMarkMenu(false); }} style={{ position: 'relative' }}>
       <div id="app-brand" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '8px', paddingBottom: '16px'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end'}}>
           <div id="app-name">SUPER FOLDER<br/><span>LOG VIEWER</span></div>
@@ -604,6 +635,9 @@ export const Sidebar = () => {
           </div>
         </div>
         <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
+          <button id="new-folder-btn" onClick={() => createFolder(null)} title="新規フォルダー作成" style={{ background: 'none', border: '1px solid var(--sb-border)', borderRadius: '7px', color: 'var(--sb-text)', opacity: 0.75, fontSize: '10px', fontWeight: 'bold', padding: '3px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.12s' }} onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.borderColor = 'var(--sb-border)'; }} onMouseLeave={e => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.borderColor = 'var(--sb-border)'; }}>
+            <span style={{ fontSize: '14px', lineHeight: 1 }}>+</span> <FolderIcon />
+          </button>
           <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
           <button id="highlight-toggle-btn" className={isHighlightOff ? 'off' : ''} onClick={toggleHighlight} title={t.app.highlight}>
             <HighlightIcon /> HL
@@ -708,6 +742,10 @@ export const Sidebar = () => {
           {t.app.settings}
         </button>
       </div>
+      <div 
+        className="sidebar-resizer" 
+        onMouseDown={(e) => { e.preventDefault(); setIsDraggingSidebar(true); }}
+      />
     </div>
   );
 };
