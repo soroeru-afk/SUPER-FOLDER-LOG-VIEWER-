@@ -13,7 +13,7 @@ export const Sidebar = () => {
     selectedFiles, currentFileObj, selectFile, toggleFileSelection,
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
-    bulkToggleFileMarker,
+    bulkToggleFileMarker, renameFolder,
     lang, setLang, t, sortMode, sortDirection, setSortMode, setSortDirection
   } = useAppContext();
 
@@ -198,6 +198,14 @@ export const Sidebar = () => {
         <button 
           className={`category-header ${isOpen ? 'open' : ''}`}
           onClick={() => setCategoryOpen(groupKey, !isOpen)}
+          onContextMenu={(e) => {
+            if (groupKey.startsWith('cat:')) {
+              e.preventDefault();
+              const targetCatName = groupKey.slice(4);
+              const cat = physicalFolders.find(c => c.name === targetCatName);
+              if (cat) renameFolder(cat.name, cat.handle);
+            }
+          }}
           onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('drag-over'); }}
           onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
           onDrop={async e => {

@@ -983,23 +983,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       alert('フォルダー名に使用できない文字（\\ / : * ? " < > |）が含まれていたため、自動的に置換（- や _）しました。');
     }
     try {
-      const newFolderHandle = await dirHandle.getDirectoryHandle(trimmed, { create: true });
-      for await (const item of folderHandle.values()) {
-        if (item.kind === 'file') {
-          const file = await item.getFile(); const text = await file.text();
-          const newFileHandle = await newFolderHandle.getFileHandle(item.name, { create: true });
-          const writable = await newFileHandle.createWritable(); await writable.write(text); await writable.close();
+      const parts = oldName.split('/');
+      const actualOldName = parts[parts.length - 1];
+      let parentHandle = dirHandle;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!parts[i]) continue;
+        parentHandle = await parentHandle.getDirectoryHandle(parts[i]);
+      }
+
+      const newFolderHandle = await parentHandle.getDirectoryHandle(trimmed, { create: true });
+      
+      const copyFolderRecursive = async (src: any, dest: any) => {
+        for await (const item of src.values()) {
+          if (item.kind === 'file') {
+            const file = await item.getFile();
+            const text = await file.text();
+            const newFileHandle = await dest.getFileHandle(item.name, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(text);
+            await writable.close();
+          } else if (item.kind === 'directory') {
+            const newSubDir = await dest.getDirectoryHandle(item.name, { create: true });
+            await copyFolderRecursive(item, newSubDir);
+          }
         }
-      }
-      for await (const item of folderHandle.values()) {
-        if (item.kind === 'file') await folderHandle.removeEntry(item.name);
-      }
-      await dirHandle.removeEntry(oldName);
+      };
+
+      await copyFolderRecursive(folderHandle, newFolderHandle);
+      await parentHandle.removeEntry(actualOldName, { recursive: true });
+      
+      const newCategoryPath = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' + trimmed : trimmed;
       
       if (currentFileObj && currentFileObj.category === oldName) {
         const newHandle = await newFolderHandle.getFileHandle(currentFileObj.filename, { create: false }).catch(() => null);
         if (newHandle) {
-          setCurrentFileObj({ ...currentFileObj, category: trimmed, folderHandle: newFolderHandle, handle: newHandle });
+          setCurrentFileObj({ ...currentFileObj, category: newCategoryPath, folderHandle: newFolderHandle, handle: newHandle });
         }
       }
       closeMovePanels();
