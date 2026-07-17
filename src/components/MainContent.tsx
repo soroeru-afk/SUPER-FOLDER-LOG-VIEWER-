@@ -815,10 +815,11 @@ export const MainContent = () => {
           style={{
             position: 'fixed', zIndex: 200, 
             background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', 
-            borderRadius: '14px', padding: 0, boxShadow: '0 12px 48px rgba(0,0,0,0.55)', minWidth: '260px', overflow: 'hidden',
             top: movePanelState.type === 'bulk' ? 'auto' : Math.max(10, Math.min(movePanelState.triggerRect.bottom + 5, window.innerHeight - 320)) + 'px',
             bottom: movePanelState.type === 'bulk' ? '70px' : 'auto',
-            left: movePanelState.type === 'bulk' ? Math.max(10, Math.min(movePanelState.triggerRect.left, window.innerWidth - 280)) + 'px' : Math.max(10, Math.min(movePanelState.triggerRect.right + 10, window.innerWidth - 280)) + 'px'
+            left: movePanelState.type === 'bulk' ? Math.max(10, Math.min(movePanelState.triggerRect.left, window.innerWidth - 280)) + 'px' : 'auto',
+            right: movePanelState.type === 'bulk' ? 'auto' : Math.max(10, window.innerWidth - movePanelState.triggerRect.right) + 'px',
+            maxWidth: '90vw'
           }}
           onClick={e => e.stopPropagation()}
         >

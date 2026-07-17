@@ -984,7 +984,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const msg = parentPath 
       ? `「${parentPath.split('/').pop()}」の中に新規サブフォルダーを作成します。\n\nフォルダー名を入力してください:`
       : `一番上の階層に新規フォルダーを作成します。\n\nフォルダー名を入力してください:`;
-    const newName = prompt(msg);
+    const newName = prompt(msg, '00_');
     if (!newName || newName.trim() === '') return;
     
     const trimmed = newName.trim().replace(/[\\/]/g, '-').replace(/[:*?"<>|]/g, '_');
