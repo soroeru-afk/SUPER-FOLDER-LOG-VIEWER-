@@ -250,7 +250,7 @@ export const Sidebar = () => {
         >
           {icon && <span className="category-icon" style={{ opacity: depth > 0 ? 0.7 : 1 }}>{icon}</span>}
           <span className="category-name" style={{flex: 1}}>{label}</span>
-          {isCreateFolderMode && depth === 0 && (
+          {isCreateFolderMode && depth === 0 && !shouldGroup && (
             <div className="add-subfolder-btn" title="サブフォルダー作成" onClick={(e) => {
               e.preventDefault(); e.stopPropagation();
               setIsCreateFolderMode(false);
