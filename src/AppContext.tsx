@@ -1032,13 +1032,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     let count = 0;
-    for await (const item of folderHandle.values()) { if (item.kind === 'file') count++; }
+    async function countFiles(handle: any) {
+      for await (const item of handle.values()) {
+        if (item.kind === 'file') count++;
+        else if (item.kind === 'directory') await countFiles(item);
+      }
+    }
+    await countFiles(folderHandle);
     const msg = count > 0 ? `「${name}」\n⚠️ ${count} ${t.main.confirmDeleteFolder}` : `「${name}」\n${t.main.confirmDeleteFolder}`;
     if (!confirm(msg)) return;
     try {
-      for await (const item of folderHandle.values()) { if (item.kind === 'file') await folderHandle.removeEntry(item.name); }
-      await dirHandle.removeEntry(name);
-      if (currentFileObj && currentFileObj.category === name) setCurrentFileObj(null);
+      const parts = name.split('/');
+      const actualName = parts[parts.length - 1];
+      let parentHandle = dirHandle;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!parts[i]) continue;
+        parentHandle = await parentHandle.getDirectoryHandle(parts[i]);
+      }
+      await parentHandle.removeEntry(actualName, { recursive: true });
+      if (currentFileObj && currentFileObj.category && currentFileObj.category.startsWith(name)) setCurrentFileObj(null);
       closeMovePanels();
       await loadFiles(dirHandle);
     } catch(e:any){ alert(e.message); }
