@@ -13,7 +13,7 @@ export const Sidebar = () => {
     selectedFiles, currentFileObj, selectFile, toggleFileSelection,
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
-    bulkToggleFileMarker, renameFolder,
+    bulkToggleFileMarker, renameFolder, createFolder,
     lang, setLang, t, sortMode, sortDirection, setSortMode, setSortDirection
   } = useAppContext();
 
@@ -22,6 +22,7 @@ export const Sidebar = () => {
   const [groupsExpanded, setGroupsExpanded] = useState(false);
   const [showBulkMarkMenu, setShowBulkMarkMenu] = useState(false);
   const [isDraggingSidebar, setIsDraggingSidebar] = useState(false);
+  const [isCreateFolderMode, setIsCreateFolderMode] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -249,11 +250,14 @@ export const Sidebar = () => {
         >
           {icon && <span className="category-icon" style={{ opacity: depth > 0 ? 0.7 : 1 }}>{icon}</span>}
           <span className="category-name" style={{flex: 1}}>{label}</span>
-          <div className="add-subfolder-btn" title="サブフォルダー作成" onClick={(e) => {
-            e.stopPropagation();
-            const targetCatName = groupKey.startsWith('cat:') ? groupKey.slice(4) : label;
-            createFolder(targetCatName);
-          }}>＋</div>
+          {isCreateFolderMode && depth === 0 && (
+            <div className="add-subfolder-btn" title="サブフォルダー作成" onClick={(e) => {
+              e.preventDefault(); e.stopPropagation();
+              setIsCreateFolderMode(false);
+              const targetCatName = groupKey.startsWith('cat:') ? groupKey.slice(4) : label;
+              createFolder(targetCatName);
+            }}>＋</div>
+          )}
           {badge && <span className="today-badge">{badge}</span>}
           <span className="category-count">{totalCount !== undefined ? totalCount : files.length}</span>
           <span className="category-arrow">▶</span>
@@ -635,7 +639,7 @@ export const Sidebar = () => {
           </div>
         </div>
         <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
-          <button id="new-folder-btn" onClick={() => createFolder(null)} title="新規フォルダー作成" style={{ background: 'none', border: '1px solid var(--sb-border)', borderRadius: '7px', color: 'var(--sb-text)', opacity: 0.75, fontSize: '10px', fontWeight: 'bold', padding: '3px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.12s' }} onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.borderColor = 'var(--sb-border)'; }} onMouseLeave={e => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.borderColor = 'var(--sb-border)'; }}>
+          <button id="new-folder-btn" onClick={() => setIsCreateFolderMode(!isCreateFolderMode)} title="フォルダー作成モード" className={isCreateFolderMode ? 'active' : ''} style={{ background: isCreateFolderMode ? 'rgba(59,130,246,0.2)' : 'none', border: '1px solid', borderColor: isCreateFolderMode ? '#3B82F6' : 'var(--sb-border)', borderRadius: '7px', color: isCreateFolderMode ? '#60A5FA' : 'var(--sb-text)', opacity: isCreateFolderMode ? 1 : 0.75, fontSize: '10px', fontWeight: 'bold', padding: '3px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.12s' }}>
             <span style={{ fontSize: '14px', lineHeight: 1 }}>+</span> <FolderIcon />
           </button>
           <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
@@ -733,6 +737,14 @@ export const Sidebar = () => {
 
       <div id="file-list">
         {!dirHandle && <div id="empty-msg" style={{whiteSpace:'pre-wrap'}}>{t.sidebar.selectFolderToView}</div>}
+        {isCreateFolderMode && dirHandle && (
+          <button 
+            onClick={() => { setIsCreateFolderMode(false); createFolder(null); }}
+            style={{ width: '100%', padding: '8px', marginBottom: '8px', background: 'rgba(59,130,246,0.1)', border: '1px dashed rgba(59,130,246,0.5)', color: '#93C5FD', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}
+          >
+            <span style={{ fontSize: '14px' }}>+</span> 一番上（ルート）に新規フォルダー作成
+          </button>
+        )}
         {dirHandle && renderList()}
       </div>
 

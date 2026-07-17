@@ -169,7 +169,7 @@ export const SettingsPanel = () => {
             </div>
             <div className="setting-row">
               <div className="setting-label">{t.settings.sbWidth} <span id="sb-width-val">{vals.sbWidth}px</span></div>
-              <input className="setting-slider" type="range" min="180" max="540" step="10" value={vals.sbWidth} onChange={e => updateSetting('sbWidth', e.target.value)} />
+              <input className="setting-slider" type="range" min="180" max="800" step="10" value={vals.sbWidth} onChange={e => updateSetting('sbWidth', e.target.value)} />
             </div>
             <div className="setting-row">
               <div className="setting-label">{t.settings.contentWidth} <span id="content-width-val">{vals.contentWidth}px</span></div>
