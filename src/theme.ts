@@ -49,4 +49,12 @@ export function applyThemeStyle(key: string) {
   r.setProperty('--sb-item-opacity', t.sbItemOpacity || '0.85');
   r.setProperty('--sb-category-opacity', t.sbCategoryOpacity || '0.85');
   r.setProperty('--sb-category-color', t.sbMutedOverride || t.sbMain || '');
+
+  let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (!metaThemeColor) {
+    metaThemeColor = document.createElement('meta');
+    metaThemeColor.setAttribute('name', 'theme-color');
+    document.head.appendChild(metaThemeColor);
+  }
+  metaThemeColor.setAttribute('content', t.sbBg);
 }
