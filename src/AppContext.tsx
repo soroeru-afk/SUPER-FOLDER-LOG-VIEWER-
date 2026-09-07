@@ -68,6 +68,7 @@ export interface AppState {
   togglePaperMode: () => void;
   fileMarks: Record<string, string>;
   setFileMark: (filename: string, mark: string) => void;
+  setBulkFileMarks: (filenames: string[], mark: string) => void;
   hasPrevFile: boolean;
   hasNextFile: boolean;
   goToPrevFile: () => void;
@@ -169,6 +170,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       } else {
         next[filename] = mark;
       }
+      localStorage.setItem('lv_file_marks', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const setBulkFileMarks = (filenames: string[], mark: string) => {
+    setFileMarks(prev => {
+      const next = { ...prev };
+      filenames.forEach(fn => {
+        if (!mark) {
+          delete next[fn];
+        } else {
+          next[fn] = mark;
+        }
+      });
       localStorage.setItem('lv_file_marks', JSON.stringify(next));
       return next;
     });
@@ -906,7 +922,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode,
-      paperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+      paperMode, togglePaperMode, fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
       isResuming, pendingResumeHandle, resumeSavedFolder
     }}>
       {children}

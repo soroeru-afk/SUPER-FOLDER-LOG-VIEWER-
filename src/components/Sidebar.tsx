@@ -16,11 +16,61 @@ export const Sidebar = () => {
     createNewFolder, createNewFile,
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
-    fileMarks, isResuming, pendingResumeHandle, resumeSavedFolder
+    fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isAddMode, setIsAddMode] = useState(false);
+  const [bulkMarkOpen, setBulkMarkOpen] = useState(false);
+  const bulkMarkRef = useRef<HTMLDivElement>(null);
+
+  const isAnyGroupOpen = () => {
+    const keys = Object.keys(categoryOpenState);
+    if (keys.length > 0) {
+      return keys.some(k => categoryOpenState[k] === true);
+    }
+    return (allCategories.length > 0 || allFiles.length > 0);
+  };
+
+  const handleToggleAllGroups = () => {
+    if (isAnyGroupOpen()) {
+      collapseAllGroups();
+    } else {
+      expandAllGroups();
+    }
+  };
+
+  const renderMarkBadge = (mark: string) => {
+    if (!mark) return null;
+    let markClass = 'file-mark-badge';
+    let markStyle: React.CSSProperties = {};
+    if (mark === '★') {
+      markClass += ' mark-star';
+      markStyle = { color: '#F59E0B' };
+    } else if (mark === '✓') {
+      markClass += ' mark-check';
+      markStyle = { color: '#10B981', fontWeight: 900 };
+    }
+    return (
+      <span className={markClass} style={markStyle} title={`マーク: ${mark}`}>
+        {mark}
+      </span>
+    );
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bulkMarkRef.current && !bulkMarkRef.current.contains(e.target as Node)) {
+        setBulkMarkOpen(false);
+      }
+    };
+    if (bulkMarkOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [bulkMarkOpen]);
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect='move'; };
   const handleDrop = (e: React.DragEvent) => {
@@ -108,9 +158,7 @@ export const Sidebar = () => {
         )}
         {f.date && <div className="file-date">{f.dateSource==='os'?<span style={{opacity:0.5,fontSize:'9px'}}>📅 </span>:null}{f.date.replace(/-/g,'.')} {f.time}</div>}
         <div className="file-title">
-          {fileMarks[f.filename] && (
-            <span className="file-mark-badge" title="マーク">{fileMarks[f.filename]}</span>
-          )}
+          {fileMarks[f.filename] && renderMarkBadge(fileMarks[f.filename])}
           <span dangerouslySetInnerHTML={{__html: titleHtml}} />
         </div>
         {previewHtml && <div dangerouslySetInnerHTML={{__html: previewHtml}} />}
@@ -304,9 +352,13 @@ export const Sidebar = () => {
         </div>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
           <div id="app-version">React Edition v3.1.2</div>
-          <div onClick={(e) => { e.stopPropagation(); setLang(lang === 'ja' ? 'en' : 'ja'); }} style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', overflow: 'hidden', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>
-            <div style={{ padding: '2px 5px', background: lang === 'en' ? '#94A3B8' : 'transparent', color: lang === 'en' ? '#0F172A' : '#94A3B8' }}>EN</div>
-            <div style={{ padding: '2px 5px', background: lang === 'ja' ? '#94A3B8' : 'transparent', color: lang === 'ja' ? '#0F172A' : '#94A3B8' }}>JP</div>
+          <div 
+            className="lang-toggle-container"
+            onClick={(e) => { e.stopPropagation(); setLang(lang === 'ja' ? 'en' : 'ja'); }} 
+            title={lang === 'ja' ? 'Switch to English' : '日本語に切り替え'}
+          >
+            <div className={`lang-toggle-btn ${lang === 'en' ? 'active' : 'inactive'}`}>EN</div>
+            <div className={`lang-toggle-btn ${lang === 'ja' ? 'active' : 'inactive'}`}>JP</div>
           </div>
         </div>
       </div>
@@ -362,11 +414,12 @@ export const Sidebar = () => {
             <button 
               className={`sort-btn ${sortMode === 'date' ? 'active' : ''}`}
               style={{
-                background: sortMode === 'date' ? 'rgba(255,255,255,0.1)' : 'transparent', 
-                border: '1px solid var(--panel-item-border)', 
-                color: sortMode === 'date' ? 'var(--sb-accent)' : 'var(--sb-text-sec)', 
-                padding: '2px 6px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '2px'
+                background: sortMode === 'date' ? 'var(--sb-item-active)' : 'transparent', 
+                border: '1px solid var(--sb-border)', 
+                color: sortMode === 'date' ? 'var(--sb-accent)' : 'var(--sb-text)', 
+                padding: '3px 8px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
+                fontWeight: sortMode === 'date' ? 'bold' : '600',
+                display: 'flex', alignItems: 'center', gap: '3px'
               }}
               onClick={() => {
                 if (sortMode === 'date') setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
@@ -378,11 +431,12 @@ export const Sidebar = () => {
             <button 
               className={`sort-btn ${sortMode === 'name' ? 'active' : ''}`}
               style={{
-                background: sortMode === 'name' ? 'rgba(255,255,255,0.1)' : 'transparent', 
-                border: '1px solid var(--panel-item-border)', 
-                color: sortMode === 'name' ? 'var(--sb-accent)' : 'var(--sb-text-sec)', 
-                padding: '2px 6px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '2px'
+                background: sortMode === 'name' ? 'var(--sb-item-active)' : 'transparent', 
+                border: '1px solid var(--sb-border)', 
+                color: sortMode === 'name' ? 'var(--sb-accent)' : 'var(--sb-text)', 
+                padding: '3px 8px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
+                fontWeight: sortMode === 'name' ? 'bold' : '600',
+                display: 'flex', alignItems: 'center', gap: '3px'
               }}
               onClick={() => {
                 if (sortMode === 'name') setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -398,9 +452,9 @@ export const Sidebar = () => {
             onClick={() => setIsAddMode(!isAddMode)}
             className={isAddMode ? 'active' : ''}
             style={{
-              background: isAddMode ? 'rgba(255,255,255,0.1)' : 'transparent',
+              background: isAddMode ? 'var(--sb-item-active)' : 'transparent',
               border: '1px solid var(--sb-border)', 
-              color: 'var(--sb-text)', opacity: isAddMode ? 1 : 0.75, fontSize: '10px', fontWeight: 'bold', 
+              color: 'var(--sb-text)', opacity: 1, fontSize: '10px', fontWeight: 'bold', 
               letterSpacing: '1px', padding: '3px 8px', borderRadius: '7px', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
             }}
@@ -409,12 +463,35 @@ export const Sidebar = () => {
             ＋ <FolderIcon />
           </button>
           <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
-          <button id="highlight-toggle-btn" className={isHighlightOff ? 'off' : ''} onClick={toggleHighlight} title={t.app.highlight}>
+          <button 
+            id="highlight-toggle-btn" 
+            className={isHighlightOff ? 'off' : ''} 
+            onClick={toggleHighlight} 
+            title={lang === 'en' ? 'Toggle Keyword Highlight (ON/OFF)' : '本文ハイライト表示切替（ON/OFF）'}
+          >
             <HighlightIcon /> HL
           </button>
-          <button onClick={expandAllGroups} title="全て展開" className="header-icon-btn">＋</button>
-          <button onClick={collapseAllGroups} title="全て折りたたむ" className="header-icon-btn">－</button>
-          <button id="refresh-btn" onClick={refreshFolder} title="更新">
+          <button 
+            onClick={handleToggleAllGroups} 
+            title={isAnyGroupOpen() ? (lang === 'en' ? 'Collapse all folders' : '全て折りたたむ') : (lang === 'en' ? 'Expand all folders' : '全て展開')} 
+            className="header-icon-btn"
+            style={{
+              fontSize: '13px',
+              fontWeight: 'bold',
+              minWidth: '22px',
+              height: '22px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid var(--sb-border)',
+              borderRadius: '5px',
+              color: 'var(--sb-text)',
+              opacity: 0.85
+            }}
+          >
+            {isAnyGroupOpen() ? '－' : '＋'}
+          </button>
+          <button id="refresh-btn" onClick={refreshFolder} title={lang === 'en' ? 'Refresh' : '更新'}>
             <RefreshIcon className={refreshing ? 'spin' : ''} />
           </button>
         </div>
@@ -424,7 +501,68 @@ export const Sidebar = () => {
         <div id="bulk-bar" className="visible">
           <div id="bulk-bar-inner">
             <span id="bulk-count">{lang === 'en' ? `${selectedFiles.size}${t.sidebar.selectedCount}` : `${selectedFiles.size}${t.sidebar.selectedCount}`}</span>
-            <button id="bulk-cancel-btn" onClick={toggleSelectMode}>{t.sidebar.cancelSelect}</button>
+            
+            <div className="bulk-mark-dropdown-container" ref={bulkMarkRef}>
+              <button 
+                id="bulk-mark-btn"
+                onClick={() => setBulkMarkOpen(!bulkMarkOpen)}
+                title={lang === 'en' ? 'Set mark for selected files' : '選択した項目にマークを付ける'}
+              >
+                <span style={{ color: '#F59E0B' }}>★</span>
+                <span>{lang === 'en' ? 'Mark' : 'マーク'}</span>
+                <span style={{ fontSize: '9px', opacity: 0.8 }}>▼</span>
+              </button>
+
+              {bulkMarkOpen && (
+                <div className="bulk-mark-palette-popup">
+                  <div className="bulk-mark-palette-title">
+                    {lang === 'en' ? 'Mark selected' : 'マークを選択'}
+                  </div>
+                  <div className="bulk-mark-palette-items">
+                    {[
+                      { mark: '★', label: lang === 'en' ? 'Star (★)' : '星（★）', style: { color: '#F59E0B' } },
+                      { mark: '✓', label: lang === 'en' ? 'Check (✓)' : 'チェック（✓）', style: { color: '#10B981', fontWeight: 'bold' } },
+                      { mark: '💡', label: lang === 'en' ? 'Idea (💡)' : '電球（💡）' },
+                      { mark: '📌', label: lang === 'en' ? 'Pin (📌)' : 'ピン（📌）' },
+                      { mark: '⚠️', label: lang === 'en' ? 'Warn (⚠️)' : '注意（⚠️）' },
+                    ].map(item => (
+                      <button
+                        key={item.mark}
+                        className="bulk-mark-item-btn"
+                        onClick={() => {
+                          const fileNames = Array.from(selectedFiles).map((k: unknown) => {
+                            const str = String(k);
+                            const parts = str.split('::');
+                            return parts.length > 1 ? parts[1] : str;
+                          });
+                          setBulkFileMarks(fileNames, item.mark);
+                          setBulkMarkOpen(false);
+                        }}
+                      >
+                        <span className="mark-symbol" style={item.style}>{item.mark}</span>
+                        <span className="mark-label">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="bulk-mark-palette-divider" />
+                  <button
+                    className="bulk-mark-clear-btn"
+                    onClick={() => {
+                      const fileNames = Array.from(selectedFiles).map((k: unknown) => {
+                        const str = String(k);
+                        const parts = str.split('::');
+                        return parts.length > 1 ? parts[1] : str;
+                      });
+                      setBulkFileMarks(fileNames, '');
+                      setBulkMarkOpen(false);
+                    }}
+                  >
+                    ✕ {lang === 'en' ? 'Remove Marks' : 'マークを解除'}
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button id="bulk-delete-btn" onClick={bulkDeleteFiles}>{t.sidebar.bulkDelete}</button>
             <button id="bulk-move-btn" onClick={e => openMovePanel(e, 'bulk')}>{t.sidebar.bulkMove}</button>
           </div>

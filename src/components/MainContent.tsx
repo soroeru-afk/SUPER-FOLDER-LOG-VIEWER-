@@ -631,14 +631,29 @@ export const MainContent = () => {
                         onClick={() => setMarkPaletteOpen(prev => !prev)}
                         title="マークを付ける / 変更"
                       >
-                        {currentFileObj && fileMarks[currentFileObj.filename] ? `${fileMarks[currentFileObj.filename]} マーク` : '☆ マーク'}
+                        {currentFileObj && fileMarks[currentFileObj.filename] ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={
+                              fileMarks[currentFileObj.filename] === '★' 
+                                ? { color: '#F59E0B' } 
+                                : fileMarks[currentFileObj.filename] === '✓' 
+                                  ? { color: '#10B981', fontWeight: 900 } 
+                                  : undefined
+                            }>
+                              {fileMarks[currentFileObj.filename]}
+                            </span>
+                            <span>マーク</span>
+                          </span>
+                        ) : (
+                          '☆ マーク'
+                        )}
                       </button>
                       {markPaletteOpen && currentFileObj && (
                         <div className="mark-palette-popup">
                           <div className="mark-palette-items">
                             {[
-                              { mark: '★', label: '星（★）', style: { color: '#f59e0b' } },
-                              { mark: '✓', label: 'チェック（✓）', style: { fontWeight: 'bold' } },
+                              { mark: '★', label: '星（★）', style: { color: '#F59E0B' } },
+                              { mark: '✓', label: 'チェック（✓）', style: { color: '#10B981', fontWeight: 900 } },
                               { mark: '💡', label: '電球（💡）' },
                               { mark: '📌', label: 'ピン（📌）' },
                               { mark: '⚠️', label: '注意（⚠️）' },

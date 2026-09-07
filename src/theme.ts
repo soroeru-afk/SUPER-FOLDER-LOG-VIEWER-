@@ -7,7 +7,41 @@ export const THEMES: Record<string, any> = {
   rose: { label: 'Rose', sbBg: '#1A0A10', sbMain: '#FFE4EE', mainBg: '#FFF1F5', mainCard: '#FFFFFF', mainText: '#3D0017', cardBorder: '#FBCFE8', sbAccent: '#F43F5E', dateAccent: '#FB7185', footerBg: 'rgba(255,241,245,0.8)', footerBorder: '#FBCFE8', scrollbar: 'rgba(61,0,23,0.10)', summaryBg: '#FFE4EE', summaryBorder: '#F43F5E', summaryText: '#881337', summaryLabel: '#BE123C', btnBg: '#FFFFFF', btnText: '#3D0017', btnBorder: '#FBCFE8', btnHover: '#FFE4EE', panelBg: '#FFF1F5', panelBorder: 'rgba(244,63,94,0.15)', panelText: 'rgba(61,0,23,0.85)', panelMuted: 'rgba(61,0,23,0.4)', panelTabActive: '#3D0017', panelTabBorder: 'rgba(61,0,23,0.08)', panelItemBg: 'rgba(61,0,23,0.04)', panelItemBorder: 'rgba(61,0,23,0.09)', panelSliderBg: 'rgba(61,0,23,0.10)', panelScrollbar: 'rgba(61,0,23,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#F4A7BC' },
   obsidian: { label: 'Obsidian', sbBg: '#0A0A0A', sbMain: '#CCCCCC', mainBg: '#111111', mainCard: '#1A1A1A', mainText: '#CCCCCC', cardBorder: '#2A2A2A', sbAccent: '#888888', dateAccent: '#888888', footerBg: 'rgba(17,17,17,0.9)', footerBorder: '#2A2A2A', scrollbar: 'rgba(255,255,255,0.06)', summaryBg: '#1A1A2A', summaryBorder: '#555', summaryText: '#AAAACC', summaryLabel: '#888', btnBg: '#1A1A1A', btnText: '#CCCCCC', btnBorder: '#2A2A2A', btnHover: '#222222', panelBg: '#0A0A0A', panelBorder: 'rgba(255,255,255,0.08)', panelText: 'rgba(204,204,204,0.85)', panelMuted: 'rgba(204,204,204,0.35)', panelTabActive: '#CCC', panelTabBorder: 'rgba(255,255,255,0.08)', panelItemBg: 'rgba(255,255,255,0.04)', panelItemBorder: 'rgba(255,255,255,0.08)', panelSliderBg: 'rgba(255,255,255,0.10)', panelScrollbar: 'rgba(255,255,255,0.08)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#999999' },
   dark: { label: 'DARK', sbBg: '#1D1C21', sbMain: '#BCC2CB', mainBg: '#EBEFF2', mainCard: '#FFFFFF', mainText: '#1E293B', cardBorder: '#E2E8F0', sbAccent: '#3B82F6', dateAccent: '#BCC2CB', footerBg: 'rgba(235,239,242,0.9)', footerBorder: '#E2E8F0', scrollbar: 'rgba(0,0,0,0.1)', summaryBg: '#EFF6FF', summaryBorder: '#3B82F6', summaryText: '#1E3A8A', summaryLabel: '#1D4ED8', btnBg: '#FFFFFF', btnText: '#1E293B', btnBorder: '#E2E8F0', btnHover: '#E2E8F0', panelBg: '#1D1C21', panelBorder: 'rgba(255,255,255,0.1)', panelText: 'rgba(255,255,255,0.85)', panelMuted: 'rgba(255,255,255,0.35)', panelTabActive: '#FFFFFF', panelTabBorder: 'rgba(255,255,255,0.1)', panelItemBg: '#29282E', panelItemBorder: 'rgba(255,255,255,0.1)', panelSliderBg: 'rgba(255,255,255,0.15)', panelScrollbar: 'rgba(255,255,255,0.1)', sbItemOpacity: '0.85', sbCategoryOpacity: '0.85', sbMutedOverride: '#BCC2CB' },
-  white: { label: 'White', sbBg: '#FFFFFF', sbMain: '#000000', mainBg: '#FFFFFF', mainCard: '#FFFFFF', mainText: '#000000', cardBorder: '#000000', sbAccent: '#000000', dateAccent: '#000000', footerBg: 'rgba(255,255,255,0.95)', footerBorder: '#000000', scrollbar: 'rgba(0,0,0,0.3)', summaryBg: '#F0F0F0', summaryBorder: '#000000', summaryText: '#000000', summaryLabel: '#000000', btnBg: '#FFFFFF', btnText: '#000000', btnBorder: '#000000', btnHover: '#F0F0F0', panelBg: '#FFFFFF', panelBorder: '#000000', panelText: '#000000', panelMuted: 'rgba(0,0,0,0.55)', panelTabActive: '#000000', panelTabBorder: '#000000', panelItemBg: 'rgba(0,0,0,0.06)', panelItemBorder: '#000000', panelSliderBg: 'rgba(0,0,0,0.25)', panelScrollbar: 'rgba(0,0,0,0.25)', sbItemOpacity: '1', sbMutedOverride: '#000000', sbCategoryOpacity: '1' },
+  white: { 
+    label: 'White', 
+    sbBg: '#FFFFFF', 
+    sbMain: '#111827', 
+    mainBg: '#FFFFFF', 
+    mainCard: '#FFFFFF', 
+    mainText: '#111827', 
+    cardBorder: '#D1D5DB', 
+    sbAccent: '#2563EB', 
+    dateAccent: '#374151', 
+    footerBg: 'rgba(255,255,255,0.95)', 
+    footerBorder: '#D1D5DB', 
+    scrollbar: 'rgba(0,0,0,0.35)', 
+    summaryBg: '#F3F4F6', 
+    summaryBorder: '#CBD5E1', 
+    summaryText: '#111827', 
+    summaryLabel: '#1F2937', 
+    btnBg: '#FFFFFF', 
+    btnText: '#111827', 
+    btnBorder: '#CBD5E1', 
+    btnHover: '#F3F4F6', 
+    panelBg: '#FFFFFF', 
+    panelBorder: '#CBD5E1', 
+    panelText: '#111827', 
+    panelMuted: '#4B5563', 
+    panelTabActive: '#111827', 
+    panelTabBorder: '#CBD5E1', 
+    panelItemBg: '#F8FAFC', 
+    panelItemBorder: '#CBD5E1', 
+    panelSliderBg: 'rgba(0,0,0,0.20)', 
+    panelScrollbar: 'rgba(0,0,0,0.20)', 
+    sbItemOpacity: '1', 
+    sbMutedOverride: '#1F2937', 
+    sbCategoryOpacity: '1' 
+  },
 };
 
 export const FONT_MAP: Record<string, string> = {
@@ -31,8 +65,17 @@ export function applyThemeStyle(key: string) {
   if (!t) return;
   const r = document.documentElement.style;
   r.setProperty('--sb-bg', t.sbBg); r.setProperty('--sb-text', t.sbMain); r.setProperty('--sb-accent', t.sbAccent);
-  r.setProperty('--sb-item-hover', hexToRgba(t.sbMain, 0.05)); r.setProperty('--sb-item-active', hexToRgba(t.sbMain, 0.10));
-  r.setProperty('--sb-border', hexToRgba(t.sbMain, 0.15)); r.setProperty('--sb-muted', hexToRgba(t.sbMain, 0.35));
+  if (key === 'white') {
+    r.setProperty('--sb-border', '#CBD5E1');
+    r.setProperty('--sb-muted', '#4B5563');
+    r.setProperty('--sb-item-hover', 'rgba(0,0,0,0.04)');
+    r.setProperty('--sb-item-active', 'rgba(0,0,0,0.08)');
+  } else {
+    r.setProperty('--sb-item-hover', hexToRgba(t.sbMain, 0.05)); 
+    r.setProperty('--sb-item-active', hexToRgba(t.sbMain, 0.10));
+    r.setProperty('--sb-border', hexToRgba(t.sbMain, 0.15)); 
+    r.setProperty('--sb-muted', hexToRgba(t.sbMain, 0.35));
+  }
   r.setProperty('--main-bg', t.mainBg); r.setProperty('--main-text', t.mainText); r.setProperty('--main-muted', hexToRgba(t.mainText, 0.35));
   r.setProperty('--card-bg', t.mainCard); r.setProperty('--card-border', t.cardBorder); r.setProperty('--footer-bg', t.footerBg); r.setProperty('--footer-border', t.footerBorder);
   r.setProperty('--scrollbar-thumb', t.scrollbar); r.setProperty('--heading-color', t.mainText); r.setProperty('--speaker-color', hexToRgba(t.mainText, 0.4));
@@ -51,4 +94,11 @@ export function applyThemeStyle(key: string) {
   r.setProperty('--sb-item-opacity', t.sbItemOpacity || '0.85');
   r.setProperty('--sb-category-opacity', t.sbCategoryOpacity || '0.85');
   r.setProperty('--sb-category-color', t.sbMutedOverride || t.sbMain || '');
+
+  // PWA/ブラウザのメタテーマカラーおよびヘッダー背景色の動的リアルタイム同期
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (metaThemeColor) {
+    metaThemeColor.setAttribute('content', t.mainBg || t.sbBg || '#0F172A');
+  }
 }
+
