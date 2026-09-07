@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
 import { SearchIcon, FolderIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon } from './Icons';
 import { FileObj } from '../types';
-import { highlightText, escHtml, getVirtualFolder, decorateMarkers } from '../utils';
+import { highlightText, escHtml } from '../utils';
 
 export const Sidebar = () => {
   const {
@@ -13,50 +13,14 @@ export const Sidebar = () => {
     selectedFiles, currentFileObj, selectFile, toggleFileSelection,
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
-    bulkToggleFileMarker, renameFolder, createFolder,
-    lang, setLang, t, sortMode, sortDirection, setSortMode, setSortDirection
+    createNewFolder, createNewFile,
+    lang, setLang, t,
+    sortMode, sortDirection, setSortMode, setSortDirection,
+    fileMarks, isResuming, pendingResumeHandle, resumeSavedFolder
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [showMarkPanel, setShowMarkPanel] = useState(false);
-  const [groupsExpanded, setGroupsExpanded] = useState(false);
-  const [showBulkMarkMenu, setShowBulkMarkMenu] = useState(false);
-  const [isDraggingSidebar, setIsDraggingSidebar] = useState(false);
-  const [isCreateFolderMode, setIsCreateFolderMode] = useState(false);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingSidebar) return;
-      const newWidth = Math.max(200, Math.min(800, e.clientX));
-      document.documentElement.style.setProperty('--sb-width', `${newWidth}px`);
-    };
-    const handleMouseUp = (e: MouseEvent) => {
-      if (isDraggingSidebar) {
-        setIsDraggingSidebar(false);
-        const newWidth = Math.max(200, Math.min(800, e.clientX));
-        localStorage.setItem('lv_sbWidth', newWidth.toString());
-      }
-    };
-    if (isDraggingSidebar) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.classList.add('sidebar-dragging');
-    }
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.classList.remove('sidebar-dragging');
-    };
-  }, [isDraggingSidebar]);
-
-  const handleToggleExpand = () => {
-    if (groupsExpanded) {
-      collapseAllGroups();
-    } else {
-      expandAllGroups();
-    }
-    setGroupsExpanded(!groupsExpanded);
-  };
+  const [isAddMode, setIsAddMode] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect='move'; };
   const handleDrop = (e: React.DragEvent) => {
@@ -77,7 +41,7 @@ export const Sidebar = () => {
             <React.Fragment key={i}>
               <div className="breadcrumb-separator">{'>'}</div>
               <div className="breadcrumb-item">
-                <span dangerouslySetInnerHTML={{ __html: `🏷️ ${decorateMarkers(q)}` }} />
+                🏷️ {q} 
                 <span className="breadcrumb-remove" title="このキーワードを削除" onClick={(e) => {
                   e.stopPropagation();
                   removeSearchQuery(q);
@@ -143,132 +107,73 @@ export const Sidebar = () => {
           </div>
         )}
         {f.date && <div className="file-date">{f.dateSource==='os'?<span style={{opacity:0.5,fontSize:'9px'}}>📅 </span>:null}{f.date.replace(/-/g,'.')} {f.time}</div>}
-        <div className="file-title" dangerouslySetInnerHTML={{__html: decorateMarkers(titleHtml)}} />
-        {previewHtml && <div dangerouslySetInnerHTML={{__html: decorateMarkers(previewHtml)}} />}
-        <div className="file-fname" dangerouslySetInnerHTML={{__html: decorateMarkers(highlightText(f.filename, searchQueries))}} />
+        <div className="file-title">
+          {fileMarks[f.filename] && (
+            <span className="file-mark-badge" title="マーク">{fileMarks[f.filename]}</span>
+          )}
+          <span dangerouslySetInnerHTML={{__html: titleHtml}} />
+        </div>
+        {previewHtml && <div dangerouslySetInnerHTML={{__html: previewHtml}} />}
+        <div className="file-fname" dangerouslySetInnerHTML={{__html: highlightText(f.filename, searchQueries)}} />
       </button>
     );
   };
 
-  const renderGroupedFiles = (files: FileObj[], today: string, parentGroupKey: string) => {
-    const byVFolder: Record<string, FileObj[]> = {};
-    files.forEach(f => {
-      const vFolder = getVirtualFolder(f.filename, f.date);
-      if(!byVFolder[vFolder]) byVFolder[vFolder] = [];
-      byVFolder[vFolder].push(f);
-    });
-
-    const elements: React.ReactNode[] = [];
-
-    const getVFolderPriority = (vName: string) => {
-      if (vName === '00_【進行】') return 1;
-      if (vName === '【定型】' || vName === '【定型スキル】') return 2;
-      if (vName.startsWith('- ')) return 3;
-      return 4;
-    };
-
-    const getVFolderIcon = (vName: string) => {
-      if (vName === '00_【進行】') return <span>📌</span>;
-      if (vName === '【定型】' || vName === '【定型スキル】') return <span>⚡</span>;
-      return <FolderIcon />;
-    };
-
-    const sortedVFolders = Object.keys(byVFolder);
-    sortedVFolders.sort((a, b) => {
-      const priA = getVFolderPriority(a);
-      const priB = getVFolderPriority(b);
-      if (priA !== priB) return priA - priB;
-      return sortDirection === 'asc' ? a.localeCompare(b, undefined, {numeric: true}) : b.localeCompare(a, undefined, {numeric: true});
-    });
-
-    sortedVFolders.forEach(vFolder => {
-      const filesInV = byVFolder[vFolder];
-      const icon = getVFolderIcon(vFolder);
-      const hasTodayFile = filesInV.some(f => f.date === today);
-      const isDefaultOpen = false;
-
-      elements.push(
-        renderCategoryGroup(
-          vFolder,
-          icon,
-          filesInV,
-          `vdir:${parentGroupKey}:${vFolder}`,
-          hasTodayFile ? 'TODAY' : null,
-          isDefaultOpen,
-          1
-        )
-      );
-    });
-
-    return elements;
-  };
-
-  const renderCategoryGroup = (
-    label: string,
-    icon: React.ReactNode,
-    files: FileObj[],
-    groupKey: string,
-    badge: string | null,
-    isDefaultOpen: boolean,
-    depth: number = 0,
-    childrenGroups?: React.ReactNode,
-    totalCount?: number
-  ) => {
+  const renderCategoryGroup = (label: string, icon: React.ReactNode, files: FileObj[], groupKey: string, badge: string | null, isDefaultOpen: boolean, depth: number = 0, childrenGroups?: React.ReactNode, totalCount?: number) => {
     let isOpen = categoryOpenState[groupKey] ?? isDefaultOpen;
     if (searchQueries.length > 0) isOpen = true;
 
-    const today = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
-    const shouldGroup = groupKey === 'cat:00_AIエージェント専用' || groupKey === 'cat:AIエージェント専用';
+    const isCategory = groupKey.startsWith('cat:');
+    let targetHandle: any = null;
+    if (isCategory) {
+      const targetCatName = groupKey.slice(4);
+      const cat = physicalFolders.find(c => c.name === targetCatName);
+      if (cat) targetHandle = cat.handle;
+    }
 
     return (
       <div className="category-group" data-group-key={groupKey} key={groupKey}>
         <button 
           className={`category-header ${isOpen ? 'open' : ''}`}
+          style={{ paddingLeft: `${10 + depth * 14}px` }}
           onClick={() => setCategoryOpen(groupKey, !isOpen)}
-          onContextMenu={(e) => {
-            if (groupKey.startsWith('cat:')) {
-              e.preventDefault();
-              const targetCatName = groupKey.slice(4);
-              const cat = physicalFolders.find(c => c.name === targetCatName);
-              if (cat) renameFolder(cat.name, cat.handle);
-            }
-          }}
           onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('drag-over'); }}
           onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
           onDrop={async e => {
             e.preventDefault(); e.currentTarget.classList.remove('drag-over');
             if (!window.__draggedFiles) return;
-            if (groupKey.startsWith('month:') || groupKey.startsWith('date:') || groupKey.startsWith('vdir:')) return; 
-            let targetCatName: string|null = null, targetHandle: any = null;
+            if (groupKey.startsWith('month:') || groupKey.startsWith('date:')) return; 
+            let targetCatName: string|null = null, dropHandle: any = null;
             if (groupKey.startsWith('cat:')) {
               targetCatName = groupKey.slice(4);
               const cat = physicalFolders.find(c=>c.name===targetCatName);
-              if(cat) targetHandle=cat.handle;
+              if(cat) dropHandle=cat.handle;
             }
-            await execBulkMove(window.__draggedFiles, targetHandle, targetCatName);
+            await execBulkMove(window.__draggedFiles, dropHandle, targetCatName);
           }}
         >
           {icon && <span className="category-icon" style={{ opacity: depth > 0 ? 0.7 : 1 }}>{icon}</span>}
-          <span className="category-name" style={{flex: 1}}>{label}</span>
-          {isCreateFolderMode && depth === 0 && !shouldGroup && (
-            <div className="add-subfolder-btn" title="サブフォルダー作成" onClick={(e) => {
-              e.preventDefault(); e.stopPropagation();
-              setIsCreateFolderMode(false);
-              const targetCatName = groupKey.startsWith('cat:') ? groupKey.slice(4) : label;
-              createFolder(targetCatName);
-            }}>＋</div>
-          )}
+          <span className="category-name">{label}</span>
           {badge && <span className="today-badge">{badge}</span>}
-          <span className="category-count">{totalCount !== undefined ? totalCount : files.length}</span>
+          {targetHandle && isAddMode && (
+            <span 
+              className="new-file-btn"
+              title={t.main.newFilePrompt}
+              onClick={(e) => { e.stopPropagation(); createNewFile(targetHandle); }}
+              style={{
+                marginLeft: 'auto', background: 'var(--sb-accent)', color: '#fff',
+                width: '18px', height: '18px', borderRadius: '4px', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', fontSize: '12px',
+                marginRight: '6px'
+              }}
+            >＋</span>
+          )}
+          <span className="category-count" style={{ marginLeft: targetHandle ? '0' : 'auto' }}>{totalCount !== undefined ? totalCount : files.length}</span>
           <span className="category-arrow">▶</span>
         </button>
         <div className={`category-files ${isOpen ? 'open' : ''}`}>
           {childrenGroups}
-          {shouldGroup ? (
-            renderGroupedFiles(files, today, groupKey)
-          ) : (
-            files.map(f => renderFileBtn(f))
-          )}
+          {files.map(f => renderFileBtn(f))}
         </div>
       </div>
     );
@@ -284,26 +189,6 @@ export const Sidebar = () => {
       });
     }
 
-    const getSortableName = (filename: string) => {
-      if (/^\d{8}_\d{4}_/.test(filename)) {
-        return filename.slice(14);
-      }
-      return filename;
-    };
-
-    filtered = [...filtered].sort((a, b) => {
-      if (sortMode === 'date') {
-        const dtA = (a.date || '') + (a.time || '');
-        const dtB = (b.date || '') + (b.time || '');
-        return sortDirection === 'asc' ? dtA.localeCompare(dtB) : dtB.localeCompare(dtA);
-      } else {
-        const nameA = getSortableName(a.filename);
-        const nameB = getSortableName(b.filename);
-        const cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
-        return sortDirection === 'asc' ? cmp : -cmp;
-      }
-    });
-
     const rootFiles = filtered.filter(f => !f.category);
     if (allCategories.length === 0 && rootFiles.length === 0) {
       return <div id="empty-msg">{t.sidebar.noFilesFound}</div>;
@@ -312,11 +197,11 @@ export const Sidebar = () => {
     type CategoryNode = { name: string; files: FileObj[]; children: CategoryNode[]; totalCount: number; };
     const nodeMap = new Map<string, CategoryNode>();
     const treeTop: CategoryNode[] = [];
-
+    
     allCategories.forEach(cat => {
       nodeMap.set(cat.name, { name: cat.name, files: cat.files, children: [], totalCount: cat.files.length });
     });
-
+    
     allCategories.forEach(cat => {
       const node = nodeMap.get(cat.name)!;
       const parts = cat.name.split('/');
@@ -358,100 +243,36 @@ export const Sidebar = () => {
     if (rootFiles.length > 0) {
       if (allCategories.length > 0) elements.push(<div key="sep" style={{height:'1px',background:'rgba(255,255,255,0.05)',margin:'6px 10px'}} />);
       
-      const shouldGroupRoot = dirHandle && (dirHandle.name === '00_AIエージェント専用' || dirHandle.name === 'AIエージェント専用');
+      const byMonth: Record<string, Record<string, FileObj[]>> = {};
+      rootFiles.forEach(f => {
+        const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
+        if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
+      });
+      if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
       
-      if (shouldGroupRoot) {
-        const byVFolder: Record<string, FileObj[]> = {};
-        rootFiles.forEach(f => {
-          const vFolder = getVirtualFolder(f.filename, f.date);
-          if(!byVFolder[vFolder]) byVFolder[vFolder] = [];
-          byVFolder[vFolder].push(f);
-        });
+      Object.keys(byMonth).filter(k=>k!=='__nodate__').sort((a,b)=>b.localeCompare(a)).forEach(mKey => {
+        const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
+        let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
+        if(searchQueries.length>0) mOpen=true;
 
-        const getVFolderPriority = (vName: string) => {
-          if (vName === '00_【進行】') return 1;
-          if (vName === '【定型】') return 2;
-          if (vName.startsWith('- ')) return 3;
-          return 4;
-        };
-
-        const getVFolderIcon = (vName: string) => {
-          if (vName === '00_【進行】') return '📌';
-          if (vName === '【定型】') return '⚡';
-          return '📁';
-        };
-
-        const sortedVFolders = Object.keys(byVFolder);
-        sortedVFolders.sort((a, b) => {
-          const priA = getVFolderPriority(a);
-          const priB = getVFolderPriority(b);
-          if (priA !== priB) return priA - priB;
-          return sortDirection === 'asc' ? a.localeCompare(b, undefined, {numeric: true}) : b.localeCompare(a, undefined, {numeric: true});
-        });
-
-        sortedVFolders.forEach(vFolder => {
-          const filesInV = byVFolder[vFolder];
-          const icon = getVFolderIcon(vFolder);
-          const hasTodayFile = filesInV.some(f => f.date === today);
-          const isDefaultOpen = false;
-
-          elements.push(
-            renderCategoryGroup(
-              vFolder,
-              icon,
-              filesInV,
-              `vdir:${vFolder}`,
-              hasTodayFile ? 'TODAY' : null,
-              isDefaultOpen
-            )
-          );
-        });
-      } else {
-        const byMonth: Record<string, Record<string, FileObj[]>> = {};
-        rootFiles.forEach(f => {
-          const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
-          if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
-        });
-        if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
-        
-        const sortedMonths = Object.keys(byMonth).filter(k=>k!=='__nodate__');
-        if (sortMode === 'date' && sortDirection === 'asc') {
-          sortedMonths.sort((a,b)=>a.localeCompare(b));
-        } else {
-          sortedMonths.sort((a,b)=>b.localeCompare(a));
-        }
-        
-        sortedMonths.forEach(mKey => {
-          const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
-          let mOpen = categoryOpenState['month:'+mKey] ?? false;
-          if(searchQueries.length>0) mOpen=true;
-
-          const sortedDates = Object.keys(byMonth[mKey]);
-          if (sortMode === 'date' && sortDirection === 'asc') {
-            sortedDates.sort((a,b)=>a.localeCompare(b));
-          } else {
-            sortedDates.sort((a,b)=>b.localeCompare(a));
-          }
-
-          elements.push(
-            <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
-              <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen('month:'+mKey, !mOpen)}>
-                <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
-                <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
-                {isThisMonth && <span className="today-badge">THIS MONTH</span>}
-                <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
-                <span className="category-arrow">▶</span>
-              </button>
-              <div className={`category-files ${mOpen?'open':''}`}>
-                {sortedDates.map(dKey => {
-                  const isToday = dKey === today; const [,,dd] = dKey.split('-');
-                  return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, false);
-                })}
-              </div>
+        elements.push(
+          <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
+            <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen('month:'+mKey, !mOpen)}>
+              <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
+              <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
+              {isThisMonth && <span className="today-badge">THIS MONTH</span>}
+              <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
+              <span className="category-arrow">▶</span>
+            </button>
+            <div className={`category-files ${mOpen?'open':''}`}>
+              {Object.keys(byMonth[mKey]).sort((a,b)=>b.localeCompare(a)).map(dKey => {
+                const isToday = dKey === today; const [,,dd] = dKey.split('-');
+                return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
+              })}
             </div>
-          );
-        });
-      }
+          </div>
+        );
+      });
     }
 
     return elements;
@@ -466,7 +287,7 @@ export const Sidebar = () => {
   })();
 
   return (
-    <div id="sidebar" onClick={() => { if (settingsOpen) toggleSettings(); closeMovePanels(); setShowBulkMarkMenu(false); }} style={{ position: 'relative' }}>
+    <div id="sidebar" onClick={() => { if (settingsOpen) toggleSettings(); closeMovePanels(); }}>
       <div id="app-brand" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '8px', paddingBottom: '16px'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end'}}>
           <div id="app-name">SUPER FOLDER<br/><span>LOG VIEWER</span></div>
@@ -482,7 +303,7 @@ export const Sidebar = () => {
           )}
         </div>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
-          <div id="app-version">React Edition v3.15</div>
+          <div id="app-version">React Edition v3.1.2</div>
           <div onClick={(e) => { e.stopPropagation(); setLang(lang === 'ja' ? 'en' : 'ja'); }} style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', overflow: 'hidden', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>
             <div style={{ padding: '2px 5px', background: lang === 'en' ? '#94A3B8' : 'transparent', color: lang === 'en' ? '#0F172A' : '#94A3B8' }}>EN</div>
             <div style={{ padding: '2px 5px', background: lang === 'ja' ? '#94A3B8' : 'transparent', color: lang === 'ja' ? '#0F172A' : '#94A3B8' }}>JP</div>
@@ -492,17 +313,32 @@ export const Sidebar = () => {
       <div id="sidebar-header" onDragOver={handleDragOver} onDragLeave={(e) => {}} onDrop={handleDrop}>
         <div className="sidebar-label">Log Archive</div>
 
-        <button id="open-btn" onClick={openFolder}>
-          <FolderIcon />
-          <span id="open-btn-label">{dirHandle ? dirHandle.name : t.app.openFolder}</span>
+        <button id="open-btn" onClick={openFolder} disabled={isResuming || loading}>
+          {isResuming || loading ? (
+            <>
+              <span className="dice-spinner-mini">🎲</span>
+              <span id="open-btn-label">{t.main.loadingFolder}</span>
+            </>
+          ) : (
+            <>
+              <FolderIcon />
+              <span id="open-btn-label">{dirHandle ? dirHandle.name : t.app.openFolder}</span>
+            </>
+          )}
         </button>
 
         <div id="folder-name">{dirHandle?.name}</div>
 
         {!dirHandle && (
-          <button id="reopen-btn" onClick={reopenFolder}>
+          <button 
+            id="reopen-btn" 
+            onClick={pendingResumeHandle ? resumeSavedFolder : reopenFolder}
+            className={pendingResumeHandle ? "pending-resume-pulse" : ""}
+          >
             <FolderIcon />
-            <span id="reopen-btn-label">{t.app.reopenFolder}</span>
+            <span id="reopen-btn-label">
+              {pendingResumeHandle ? `${pendingResumeHandle.name} ${t.app.reopenFolder}` : t.app.reopenFolder}
+            </span>
           </button>
         )}
 
@@ -512,147 +348,72 @@ export const Sidebar = () => {
             id="search-box" type="text" placeholder={t.sidebar.searchHint} 
             ref={searchInputRef}
             onChange={(e) => setSearchQuery(e.target.value)} 
-            onFocus={() => setShowMarkPanel(true)}
-            onBlur={() => {
-              setTimeout(() => setShowMarkPanel(false), 200);
-            }}
           />
           {searchQueries.length > 0 && <button id="search-clear-btn" onClick={() => { clearSearch(); if(searchInputRef.current) searchInputRef.current.value = ''; }} title="クリア">✕</button>}
-
-          {/* クイックマークサジェストパネル */}
-          {showMarkPanel && (
-            <div className="search-mark-panel" style={{
-              position: 'absolute',
-              bottom: 'calc(100% + 4px)',
-              right: 0,
-              left: 'auto',
-              width: 'max-content',
-              background: 'var(--panel-bg)',
-              border: '1px solid var(--btn-border)',
-              borderRadius: '6px',
-              padding: '2px 6px',
-              display: 'flex',
-              gap: '4px',
-              zIndex: 100,
-              boxShadow: '0 -4px 10px rgba(0, 0, 0, 0.4)',
-              alignItems: 'center'
-            }}>
-              {["★", "✔", "💡", "📌", "⚠️"].map(marker => (
-                <button
-                  key={marker}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    padding: '2px 4px',
-                    borderRadius: '4px',
-                    transition: 'background 0.1s',
-                    color: marker === '★' ? '#fbbf24' : 'var(--text)'
-                  }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                  }}
-                  onClick={() => {
-                    if (searchInputRef.current) {
-                      const val = searchInputRef.current.value.trim();
-                      let newVal = '';
-                      if (val.includes(marker)) {
-                        newVal = val.replace(new RegExp(`\\s*${marker}\\s*`, 'g'), ' ').trim();
-                      } else {
-                        newVal = val ? `${val} ${marker}` : marker;
-                      }
-                      searchInputRef.current.value = newVal;
-                      setSearchQuery(newVal);
-                    }
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--btn-hover)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  title={`${marker} ${lang === 'en' ? 'Filter' : 'で絞り込み'}`}
-                >
-                  {marker}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {renderBreadcrumbs()}
       </div>
 
-      <div id="file-list-header" style={{display: dirHandle ? 'flex' : 'none', justifyContent: 'space-between', alignItems: 'center'}}>
-        <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
-          <span id="file-count">{allFiles.length} files</span>
-          <div className="sort-buttons" style={{display:'flex', gap:'4px'}}>
+      <div id="file-list-header" style={{display: dirHandle ? 'flex' : 'none'}}>
+        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+          <span id="file-count" style={{textTransform:'uppercase'}}>{allFiles.length} files</span>
+          <div style={{display:'flex', gap:'4px'}}>
             <button 
               className={`sort-btn ${sortMode === 'date' ? 'active' : ''}`}
-              onClick={() => {
-                if (sortMode === 'date') {
-                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                } else {
-                  setSortMode('date');
-                  setSortDirection('desc');
-                }
-              }}
               style={{
-                background: sortMode === 'date' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: sortMode === 'date' ? '#fff' : '#94a3b8',
-                fontSize: '9px',
-                padding: '2px 5px',
-                borderRadius: '3px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '2px',
-                fontFamily: 'inherit'
+                background: sortMode === 'date' ? 'rgba(255,255,255,0.1)' : 'transparent', 
+                border: '1px solid var(--panel-item-border)', 
+                color: sortMode === 'date' ? 'var(--sb-accent)' : 'var(--sb-text-sec)', 
+                padding: '2px 6px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '2px'
+              }}
+              onClick={() => {
+                if (sortMode === 'date') setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+                else { setSortMode('date'); setSortDirection('desc'); }
               }}
             >
-              {t.sidebar.sortByDate} {sortMode === 'date' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              {t.sidebar.sortDate} {sortMode === 'date' ? (sortDirection === 'desc' ? '▼' : '▲') : ''}
             </button>
             <button 
               className={`sort-btn ${sortMode === 'name' ? 'active' : ''}`}
-              onClick={() => {
-                if (sortMode === 'name') {
-                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                } else {
-                  setSortMode('name');
-                  setSortDirection('asc');
-                }
-              }}
               style={{
-                background: sortMode === 'name' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: sortMode === 'name' ? '#fff' : '#94a3b8',
-                fontSize: '9px',
-                padding: '2px 5px',
-                borderRadius: '3px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '2px',
-                fontFamily: 'inherit'
+                background: sortMode === 'name' ? 'rgba(255,255,255,0.1)' : 'transparent', 
+                border: '1px solid var(--panel-item-border)', 
+                color: sortMode === 'name' ? 'var(--sb-accent)' : 'var(--sb-text-sec)', 
+                padding: '2px 6px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '2px'
+              }}
+              onClick={() => {
+                if (sortMode === 'name') setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                else { setSortMode('name'); setSortDirection('asc'); }
               }}
             >
-              {t.sidebar.sortByName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              {t.sidebar.sortName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
             </button>
           </div>
         </div>
         <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
-          <button id="new-folder-btn" onClick={() => setIsCreateFolderMode(!isCreateFolderMode)} title="フォルダー作成モード" className={isCreateFolderMode ? 'active' : ''} style={{ background: isCreateFolderMode ? 'rgba(59,130,246,0.2)' : 'none', border: '1px solid', borderColor: isCreateFolderMode ? '#3B82F6' : 'var(--sb-border)', borderRadius: '7px', color: isCreateFolderMode ? '#60A5FA' : 'var(--sb-text)', opacity: isCreateFolderMode ? 1 : 0.75, fontSize: '10px', fontWeight: 'bold', padding: '3px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.12s' }}>
-            <span style={{ fontSize: '14px', lineHeight: 1 }}>+</span> <FolderIcon />
+          <button 
+            onClick={() => setIsAddMode(!isAddMode)}
+            className={isAddMode ? 'active' : ''}
+            style={{
+              background: isAddMode ? 'rgba(255,255,255,0.1)' : 'transparent',
+              border: '1px solid var(--sb-border)', 
+              color: 'var(--sb-text)', opacity: isAddMode ? 1 : 0.75, fontSize: '10px', fontWeight: 'bold', 
+              letterSpacing: '1px', padding: '3px 8px', borderRadius: '7px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
+            }}
+            title={t.main.newFolderPrompt}
+          >
+            ＋ <FolderIcon />
           </button>
           <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
           <button id="highlight-toggle-btn" className={isHighlightOff ? 'off' : ''} onClick={toggleHighlight} title={t.app.highlight}>
             <HighlightIcon /> HL
           </button>
-          <button 
-            onClick={handleToggleExpand} 
-            title={groupsExpanded ? (lang === 'en' ? "Collapse All" : "全て折りたたむ") : (lang === 'en' ? "Expand All" : "全て展開")} 
-            className="header-icon-btn"
-          >
-            {groupsExpanded ? '－' : '＋'}
-          </button>
+          <button onClick={expandAllGroups} title="全て展開" className="header-icon-btn">＋</button>
+          <button onClick={collapseAllGroups} title="全て折りたたむ" className="header-icon-btn">－</button>
           <button id="refresh-btn" onClick={refreshFolder} title="更新">
             <RefreshIcon className={refreshing ? 'spin' : ''} />
           </button>
@@ -661,90 +422,30 @@ export const Sidebar = () => {
 
       {isSelectMode && (
         <div id="bulk-bar" className="visible">
-          <div id="bulk-bar-inner" style={{ position: 'relative' }}>
+          <div id="bulk-bar-inner">
             <span id="bulk-count">{lang === 'en' ? `${selectedFiles.size}${t.sidebar.selectedCount}` : `${selectedFiles.size}${t.sidebar.selectedCount}`}</span>
             <button id="bulk-cancel-btn" onClick={toggleSelectMode}>{t.sidebar.cancelSelect}</button>
             <button id="bulk-delete-btn" onClick={bulkDeleteFiles}>{t.sidebar.bulkDelete}</button>
             <button id="bulk-move-btn" onClick={e => openMovePanel(e, 'bulk')}>{t.sidebar.bulkMove}</button>
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <button 
-                id="bulk-mark-btn" 
-                onClick={(e) => { e.stopPropagation(); setShowBulkMarkMenu(!showBulkMarkMenu); }}
-                style={{
-                  background: 'var(--btn-bg, rgba(255,255,255,0.08))',
-                  border: '1px solid var(--btn-border, rgba(255,255,255,0.15))',
-                  color: 'var(--text, #e2e8f0)',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  height: '24px',
-                  boxSizing: 'border-box'
-                }}
-              >
-                🏷️ {t.sidebar.bulkMark}
-              </button>
-              {showBulkMarkMenu && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: 'calc(100% + 8px)',
-                  right: '0px',
-                  left: 'auto',
-                  transform: 'none',
-                  background: 'var(--panel-bg, #1e293b)',
-                  border: '1px solid var(--btn-border, rgba(255,255,255,0.15))',
-                  borderRadius: '6px',
-                  padding: '4px 6px',
-                  display: 'flex',
-                  gap: '4px',
-                  zIndex: 110,
-                  boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.5)',
-                  whiteSpace: 'nowrap'
-                }} onClick={e => e.stopPropagation()}>
-                  {["★", "✔", "💡", "📌", "⚠️", "❌"].map(marker => (
-                    <button
-                      key={marker}
-                      onClick={() => {
-                        bulkToggleFileMarker(marker);
-                        setShowBulkMarkMenu(false);
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        padding: '4px 6px',
-                        borderRadius: '4px',
-                        transition: 'background 0.1s',
-                        color: marker === '★' ? '#fbbf24' : 'var(--text)'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--btn-hover, rgba(255,255,255,0.1))'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      title={marker === '❌' ? (lang === 'en' ? 'Remove Mark' : 'マークをはずす') : marker}
-                    >
-                      {marker}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
 
+      {dirHandle && isAddMode && (
+        <button 
+          onClick={createNewFolder}
+          style={{
+            margin: '0 10px 10px', padding: '10px', background: 'rgba(59,130,246,0.1)', 
+            border: '1px dashed rgba(59,130,246,0.4)', borderRadius: '8px', 
+            color: '#60A5FA', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+            display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
+          }}>
+          {t.main.newRootFolder || "+ 一番上（ルート）に新規フォルダー作成"}
+        </button>
+      )}
+
       <div id="file-list">
         {!dirHandle && <div id="empty-msg" style={{whiteSpace:'pre-wrap'}}>{t.sidebar.selectFolderToView}</div>}
-        {isCreateFolderMode && dirHandle && (
-          <button 
-            onClick={() => { setIsCreateFolderMode(false); createFolder(null); }}
-            style={{ width: '100%', padding: '8px', marginBottom: '8px', background: 'rgba(59,130,246,0.1)', border: '1px dashed rgba(59,130,246,0.5)', color: '#93C5FD', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}
-          >
-            <span style={{ fontSize: '14px' }}>+</span> 一番上（ルート）に新規フォルダー作成
-          </button>
-        )}
         {dirHandle && renderList()}
       </div>
 
@@ -754,10 +455,6 @@ export const Sidebar = () => {
           {t.app.settings}
         </button>
       </div>
-      <div 
-        className="sidebar-resizer" 
-        onMouseDown={(e) => { e.preventDefault(); setIsDraggingSidebar(true); }}
-      />
     </div>
   );
 };

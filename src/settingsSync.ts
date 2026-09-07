@@ -10,29 +10,17 @@ export function applySettingsToDOM() {
   const cr = localStorage.getItem('lv_cardRadius') || '16';
   const mg = localStorage.getItem('lv_msgGap') || '16';
   const hs = parseInt(localStorage.getItem('lv_headingSize') || '48');
-  const sp = localStorage.getItem('lv_pagePad') || '120';
+  const sp = localStorage.getItem('lv_pagePad') || '56';
 
-  document.querySelectorAll('.msg-body, #plain-text, #edit-area, .vertical-msg-body, .vertical-writing-text-inner').forEach(el => {
-    const e = el as HTMLElement;
-    e.style.fontSize = fs + 'px';
-    e.style.fontWeight = fw;
-    e.style.lineHeight = lh;
-    e.style.letterSpacing = ls + 'px';
-  });
-
-  // padding/radius: カード枠(.vertical-card-fixed)は除外。縦書き時にpaddingがサイズ崩れの原因になるため
-  document.querySelectorAll('.msg-body, #plain-text, .vertical-msg-body, .vertical-writing-text-inner').forEach(el => {
-    const e = el as HTMLElement;
-    e.style.padding = cp + 'px ' + Math.round(parseInt(cp) * 1.2) + 'px';
-  });
-  // borderRadiusはカード枠にも適用（paddingは適用しない）
-  document.querySelectorAll('.msg-body, #plain-text, .vertical-msg-body, .vertical-card-fixed').forEach(el => {
-    const e = el as HTMLElement;
-    e.style.borderRadius = cr + 'px';
-  });
-
-  const msgs = document.getElementById('messages');
-  if (msgs) msgs.style.gap = mg + 'px';
+  document.documentElement.style.setProperty('--text-font-size', fs + 'px');
+  document.documentElement.style.setProperty('--text-font-weight', fw);
+  document.documentElement.style.setProperty('--text-line-height', lh);
+  document.documentElement.style.setProperty('--text-letter-spacing', ls + 'px');
+  
+  document.documentElement.style.setProperty('--card-padding-v', cp + 'px');
+  document.documentElement.style.setProperty('--card-padding-h', Math.round(parseInt(cp) * 1.2) + 'px');
+  document.documentElement.style.setProperty('--card-radius', cr + 'px');
+  document.documentElement.style.setProperty('--msg-gap', mg + 'px');
 
   document.documentElement.style.setProperty('--sidebar-title-size', (localStorage.getItem('lv_sbTitleSize') || '13') + 'px');
   document.documentElement.style.setProperty('--sb-category-size', (localStorage.getItem('lv_sbCatSize') || '10') + 'px');
@@ -40,33 +28,9 @@ export function applySettingsToDOM() {
   document.documentElement.style.setProperty('--heading-font-size', hs + 'px');
   document.documentElement.style.setProperty('--heading-letter-spacing', hs >= 56 ? '-2px' : hs >= 48 ? '-1px' : '0px');
   document.documentElement.style.setProperty('--sb-width', (localStorage.getItem('lv_sbWidth') || '280') + 'px');
-  
-  const cw = localStorage.getItem('lv_contentWidth') || '900';
-  document.documentElement.style.setProperty('--content-max-width', cw + 'px');
-  
-  const vh = localStorage.getItem('lv_verticalHeight') || '100';
-  document.documentElement.style.setProperty('--vertical-card-height', vh + '%');
-  
-  const writingMode = localStorage.getItem('lv_writingMode') || 'horizontal';
-  const isVertical = writingMode === 'vertical';
-
-  const contentArea = document.getElementById('content-area');
-  if (contentArea) {
-    contentArea.style.padding = `48px ${sp}px 40px`;
-  }
-  
-  const fileHeading = document.getElementById('file-heading');
-  if (fileHeading) {
-    fileHeading.style.marginBottom = '32px';
-  }
-
-  const toolbar = document.getElementById('toolbar');
-  if (toolbar) {
-    toolbar.style.marginBottom = '28px';
-  }
-
-  const footer = document.getElementById('footer');
-  if (footer) footer.style.padding = `12px ${sp}px`;
+  document.documentElement.style.setProperty('--content-max-width', (localStorage.getItem('lv_contentWidth') || '900') + 'px');
+  document.documentElement.style.setProperty('--vert-card-height', (localStorage.getItem('lv_vertCardHeight') || '600') + 'px');
+  document.documentElement.style.setProperty('--page-pad', sp + 'px');
   
   const fontKey = localStorage.getItem('lv_font') || 'meiryo';
   const fontVal = FONT_MAP[fontKey] || FONT_MAP.hiragino;
@@ -80,11 +44,9 @@ export function applySettingsToDOM() {
 export function initSettings() {
   const defs: Record<string, string> = {
     lv_fontSize: '15', lv_fontWeight: '400', lv_lineHeight: '1.8', lv_letterSpacing: '0',
-    lv_sbTitleSize: '13', lv_headingSize: '48', lv_sbWidth: '280', lv_contentWidth: '900',
-    lv_verticalHeight: '100',
-    lv_cardPadding: '24', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '120',
-    lv_theme: 'mono', lv_font: 'meiryo',
-    lv_sbCatSize: '10', lv_folderColor: '#FBBF24'
+    lv_sbTitleSize: '13', lv_sbCatSize: '10', lv_headingSize: '48', lv_sbWidth: '280', lv_contentWidth: '900', lv_vertCardHeight: '600',
+    lv_cardPadding: '24', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '56',
+    lv_theme: 'mono', lv_font: 'meiryo', lv_folderColor: '#FBBF24'
   };
   Object.entries(defs).forEach(([k, v]) => {
     if (!localStorage.getItem(k)) localStorage.setItem(k, v);

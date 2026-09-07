@@ -1,90 +1,83 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, ArrowUpIcon } from './Icons';
-import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, decorateMarkers, getVirtualFolder } from '../utils';
+import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon } from './Icons';
+import { ChevronsLeft, ChevronLeft, ChevronsRight, ChevronRight } from 'lucide-react';
+import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
+import { MarkdownView } from './MarkdownView';
 
 export const MainContent = () => {
   const {
-    dirHandle, savedFolderName, allFiles, filteredFiles, searchQueries,
-    currentFileObj, currentContent, isEditing, toggleEdit, saveFile, selectFile,
-    openMovePanel, deleteCurrentFile, renameCurrentFile, toggleFileMarker,
+    dirHandle, allFiles, searchQueries,
+    currentFileObj, currentContent, isEditing, toggleEdit, saveFile,
+    openMovePanel, deleteCurrentFile, renameCurrentFile,
     movePanelState, closeMovePanels, physicalFolders, execBulkMove, moveToNewFolder,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
-    reopenFolder, loading
+    paperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+    isResuming, pendingResumeHandle, resumeSavedFolder, loading
   } = useAppContext();
 
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [markPaletteOpen, setMarkPaletteOpen] = useState(false);
+  const markPaletteRef = useRef<HTMLDivElement>(null);
+
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [renameInputVal, setRenameInputVal] = useState('');
+  const [folderRenameTarget, setFolderRenameTarget] = useState<{ name: string; handle: any } | null>(null);
+  const [folderRenameInputVal, setFolderRenameInputVal] = useState('');
 
   useEffect(() => {
-    const contentArea = document.getElementById('content-area');
-    if (!contentArea) return;
-
-    const handleScroll = () => {
-      if (contentArea.scrollTop > 300) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (markPaletteRef.current && !markPaletteRef.current.contains(e.target as Node)) {
+        setMarkPaletteOpen(false);
       }
     };
-
-    contentArea.addEventListener('scroll', handleScroll);
-    return () => contentArea.removeEventListener('scroll', handleScroll);
-  }, [currentFileObj, isEditing]);
-
-  const scrollToTop = () => {
-    const contentArea = document.getElementById('content-area');
-    if (contentArea) {
-      contentArea.scrollTo({ top: 0, behavior: 'instant' });
+    if (markPaletteOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [markPaletteOpen]);
+
+  const [currentLH, setCurrentLH] = useState(() => localStorage.getItem('lv_lineHeight') || '1.8');
+  const [currentFS, setCurrentFS] = useState(() => localStorage.getItem('lv_fontSize') || '15');
+
+  useEffect(() => {
+    const handleSettingsChanged = () => {
+      setCurrentLH(localStorage.getItem('lv_lineHeight') || '1.8');
+      setCurrentFS(localStorage.getItem('lv_fontSize') || '15');
+    };
+    window.addEventListener('settingsChanged', handleSettingsChanged);
+    return () => window.removeEventListener('settingsChanged', handleSettingsChanged);
+  }, []);
+
+  const stepLineHeight = (delta: number) => {
+    const current = parseFloat(currentLH) || 1.8;
+    let nextVal = +(current + delta * 0.1).toFixed(1);
+    nextVal = Math.min(3.0, Math.max(1.1, nextVal));
+    const strVal = nextVal.toFixed(1);
+    localStorage.setItem('lv_lineHeight', strVal);
+    setCurrentLH(strVal);
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
   };
 
-
-  const isSystemFile = (filename: string) => {
-    const ln = filename.toLowerCase();
-    // マーク付きのファイル名も考慮する
-    const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
-    let baseName = ln;
-    for (const m of MARKERS) {
-      if (baseName.startsWith(m.toLowerCase())) {
-        baseName = baseName.slice(m.length).trim();
-        break;
-      }
-    }
-    // 日付プレフィックスを取り除く
-    const prefixMatch = baseName.match(/^(\d{8}_\d{4}_)/);
-    if (prefixMatch) {
-      baseName = baseName.slice(prefixMatch[1].length);
-    }
-
-    return baseName === 'agents.md' || baseName.startsWith('00_【進行】_') || baseName.startsWith('00-');
+  const stepFontSize = (delta: number) => {
+    const current = parseInt(currentFS, 10) || 15;
+    const nextVal = Math.min(32, Math.max(11, current + delta));
+    const strVal = String(nextVal);
+    localStorage.setItem('lv_fontSize', strVal);
+    setCurrentFS(strVal);
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
   };
-
-  const [showToolbarMarkPanel, setShowToolbarMarkPanel] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowToolbarMarkPanel(false);
-      }
-    };
-    if (showToolbarMarkPanel) {
-      document.addEventListener('mousedown', handleOutsideClick);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-    };
-  }, [showToolbarMarkPanel]);
-
   const scrollAnimationFrameRef = useRef<number | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
 
   const startScrolling = (direction: 'left' | 'right') => {
     if (scrollAnimationFrameRef.current) return;
-    const speed = direction === 'left' ? -10 : 10;
+    const speed = direction === 'left' ? -7 : 7;
     const step = () => {
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollLeft += speed;
@@ -101,6 +94,103 @@ export const MainContent = () => {
     }
   };
 
+  const scrollToStart = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    // 一遍にパッとジャンプ（アニメーションなし）
+    el.scrollTo({ left: 0, behavior: 'auto' });
+    setTimeout(() => {
+      if (el.scrollLeft < 0) {
+        el.scrollTo({ left: 0, behavior: 'auto' });
+      }
+    }, 20);
+  };
+
+  const scrollToEnd = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    // 一遍にパッとジャンプ（アニメーションなし）
+    el.scrollTo({ left: -el.scrollWidth, behavior: 'auto' });
+    setTimeout(() => {
+      if (el.scrollLeft === 0 && el.scrollWidth > el.clientWidth) {
+        el.scrollTo({ left: -(el.scrollWidth - el.clientWidth), behavior: 'auto' });
+      }
+    }, 20);
+  };
+
+  const stepScroll = (direction: 'left' | 'right') => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    // 1クリックで進みすぎないよう、ちょっとだけ（約55px・2〜3行分）進む
+    const delta = direction === 'left' ? -55 : 55;
+    el.scrollBy({ left: delta, behavior: 'smooth' });
+  };
+
+  const handleArrowMouseDown = (direction: 'left' | 'right') => {
+    stepScroll(direction);
+    longPressTimerRef.current = window.setTimeout(() => {
+      startScrolling(direction);
+    }, 220);
+  };
+
+  const handleArrowMouseUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    stopScrolling();
+  };
+
+  const renderVerticalNavArrows = () => (
+    <>
+      <div className="vertical-scroll-nav-group left-group">
+        <button
+          className="scroll-arrow-btn"
+          onClick={scrollToEnd}
+          title={lang === 'en' ? 'Jump to end (last page)' : '一番後ろ（末尾）へジャンプ'}
+          aria-label="Jump to end"
+        >
+          <ChevronsLeft size={18} strokeWidth={2.4} />
+        </button>
+        <button
+          className="scroll-arrow-btn"
+          onMouseDown={() => handleArrowMouseDown('left')}
+          onMouseUp={handleArrowMouseUp}
+          onMouseLeave={handleArrowMouseUp}
+          onTouchStart={() => handleArrowMouseDown('left')}
+          onTouchEnd={handleArrowMouseUp}
+          title={lang === 'en' ? 'Scroll left' : '左へスクロール'}
+          aria-label="Scroll left"
+        >
+          <ChevronLeft size={18} strokeWidth={2.4} />
+        </button>
+      </div>
+
+      <div className="vertical-scroll-nav-group right-group">
+        <button
+          className="scroll-arrow-btn"
+          onClick={scrollToStart}
+          title={lang === 'en' ? 'Jump to beginning (first page)' : '一番前（先頭）へジャンプ'}
+          aria-label="Jump to start"
+        >
+          <ChevronsRight size={18} strokeWidth={2.4} />
+        </button>
+        <button
+          className="scroll-arrow-btn"
+          onMouseDown={() => handleArrowMouseDown('right')}
+          onMouseUp={handleArrowMouseUp}
+          onMouseLeave={handleArrowMouseUp}
+          onTouchStart={() => handleArrowMouseDown('right')}
+          onTouchEnd={handleArrowMouseUp}
+          title={lang === 'en' ? 'Scroll right' : '右へスクロール'}
+          aria-label="Scroll right"
+        >
+          <ChevronRight size={18} strokeWidth={2.4} />
+        </button>
+      </div>
+    </>
+  );
+
   useEffect(() => {
     return () => {
       if (scrollAnimationFrameRef.current) {
@@ -109,22 +199,20 @@ export const MainContent = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-
-    const handleWheelEvent = (e: WheelEvent) => {
-      if (e.deltaY !== 0) {
-        e.preventDefault();
-        el.scrollLeft -= e.deltaY;
-      }
-    };
-
-    el.addEventListener('wheel', handleWheelEvent, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleWheelEvent);
-    };
-  });
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const handleContentScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (writingMode === 'vertical' && !isEditing) return;
+    const shouldShow = e.currentTarget.scrollTop > 150;
+    if (shouldShow !== showScrollTop) {
+      setShowScrollTop(shouldShow);
+    }
+  };
+  const scrollToTop = () => {
+    const contentAreaEl = document.getElementById('content-area');
+    if (contentAreaEl) {
+      contentAreaEl.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const [editValue, setEditValue] = useState("");
   useEffect(() => {
@@ -139,50 +227,11 @@ export const MainContent = () => {
     return () => clearInterval(handleInterval);
   }, []);
 
-  const [isPaperMode, setIsPaperMode] = useState(false);
-
+  // ファイル切替や編集モード切り替え時に音声を自動停止
   useEffect(() => {
-    if (isPaperMode) {
-      document.body.classList.add('paper-mode-active');
-    } else {
-      document.body.classList.remove('paper-mode-active');
-    }
-    return () => {
-      document.body.classList.remove('paper-mode-active');
-    };
-  }, [isPaperMode]);
-
-  const currentIndex = currentFileObj && filteredFiles ? filteredFiles.findIndex(f => f.filename === currentFileObj.filename && f.category === currentFileObj.category) : -1;
-  const hasPrev = currentIndex !== -1 && currentIndex < filteredFiles.length - 1; // older file exists (past)
-  const hasNext = currentIndex > 0; // newer file exists (future)
-
-  const handlePrev = () => {
-    if (hasPrev) selectFile(filteredFiles[currentIndex + 1]); // older file (past)
-  };
-  const handleNext = () => {
-    if (hasNext) selectFile(filteredFiles[currentIndex - 1]); // newer file (future)
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isEditing) return;
-      if (e.target instanceof HTMLElement) {
-        const tagName = e.target.tagName.toLowerCase();
-        if (tagName !== "textarea" && tagName !== "input") {
-          if (e.key === "k" && hasNext) {
-            e.preventDefault();
-            handleNext();
-          }
-          if (e.key === "j" && hasPrev) {
-            e.preventDefault();
-            handlePrev();
-          }
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isEditing, hasPrev, hasNext, currentIndex, filteredFiles]);
+    window.speechSynthesis.cancel();
+    setIsPlayingAudio(false);
+  }, [currentFileObj, isEditing]);
 
   useEffect(() => {
     applySettingsToDOM();
@@ -196,19 +245,47 @@ export const MainContent = () => {
     }
   }, [writingMode, currentFileObj, isEditing, speakerModeEnabled]);
 
+  const stopAudio = () => {
+    window.speechSynthesis.cancel();
+    setIsPlayingAudio(false);
+  };
 
   const playFromIndex = (texts: string[], startIndex: number) => {
     window.speechSynthesis.cancel();
+    const validTexts: string[] = [];
     for (let i = startIndex; i < texts.length; i++) {
-      if (!texts[i].trim()) continue;
-      const u = new SpeechSynthesisUtterance(texts[i]);
+      if (texts[i].trim()) {
+        validTexts.push(texts[i]);
+      }
+    }
+    if (validTexts.length === 0) {
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    validTexts.forEach((text, idx) => {
+      const u = new SpeechSynthesisUtterance(text);
       const v = voices.find(v => v.voiceURI === ttsSettings.voiceURI);
       if (v) u.voice = v;
       u.rate = ttsSettings.rate;
       u.volume = ttsSettings.volume;
       u.pitch = ttsSettings.pitch;
+      if (idx === validTexts.length - 1) {
+        u.onend = () => setIsPlayingAudio(false);
+        u.onerror = () => setIsPlayingAudio(false);
+      }
       window.speechSynthesis.speak(u);
+    });
+    setIsPlayingAudio(true);
+  };
+
+  const handleLinePlayOrStop = (texts: string[], startIndex: number) => {
+    const isSpeaking = window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio;
+    if (isSpeaking) {
+      stopAudio();
+      return;
     }
+    playFromIndex(texts, startIndex);
   };
 
   const renderContent = () => {
@@ -244,106 +321,97 @@ export const MainContent = () => {
       if (writingMode === 'vertical') {
         return (
           <div className="vertical-scroll-wrapper">
-            <button 
-              className="scroll-arrow-btn left-arrow" 
-              onMouseDown={() => startScrolling('left')}
-              onMouseUp={stopScrolling}
-              onMouseLeave={stopScrolling}
-              onTouchStart={() => startScrolling('left')}
-              onTouchEnd={stopScrolling}
-              title="左へスクロール"
+            {renderVerticalNavArrows()}
+            <div 
+              className="vertical-scroll-content" 
+              ref={scrollContainerRef}
+              onWheel={e => {
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                  e.currentTarget.scrollLeft -= e.deltaY;
+                }
+              }}
             >
-              &lt;
-            </button>
-            <div className="vertical-scroll-content" ref={scrollContainerRef}>
-              <div id="messages" className="vertical-messages">
-                {msgs.map((m, i) => (
-                  <div className="vertical-msg-block" key={i}>
-                    {m.speaker !== '—' && (
-                      <div className="vertical-msg-speaker">
-                        <SpeakerIcon /> {escHtml(m.speaker)}
+              <div 
+                id="messages" 
+                className="vertical-messages" 
+                onDoubleClick={!isEditing ? toggleEdit : undefined}
+                onClick={() => {
+                  if (window.getSelection()?.toString().length) return;
+                  if (window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio) {
+                    stopAudio();
+                  }
+                }}
+              >
+                {msgs.map((m, i) => {
+                  const startLine = globalLineIndex;
+                  globalLineIndex += m.text.split('\n').length;
+                  return (
+                    <div className="vertical-msg-block" key={i}>
+                      {m.speaker !== '—' && (
+                        <div className="vertical-msg-speaker">
+                          <SpeakerIcon /> {escHtml(m.speaker)}
+                        </div>
+                      )}
+                      <div className="vertical-msg-body">
+                        <MarkdownView
+                          content={m.text}
+                          searchQueries={searchQueries}
+                          writingMode="vertical"
+                          isPlayingAudio={isPlayingAudio}
+                          onPlayFromLine={offset => {
+                            handleLinePlayOrStop(allLines, startLine + offset);
+                          }}
+                          onDoubleClickToEdit={toggleEdit}
+                          lang={lang}
+                        />
                       </div>
-                    )}
-                    <div className="vertical-msg-body">
-                      {m.text.split('\n').map((l, j) => {
-                        const currentIndex = globalLineIndex++;
-                        return l ? (
-                          <p 
-                            key={j} 
-                            onClick={() => {
-                              if (window.getSelection()?.toString().trim()) return;
-                              if (isPlayingAudio) {
-                                window.speechSynthesis.cancel();
-                                setIsPlayingAudio(false);
-                              } else {
-                                playFromIndex(allLines, currentIndex);
-                                setIsPlayingAudio(true);
-                              }
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--sb-item-hover)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            style={{ cursor: 'pointer', transition: 'background 0.2s', borderRadius: '4px', margin: '-4px 0', padding: '4px 0' }}
-                            dangerouslySetInnerHTML={{__html: highlightTextSafe(linkifyUrls(l), searchQueries)}}
-                            title={lang === 'en' ? 'Click to read from here' : 'クリックしてここから読み上げ'}
-                          />
-                        ) : <p key={j} style={{width: '12px'}} />;
-                      })}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
-            <button 
-              className="scroll-arrow-btn right-arrow" 
-              onMouseDown={() => startScrolling('right')}
-              onMouseUp={stopScrolling}
-              onMouseLeave={stopScrolling}
-              onTouchStart={() => startScrolling('right')}
-              onTouchEnd={stopScrolling}
-              title="右へスクロール"
-            >
-              &gt;
-            </button>
           </div>
         );
       }
 
       return (
-        <div id="messages" style={{display: 'flex'}}>
-          {msgs.map((m, i) => (
-            <div className="msg-block" key={i}>
-              {m.speaker !== '—' && (
-                <div className="msg-speaker">
-                  <SpeakerIcon /> {escHtml(m.speaker)}
+        <div 
+          id="messages" 
+          style={{display: 'flex'}} 
+          onDoubleClick={!isEditing ? toggleEdit : undefined}
+          onClick={() => {
+            if (window.getSelection()?.toString().length) return;
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio) {
+              stopAudio();
+            }
+          }}
+        >
+          {msgs.map((m, i) => {
+            const startLine = globalLineIndex;
+            globalLineIndex += m.text.split('\n').length;
+            return (
+              <div className="msg-block" key={i}>
+                {m.speaker !== '—' && (
+                  <div className="msg-speaker">
+                    <SpeakerIcon /> {escHtml(m.speaker)}
+                  </div>
+                )}
+                <div className="msg-body">
+                  <MarkdownView
+                    content={m.text}
+                    searchQueries={searchQueries}
+                    writingMode="horizontal"
+                    isPlayingAudio={isPlayingAudio}
+                    onPlayFromLine={offset => {
+                      handleLinePlayOrStop(allLines, startLine + offset);
+                    }}
+                    onDoubleClickToEdit={toggleEdit}
+                    lang={lang}
+                  />
                 </div>
-              )}
-              <div className="msg-body">
-                {m.text.split('\n').map((l, j) => {
-                  const currentIndex = globalLineIndex++;
-                  return l ? (
-                    <p 
-                      key={j} 
-                      onClick={() => {
-                        if (window.getSelection()?.toString().trim()) return;
-                        if (isPlayingAudio) {
-                          window.speechSynthesis.cancel();
-                          setIsPlayingAudio(false);
-                        } else {
-                          playFromIndex(allLines, currentIndex);
-                          setIsPlayingAudio(true);
-                        }
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--sb-item-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      style={{ cursor: 'pointer', transition: 'background 0.2s', borderRadius: '4px', margin: '0 -4px', padding: '0 4px' }}
-                      dangerouslySetInnerHTML={{__html: highlightTextSafe(linkifyUrls(l), searchQueries)}}
-                      title={lang === 'en' ? 'Click to read from here' : 'クリックしてここから読み上げ'}
-                    />
-                  ) : <p key={j} style={{height: '8px'}} />;
-                })}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       );
     }
@@ -353,83 +421,68 @@ export const MainContent = () => {
       return (
         <div className="vertical-card-fixed">
           <div className="vertical-scroll-wrapper">
-            <button 
-              className="scroll-arrow-btn left-arrow" 
-              onMouseDown={() => startScrolling('left')}
-              onMouseUp={stopScrolling}
-              onMouseLeave={stopScrolling}
-              onTouchStart={() => startScrolling('left')}
-              onTouchEnd={stopScrolling}
-              title="左へスクロール"
+            {renderVerticalNavArrows()}
+            <div 
+              className="vertical-scroll-content" 
+              ref={scrollContainerRef} 
+              style={{ padding: '0 2px' }}
+              onWheel={e => {
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                  e.currentTarget.scrollLeft -= e.deltaY;
+                }
+              }}
             >
-              &lt;
-            </button>
-            <div className="vertical-scroll-content" ref={scrollContainerRef} style={{ padding: '0 2px' }}>
-              <div className="vertical-writing-text-inner">
-                {lines.length > 0 ? lines.map((l, i) => {
-                  return l ? (
-                    <span 
-                      key={i} 
-                      onClick={() => {
-                        if (window.getSelection()?.toString().trim()) return;
-                        if (isPlayingAudio) {
-                          window.speechSynthesis.cancel();
-                          setIsPlayingAudio(false);
-                        } else {
-                          playFromIndex(lines, i);
-                          setIsPlayingAudio(true);
-                        }
-                      }}
-                      style={{ cursor: 'pointer', transition: 'background 0.2s', borderRadius: '4px', margin: '-4px 0', padding: '4px 0' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--sb-item-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      title={lang === 'en' ? 'Click to read' : 'クリックして読み上げ'}
-                      dangerouslySetInnerHTML={{__html: highlightTextSafe(linkifyUrls(l), searchQueries)}} 
-                    />
-                  ) : <div key={i} style={{width: '1.8em', display: 'block'}}></div>;
-                }) : (lang === 'en' ? '(No Content)' : '（内容なし）')}
+              <div 
+                className="vertical-writing-text-inner"
+                onDoubleClick={!isEditing ? toggleEdit : undefined}
+                onClick={() => {
+                  if (window.getSelection()?.toString().length) return;
+                  if (window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio) {
+                    stopAudio();
+                  }
+                }}
+              >
+                <MarkdownView
+                  content={currentContent}
+                  searchQueries={searchQueries}
+                  writingMode="vertical"
+                  isPlayingAudio={isPlayingAudio}
+                  onPlayFromLine={i => {
+                    handleLinePlayOrStop(lines, i);
+                  }}
+                  onDoubleClickToEdit={toggleEdit}
+                  lang={lang}
+                />
               </div>
             </div>
-            <button 
-              className="scroll-arrow-btn right-arrow" 
-              onMouseDown={() => startScrolling('right')}
-              onMouseUp={stopScrolling}
-              onMouseLeave={stopScrolling}
-              onTouchStart={() => startScrolling('right')}
-              onTouchEnd={stopScrolling}
-              title="右へスクロール"
-            >
-              &gt;
-            </button>
           </div>
         </div>
       );
     }
 
     return (
-      <div id="plain-text" style={{display: 'block'}}>
-        {lines.length > 0 ? lines.map((l, i) => {
-          return l ? (
-            <span 
-              key={i} 
-              onClick={() => {
-                if (window.getSelection()?.toString().trim()) return;
-                if (isPlayingAudio) {
-                  window.speechSynthesis.cancel();
-                  setIsPlayingAudio(false);
-                } else {
-                  playFromIndex(lines, i);
-                  setIsPlayingAudio(true);
-                }
-              }}
-              style={{ cursor: 'pointer', display: 'block', transition: 'background 0.2s', borderRadius: '4px', margin: '0 -4px', padding: '0 4px' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--sb-item-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              title={lang === 'en' ? 'Click to read' : 'クリックして読み上げ'}
-              dangerouslySetInnerHTML={{__html: highlightTextSafe(linkifyUrls(l), searchQueries)}} 
-            />
-          ) : <div key={i} style={{height: '1.8em'}}></div>;
-        }) : (lang === 'en' ? '(No Content)' : '（内容なし）')}
+      <div 
+        id="plain-text" 
+        style={{display: 'block'}}
+        onDoubleClick={!isEditing ? toggleEdit : undefined}
+        onClick={() => {
+          if (window.getSelection()?.toString().length) return;
+          if (window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio) {
+            stopAudio();
+          }
+        }}
+      >
+        <MarkdownView
+          content={currentContent}
+          searchQueries={searchQueries}
+          writingMode="horizontal"
+          isPlayingAudio={isPlayingAudio}
+          onPlayFromLine={i => {
+            handleLinePlayOrStop(lines, i);
+          }}
+          onDoubleClickToEdit={toggleEdit}
+          lang={lang}
+        />
       </div>
     );
   };
@@ -438,7 +491,7 @@ export const MainContent = () => {
     if (!currentFileObj) return '';
     const firstSentence = extractFirstSentence(currentContent);
     const displayTitle = (firstSentence && firstSentence.length > 2) ? firstSentence : currentFileObj.title;
-    return decorateMarkers(highlightText(displayTitle, searchQueries));
+    return highlightText(displayTitle, searchQueries);
   };
 
   const [newFolderName, setNewFolderName] = useState('');
@@ -448,351 +501,219 @@ export const MainContent = () => {
       
       {!currentFileObj && (
         <div id="welcome">
-          {loading ? (
-            <>
-              <div id="welcome-big">{t.main.selectFolderArchive}</div>
-              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                <span className="spin" style={{ display: 'inline-block' }}>🔄</span>
-                <span>{lang === 'en' ? 'LOADING FOLDER...' : 'フォルダーを読み込み中です...'}</span>
-              </p>
-            </>
-          ) : (!dirHandle && savedFolderName) ? (
-            <>
-              <div id="welcome-big" style={{ fontSize: '28px', color: 'var(--sb-accent)' }}>📂 {lang === 'en' ? 'Previous Folder Detected' : '前回のフォルダが記憶されています'}</div>
-              <p style={{ margin: '12px 0 24px 0', opacity: 0.8 }}>
-                {lang === 'en' 
-                  ? `To view and edit logs in "${savedFolderName}", please reconnect to grant folder access.`
-                  : `前回のフォルダ「${savedFolderName}」のログを表示・編集するには、再接続してアクセス権を許可してください。`}
-              </p>
+          <div id="welcome-big">ARCHIVE</div>
+          {isResuming || loading ? (
+            <div className="resume-loading-status">
+              <span className="dice-spinner-mini">🎲</span>
+              <span className="resume-loading-text">フォルダーを読み込み中です...</span>
+            </div>
+          ) : pendingResumeHandle ? (
+            <div className="resume-prompt-box">
+              <p>{t.main.resumeFolderDesc}</p>
               <button 
-                onClick={reopenFolder}
-                style={{
-                  background: 'var(--sb-accent)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '12px',
-                  padding: '16px 28px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  margin: '20px auto',
-                  boxShadow: '0 8px 24px rgba(59, 130, 246, 0.35)',
-                  transition: 'all 0.2s ease-in-out'
-                }}
+                className="tool-btn primary" 
+                onClick={resumeSavedFolder} 
+                style={{ marginTop: '16px', padding: '10px 24px', fontSize: '13px', display: 'inline-flex' }}
               >
-                <FolderIcon />
-                <span>{lang === 'en' ? `Reconnect to "${savedFolderName}"` : `「${savedFolderName}」に再接続する`}</span>
+                📁 {pendingResumeHandle.name} {t.app.reopenFolder}
               </button>
-            </>
+            </div>
           ) : (
-            <>
-              <div id="welcome-big">{t.main.selectFolderArchive}</div>
-              <p>{t.main.selectFolderDesc}</p>
-            </>
+            <p>{t.main.selectFolderDesc}</p>
           )}
         </div>
       )}
 
       {currentFileObj && (
-        <div id="content-area" key={writingMode}>
-          <div id="bg-date">{currentFileObj.date ? currentFileObj.date.slice(5).replace('-','.') : ''}</div>
+        <>
+          <div id="content-area" onScroll={handleContentScroll}>
+            <div id="bg-date">{currentFileObj.date ? currentFileObj.date.slice(5).replace('-','.') : ''}</div>
           <div id="content-inner">
             <div id="file-meta">{currentFileObj.filename}</div>
             <div id="file-heading" dangerouslySetInnerHTML={{__html: getHeadingHTML()}} />
 
             <div id="toolbar">
-              <button className="tool-btn primary" onClick={isEditing ? () => saveFile(editValue) : toggleEdit}>
-                {isEditing ? <><SaveIcon /> {t.main.save}</> : <><EditIcon /> {t.main.edit}</>}
-              </button>
-              {isEditing && (
-                <button className="tool-btn" onClick={toggleEdit}>
-                  <ReadIcon /> {t.main.read}
+              <div className="toolbar-row">
+                <button className="tool-btn primary" onClick={isEditing ? () => saveFile(editValue) : toggleEdit}>
+                  {isEditing ? <><SaveIcon /> {t.main.save}</> : <><EditIcon /> {t.main.edit}</>}
                 </button>
-              )}
-              {!isEditing && (
-                <div className="layout-toggle-group">
-                  <button
-                    className={`layout-toggle-btn ${writingMode === 'horizontal' ? 'active' : ''}`}
-                    onClick={() => setWritingMode('horizontal')}
-                  >
-                    HORIZ
+                {isEditing && (
+                  <button className="tool-btn" onClick={toggleEdit}>
+                    <ReadIcon /> {t.main.read}
                   </button>
-                  <button
-                    className={`layout-toggle-btn ${writingMode === 'vertical' ? 'active' : ''}`}
-                    onClick={() => setWritingMode('vertical')}
-                  >
-                    VERT
-                  </button>
-                </div>
-              )}
-              {!isEditing && (
-                <>
-                  <button
-                    className="tool-btn"
-                    onClick={() => setIsPaperMode(!isPaperMode)}
-                    title="ペーパーモード"
-                    style={{
-                      background: isPaperMode ? '#e6dac8' : 'var(--btn-bg)',
-                      color: isPaperMode ? '#1a1a1a' : 'var(--btn-text)',
-                      borderColor: isPaperMode ? '#bcaaa4' : 'var(--btn-border)',
-                    }}
-                  >
-                    PAPER / {isPaperMode ? "ON" : "OFF"}
-                  </button>
-                  <button
-                    className="tool-btn"
-                    onClick={handlePrev}
-                    disabled={!hasPrev}
-                    title="古いファイルへ（過去） (j)"
-                  >
-                    PREV
-                  </button>
-                  <button
-                    className="tool-btn"
-                    onClick={handleNext}
-                    disabled={!hasNext}
-                    title="新しいファイルへ（未来） (k)"
-                  >
-                    NEXT
-                  </button>
-                </>
-              )}
-              <button id="move-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'single')}>
-                <MoveIcon /> {t.main.moveTo}
-              </button>
-              <button id="folder-edit-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'folder')}>
-                <FolderIcon /> {t.main.folderEdit}
-              </button>
-              {/* マーカークイック追加ボタン */}
-              {currentFileObj && !isSystemFile(currentFileObj.filename) && (() => {
-                let activeMarker = "☆";
-                let hasAnyMarker = false;
-                const MARKERS = ["★", "✔", "💡", "📌", "⚠️"];
-                const OLD_MARKERS = ["●", "■", "▲", "▼", "◆", "★", "☆", "✓"];
-                const filename = currentFileObj.filename;
-                let baseName = filename;
-                const prefixMatch = filename.match(/^(\d{8}_\d{4}_(?:-\s*)?)/);
-                if (prefixMatch) {
-                  baseName = filename.slice(prefixMatch[1].length);
-                }
-
-                // 拡張子とベース名を分離してカッコ判定を行う
-                let dotIdx = baseName.lastIndexOf('.');
-                let nameWithoutExt = dotIdx !== -1 ? baseName.slice(0, dotIdx) : baseName;
-                let bracketInnerName = nameWithoutExt;
-                if ((nameWithoutExt.startsWith("「") && nameWithoutExt.endsWith("」")) || (nameWithoutExt.startsWith("『") && nameWithoutExt.endsWith("』"))) {
-                  bracketInnerName = nameWithoutExt.slice(1, -1);
-                }
-
-                // 新マークの検出
-                for (const m of MARKERS) {
-                  if (bracketInnerName.startsWith(m)) {
-                    activeMarker = m;
-                    hasAnyMarker = true;
-                    break;
-                  }
-                }
-
-                // 旧マークの検出
-                if (!hasAnyMarker) {
-                  for (const m of OLD_MARKERS) {
-                    if (bracketInnerName.startsWith(m)) {
-                      hasAnyMarker = true; // システム上で「マークあり」として認識させ、解除(❌)や別マークへの置き換えを可能にする
-                      break;
-                    }
-                  }
-                }
-
-                // 手動マーク制限: 先頭(日付直後またはカッコ内先頭)にマークがないが、タイトル内にマークがある場合は編集不可（非表示）とする
-                if (!hasAnyMarker) {
-                  const hasEmbeddedMarker = [...MARKERS, ...OLD_MARKERS].some(m => bracketInnerName.includes(m));
-                  if (hasEmbeddedMarker) {
-                    return null;
-                  }
-                }
-
-                return (
-                  <div 
-                    ref={dropdownRef}
-                    className="file-markers-dropdown-wrap" 
-                    style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
-                  >
-                    <button
-                      id="toolbar-mark-trigger"
-                      style={(() => {
-                        const isStarType = activeMarker === '★' || activeMarker === '☆';
-                        let btnBg = 'var(--btn-bg)';
-                        let btnColor = 'var(--btn-text)';
-                        let btnBorder = '1px solid var(--btn-border)';
-                        
-                        if (hasAnyMarker) {
-                          if (activeMarker === '✔') {
-                            btnBg = 'rgba(16, 185, 129, 0.12)';
-                            btnColor = '#10b981';
-                            btnBorder = '1px solid rgba(16, 185, 129, 0.4)';
-                          } else if (activeMarker === '⚠️') {
-                            btnBg = 'rgba(239, 68, 68, 0.12)';
-                            btnColor = '#ef4444';
-                            btnBorder = '1px solid rgba(239, 68, 68, 0.4)';
-                          } else if (activeMarker === '★') {
-                            // 通常の星（★）が選択されている時のみ、黄色の背景・枠線・文字を適用
-                            btnBg = 'rgba(251, 191, 36, 0.12)';
-                            btnColor = '#fbbf24';
-                            btnBorder = '1px solid rgba(251, 191, 36, 0.4)';
-                          } else {
-                            btnBg = 'rgba(255, 255, 255, 0.08)';
-                            btnColor = 'var(--text)';
-                            btnBorder = '1px solid var(--btn-border)';
-                          }
-                        } else if (activeMarker === '☆') {
-                          // デフォルトの☆の時は黄色を入れず、他の通常ボタンと同じ白抜きスタイルにする
-                          btnBg = 'var(--btn-bg)';
-                          btnColor = 'var(--btn-text)';
-                          btnBorder = '1px solid var(--btn-border)';
-                        }
-
-                        return {
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '8px 18px',
-                          borderRadius: '10px',
-                          fontSize: '11px',
-                          fontWeight: 'bold',
-                          letterSpacing: '1.5px',
-                          cursor: 'pointer',
-                          border: btnBorder,
-                          background: btnBg,
-                          color: btnColor,
-                          fontFamily: 'var(--font-body)',
-                          transition: 'all 0.12s'
-                        };
-                      })()}
-                      onClick={() => setShowToolbarMarkPanel(!showToolbarMarkPanel)}
-                      title={lang === 'en' ? 'Toggle Marker' : 'マークを切り替え'}
-                    >
-                      <span style={{ 
-                        fontSize: '13px', 
-                        color: (activeMarker === '★' || activeMarker === '☆') ? '#fbbf24' : 'inherit'
-                      }}>{activeMarker}</span>
-                      {lang === 'en' ? 'MARK' : 'マーク'}
-                    </button>
-                    
-                    {showToolbarMarkPanel && (
-                      <div 
-                        className="toolbar-mark-panel" 
-                        style={{
-                          position: 'absolute',
-                          top: 'calc(100% + 4px)',
-                          right: 0,
-                          background: 'var(--panel-bg)',
-                          border: '1px solid var(--btn-border)',
-                          borderRadius: '8px',
-                          padding: '4px 6px',
-                          display: 'flex',
-                          gap: '4px',
-                          zIndex: 100,
-                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
-                          alignItems: 'center'
-                        }}
+                )}
+                {!isEditing && (
+                  <>
+                    <div className="toolbar-stepper" title={lang === 'en' ? 'Font size' : '文字サイズ'}>
+                      <button
+                        className="stepper-btn"
+                        onClick={() => stepFontSize(-1)}
+                        title={lang === 'en' ? 'Decrease font size (-1px)' : '文字を小さく (-1px)'}
                       >
-                        {["★", "✔", "💡", "📌", "⚠️", "❌"].map(marker => {
-                          const isCurrent = marker === '❌' ? !hasAnyMarker : (activeMarker === marker);
-                          let activeBg = 'rgba(251, 191, 36, 0.2)';
-                          let activeBorder = 'rgba(251, 191, 36, 0.4)';
-                          if (marker === '✔') {
-                            activeBg = 'rgba(16, 185, 129, 0.2)';
-                            activeBorder = 'rgba(16, 185, 129, 0.4)';
-                          } else if (marker === '⚠️') {
-                            activeBg = 'rgba(239, 68, 68, 0.2)';
-                            activeBorder = 'rgba(239, 68, 68, 0.4)';
-                          } else if (marker === '❌') {
-                            activeBg = 'rgba(239, 68, 68, 0.15)';
-                            activeBorder = 'rgba(239, 68, 68, 0.3)';
-                          }
+                        -
+                      </button>
+                      <span className="stepper-value">{currentFS}</span>
+                      <button
+                        className="stepper-btn"
+                        onClick={() => stepFontSize(1)}
+                        title={lang === 'en' ? 'Increase font size (+1px)' : '文字を大きく (+1px)'}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="toolbar-stepper" title={lang === 'en' ? 'Line height' : '行間'}>
+                      <span className="stepper-label">LH:</span>
+                      <button
+                        className="stepper-btn"
+                        onClick={() => stepLineHeight(-1)}
+                        title={lang === 'en' ? 'Decrease line height (-0.1)' : '行間を狭く (-0.1)'}
+                      >
+                        -
+                      </button>
+                      <span className="stepper-value">{parseFloat(currentLH).toFixed(1)}</span>
+                      <button
+                        className="stepper-btn"
+                        onClick={() => stepLineHeight(1)}
+                        title={lang === 'en' ? 'Increase line height (+0.1)' : '行間を広く (+0.1)'}
+                      >
+                        +
+                      </button>
+                    </div>
 
-                          return (
-                            <React.Fragment key={marker}>
-                              {marker === '❌' && (
-                                <div style={{ 
-                                  width: '1px', 
-                                  height: '16px', 
-                                  background: 'var(--btn-border)', 
-                                  margin: '0 4px',
-                                  alignSelf: 'center'
-                                }} />
-                              )}
-                              <button
-                                style={{
-                                  background: isCurrent ? activeBg : 'transparent',
-                                  border: isCurrent ? `1px solid ${activeBorder}` : '1px solid transparent',
-                                  cursor: 'pointer',
-                                  padding: '4px 8px',
-                                  borderRadius: '6px',
-                                  fontSize: '14px',
-                                  color: marker === '★' ? '#fbbf24' : 'var(--text)',
-                                  transition: 'background 0.1s'
-                                }}
-                                onClick={() => {
-                                  toggleFileMarker(marker);
-                                  setShowToolbarMarkPanel(false);
-                                }}
-                                title={marker === '❌' ? (lang === 'en' ? 'Remove Marker' : 'マークを解除') : `${marker}`}
-                                onMouseEnter={e => {
-                                  if (!isCurrent) e.currentTarget.style.background = 'var(--btn-hover)';
-                                }}
-                                onMouseLeave={e => {
-                                  if (!isCurrent) e.currentTarget.style.background = 'transparent';
-                                }}
-                              >
-                                {marker}
-                              </button>
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+                    <div className="layout-toggle-group" style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        className={`tool-btn ${writingMode === 'horizontal' ? 'primary' : ''}`}
+                        onClick={() => setWritingMode('horizontal')}
+                      >
+                        HORIZ
+                      </button>
+                      <button
+                        className={`tool-btn ${writingMode === 'vertical' ? 'primary' : ''}`}
+                        onClick={() => setWritingMode('vertical')}
+                      >
+                        VERT
+                      </button>
+                    </div>
+                    <button
+                      className={`tool-btn ${paperMode ? 'primary' : ''}`}
+                      onClick={togglePaperMode}
+                      title={paperMode ? 'ペーパーモード解除' : 'ペーパーモード（淡いベージュ紙調）'}
+                    >
+                      {paperMode ? 'PAPER / OFF' : 'PAPER / ON'}
+                    </button>
+                    <button
+                      className={`tool-btn ${!hasPrevFile ? 'disabled-nav' : ''}`}
+                      onClick={goToPrevFile}
+                      disabled={!hasPrevFile}
+                      title="前の記事 (PREV)"
+                    >
+                      PREV
+                    </button>
+                    <button
+                      className={`tool-btn ${!hasNextFile ? 'disabled-nav' : ''}`}
+                      onClick={goToNextFile}
+                      disabled={!hasNextFile}
+                      title="次の記事 (NEXT)"
+                    >
+                      NEXT
+                    </button>
+                    <button id="move-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'single')}>
+                      <MoveIcon /> {t.main.moveTo}
+                    </button>
+                    <button id="folder-edit-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'folder')}>
+                      <FolderIcon /> {t.main.folderEdit}
+                    </button>
 
-              {currentFileObj && !isSystemFile(currentFileObj.filename) && (
-                <button id="rename-file-btn" style={{display:'flex'}} onClick={() => renameCurrentFile()}>
-                  <EditIcon /> {t.main.rename}
-                </button>
-              )}
-              <button id="play-audio-btn" style={{display:'flex', minWidth: '94px', justifyContent: 'center'}} onClick={() => {
-                if (isPlayingAudio) {
-                  window.speechSynthesis.cancel();
-                  setIsPlayingAudio(false);
-                } else {
-                  const lines = currentContent ? currentContent.split('\n') : [];
-                  playFromIndex(lines, 0);
-                  setIsPlayingAudio(true);
-                }
-              }}>
-                {isPlayingAudio ? (lang === 'en' ? '■ Stop\u00A0\u00A0' : '■ 停止') : `▶ ${t.settings.audioOpen}`}
-              </button>
-              <button id="delete-file-btn" style={{display:'flex'}} onClick={deleteCurrentFile}>
-                <DeleteIcon /> {t.main.delete}
-              </button>
-              
-              {(currentFileObj.category || dirHandle) && (
-                 <div id="location-badge" style={{display: 'flex'}}>
-                   <FolderIcon /> {(() => {
-                     const cat = currentFileObj.category || dirHandle?.name || "";
-                     if (cat.toUpperCase().includes("00_AIエージェント専用")) {
-                       const vFolder = getVirtualFolder(currentFileObj.filename, currentFileObj.date);
-                       const cleanVFolder = vFolder.replace(/^00_/, "");
-                       return `${cat} / ${cleanVFolder}`;
-                     }
-                     return cat;
-                   })()}
-                   {!currentFileObj.category && <span style={{opacity:0.5,fontWeight:'normal',fontSize:'10px'}}> {t.main.rootPath}</span>}
-                 </div>
+                    <div className="mark-dropdown-container" ref={markPaletteRef} style={{position: 'relative', display: 'inline-flex'}}>
+                      <button
+                        id="mark-btn"
+                        className={`tool-btn ${currentFileObj && fileMarks[currentFileObj.filename] ? 'has-mark' : ''}`}
+                        onClick={() => setMarkPaletteOpen(prev => !prev)}
+                        title="マークを付ける / 変更"
+                      >
+                        {currentFileObj && fileMarks[currentFileObj.filename] ? `${fileMarks[currentFileObj.filename]} マーク` : '☆ マーク'}
+                      </button>
+                      {markPaletteOpen && currentFileObj && (
+                        <div className="mark-palette-popup">
+                          <div className="mark-palette-items">
+                            {[
+                              { mark: '★', label: '星（★）', style: { color: '#f59e0b' } },
+                              { mark: '✓', label: 'チェック（✓）', style: { fontWeight: 'bold' } },
+                              { mark: '💡', label: '電球（💡）' },
+                              { mark: '📌', label: 'ピン（📌）' },
+                              { mark: '⚠️', label: '注意（⚠️）' },
+                            ].map(item => {
+                              const isMarkActive = fileMarks[currentFileObj.filename] === item.mark;
+                              return (
+                                <button
+                                  key={item.mark}
+                                  className={`mark-palette-btn ${isMarkActive ? 'active' : ''}`}
+                                  onClick={() => {
+                                    setFileMark(currentFileObj.filename, isMarkActive ? '' : item.mark);
+                                    setMarkPaletteOpen(false);
+                                  }}
+                                  title={item.label}
+                                  style={item.style}
+                                >
+                                  {item.mark}
+                                </button>
+                              );
+                            })}
+                            <div className="mark-palette-divider" />
+                            <button
+                              className="mark-palette-clear-btn"
+                              onClick={() => {
+                                setFileMark(currentFileObj.filename, '');
+                                setMarkPaletteOpen(false);
+                              }}
+                              title="マークを解除"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <button 
+                      id="rename-file-btn" 
+                      style={{display:'flex'}} 
+                      onClick={() => {
+                        if (!currentFileObj) return;
+                        setRenameInputVal(currentFileObj.filename);
+                        setIsRenameModalOpen(true);
+                      }}
+                    >
+                      <EditIcon /> {t.main.rename}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {!isEditing && (
+                <div className="toolbar-row toolbar-sub-row">
+                  <button id="play-audio-btn" style={{display:'flex', minWidth: '94px', justifyContent: 'center'}} onClick={() => {
+                    const isSpeaking = window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio;
+                    if (isSpeaking) {
+                      stopAudio();
+                    } else {
+                      const lines = currentContent ? currentContent.split('\n') : [];
+                      playFromIndex(lines, 0);
+                    }
+                  }}>
+                    {isPlayingAudio ? (lang === 'en' ? '■ Stop\u00A0\u00A0' : '■ 停止') : `▶ ${t.settings.audioOpen}`}
+                  </button>
+                  <button id="delete-file-btn" style={{display:'flex'}} onClick={deleteCurrentFile}>
+                    <DeleteIcon /> {t.main.delete}
+                  </button>
+
+                  {(currentFileObj.category || dirHandle) && (
+                    <div id="location-badge" style={{display: 'flex'}}>
+                      <FolderIcon /> {currentFileObj.category || dirHandle?.name}
+                      {!currentFileObj.category && <span style={{opacity:0.5,fontWeight:'normal',fontSize:'10px'}}> {t.main.rootPath}</span>}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -806,6 +727,38 @@ export const MainContent = () => {
 
           </div>
         </div>
+        {showScrollTop && (
+          <button
+            onClick={scrollToTop}
+            style={{
+              position: 'absolute',
+              bottom: '24px',
+              right: '24px',
+              zIndex: 100,
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              background: 'var(--btn-bg)',
+              color: 'var(--btn-text)',
+              border: '1px solid var(--btn-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              opacity: 0.9,
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '0.9'}
+            title={lang === 'en' ? 'Scroll to top' : '一番上へ'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 19V5M5 12l7-7 7 7"/>
+            </svg>
+          </button>
+        )}
+        </>
       )}
 
       {/* Panels rendering conditionally based on movePanelState */}
@@ -815,11 +768,14 @@ export const MainContent = () => {
           style={{
             position: 'fixed', zIndex: 200, 
             background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', 
-            top: movePanelState.type === 'bulk' ? 'auto' : Math.max(10, Math.min(movePanelState.triggerRect.bottom + 5, window.innerHeight - 320)) + 'px',
+            borderRadius: '14px', padding: 0, boxShadow: '0 12px 48px rgba(0,0,0,0.55)', 
+            width: movePanelState.type === 'bulk' ? 'calc(var(--sb-width) - 20px)' : '360px',
+            maxWidth: 'calc(100vw - 32px)',
+            boxSizing: 'border-box',
+            overflow: 'hidden',
+            top: movePanelState.type === 'bulk' ? 'auto' : Math.max(10, Math.min(movePanelState.triggerRect.bottom + 5, window.innerHeight - 340)) + 'px',
             bottom: movePanelState.type === 'bulk' ? '70px' : 'auto',
-            left: movePanelState.type === 'bulk' ? Math.max(10, Math.min(movePanelState.triggerRect.left, window.innerWidth - 280)) + 'px' : 'auto',
-            right: movePanelState.type === 'bulk' ? 'auto' : Math.max(10, window.innerWidth - movePanelState.triggerRect.right) + 'px',
-            maxWidth: '90vw'
+            left: movePanelState.type === 'bulk' ? '10px' : Math.max(16, Math.min(movePanelState.triggerRect.left, window.innerWidth - 376)) + 'px'
           }}
           onClick={e => e.stopPropagation()}
         >
@@ -877,9 +833,27 @@ export const MainContent = () => {
                 ) : (
                   physicalFolders.map(cat => (
                     <div className="folder-edit-row" key={cat.name}>
-                      <div className="folder-edit-name"><FolderIcon /> {cat.name}</div>
-                      <button className="folder-edit-action" title={t.main.rename} onClick={() => renameFolder(cat.name, cat.handle)}>✏️</button>
-                      <button className="folder-edit-action" title={t.main.delete} style={{color: 'rgba(255,100,100,0.7)'}} onClick={() => deleteFolder(cat.name, cat.handle)}>🗑️</button>
+                      <div className="folder-edit-name" title={cat.name}><FolderIcon /> {cat.name}</div>
+                      <div className="folder-edit-actions">
+                        <button 
+                          className="folder-edit-action" 
+                          title={t.main.rename} 
+                          onClick={() => {
+                            setFolderRenameTarget({ name: cat.name, handle: cat.handle });
+                            setFolderRenameInputVal(cat.name);
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          className="folder-edit-action" 
+                          title={t.main.delete} 
+                          style={{color: 'rgba(255,100,100,0.85)'}} 
+                          onClick={() => deleteFolder(cat.name, cat.handle)}
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -890,6 +864,113 @@ export const MainContent = () => {
         </div>
       )}
 
+      {/* ファイル名前変更モーダル */}
+      {isRenameModalOpen && currentFileObj && (
+        <div className="modal-backdrop" onClick={() => setIsRenameModalOpen(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <EditIcon />
+              <span>{t.main.rename}</span>
+            </div>
+            <div className="modal-body">
+              <label className="modal-label">{t.main.renamePrompt}</label>
+              <input
+                type="text"
+                className="modal-input"
+                value={renameInputVal}
+                onChange={e => setRenameInputVal(e.target.value)}
+                autoFocus
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = renameInputVal.trim();
+                    if (trimmed && trimmed !== currentFileObj.filename) {
+                      await renameCurrentFile(trimmed);
+                    }
+                    setIsRenameModalOpen(false);
+                  } else if (e.key === 'Escape') {
+                    setIsRenameModalOpen(false);
+                  }
+                }}
+              />
+              <div className="modal-hint">
+                {currentFileObj.filename}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn-cancel" onClick={() => setIsRenameModalOpen(false)}>
+                {t.main.cancel}
+              </button>
+              <button
+                className="modal-btn-primary"
+                disabled={!renameInputVal.trim() || renameInputVal.trim() === currentFileObj.filename}
+                onClick={async () => {
+                  const trimmed = renameInputVal.trim();
+                  if (trimmed && trimmed !== currentFileObj.filename) {
+                    await renameCurrentFile(trimmed);
+                  }
+                  setIsRenameModalOpen(false);
+                }}
+              >
+                {t.main.save || '変更'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* フォルダー名前変更モーダル */}
+      {folderRenameTarget && (
+        <div className="modal-backdrop" onClick={() => setFolderRenameTarget(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <FolderIcon />
+              <span>{t.main.rename}</span>
+            </div>
+            <div className="modal-body">
+              <label className="modal-label">{t.main.renameFolderPrompt} {folderRenameTarget.name}</label>
+              <input
+                type="text"
+                className="modal-input"
+                value={folderRenameInputVal}
+                onChange={e => setFolderRenameInputVal(e.target.value)}
+                autoFocus
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = folderRenameInputVal.trim();
+                    if (trimmed && trimmed !== folderRenameTarget.name) {
+                      await renameFolder(folderRenameTarget.name, folderRenameTarget.handle, trimmed);
+                    }
+                    setFolderRenameTarget(null);
+                  } else if (e.key === 'Escape') {
+                    setFolderRenameTarget(null);
+                  }
+                }}
+              />
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn-cancel" onClick={() => setFolderRenameTarget(null)}>
+                {t.main.cancel}
+              </button>
+              <button
+                className="modal-btn-primary"
+                disabled={!folderRenameInputVal.trim() || folderRenameInputVal.trim() === folderRenameTarget.name}
+                onClick={async () => {
+                  const trimmed = folderRenameInputVal.trim();
+                  if (trimmed && trimmed !== folderRenameTarget.name) {
+                    await renameFolder(folderRenameTarget.name, folderRenameTarget.handle, trimmed);
+                  }
+                  setFolderRenameTarget(null);
+                }}
+              >
+                {t.main.save || '変更'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {currentFileObj && (
         <div id="footer" style={{display: 'flex'}}>
           <span id="footer-left">{dirHandle ? dirHandle.name + ' / ' + allFiles.length + ' files' : ''}</span>
@@ -897,44 +978,6 @@ export const MainContent = () => {
         </div>
       )}
 
-      {showScrollTop && writingMode !== 'vertical' && !isEditing && (
-        <button 
-          id="scroll-to-top-btn"
-          onClick={scrollToTop}
-          title={lang === 'en' ? 'Back to top' : '一番上に戻る'}
-          style={{
-            position: 'fixed',
-            bottom: '60px',
-            right: '40px',
-            width: '50px',
-            height: '50px',
-            borderRadius: '50%',
-            background: '#ffffff',
-            color: '#1a1a1a',
-            border: 'none',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 150,
-            transition: 'all 0.2s ease-in-out',
-            outline: 'none'
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'scale(1.08)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.1)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08)';
-          }}
-        >
-          <ArrowUpIcon />
-        </button>
-      )}
-
     </div>
   );
 };
-

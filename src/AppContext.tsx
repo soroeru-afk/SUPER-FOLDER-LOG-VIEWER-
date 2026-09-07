@@ -1,13 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
-import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename, getVirtualFolder } from './utils';
+import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename } from './utils';
 
 export interface AppState {
   dirHandle: any | null;
-  savedFolderName: string | null;
   isFallbackMode: boolean;
   allFiles: FileObj[];
-  filteredFiles: FileObj[];
   allCategories: CategoryObj[];
   physicalFolders: PhysicalFolder[];
   searchQueries: string[];
@@ -21,7 +19,6 @@ export interface AppState {
   isHighlightOff: boolean;
   categoryOpenState: Record<string, boolean>;
   movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any } | null;
-  renameDialogState: { isOpen: boolean, currentName: string } | null;
   loading: boolean;
   refreshing: boolean;
   sortMode: 'date' | 'name';
@@ -52,14 +49,11 @@ export interface AppState {
   moveToNewFolder: (folderName: string, isBulk: boolean) => Promise<void>;
   bulkDeleteFiles: () => Promise<void>;
   deleteCurrentFile: () => Promise<void>;
-  renameCurrentFile: () => void;
-  execRename: (newName: string) => Promise<void>;
-  closeRenameDialog: () => void;
-  toggleFileMarker: (marker: string) => Promise<void>;
-  bulkToggleFileMarker: (marker: string) => Promise<void>;
-  renameFolder: (oldName: string, folderHandle: any) => Promise<void>;
-  createFolder: (parentPath: string | null) => Promise<void>;
+  renameCurrentFile: (newName: string) => Promise<void>;
+  renameFolder: (oldName: string, folderHandle: any, explicitNewName?: string) => Promise<void>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
+  createNewFolder: () => Promise<void>;
+  createNewFile: (folderHandle: any) => Promise<void>;
   lang: 'en' | 'ja';
   setLang: (lang: 'en' | 'ja') => void;
   t: any;
@@ -70,6 +64,17 @@ export interface AppState {
   voices: SpeechSynthesisVoice[];
   writingMode: 'horizontal' | 'vertical';
   setWritingMode: (mode: 'horizontal' | 'vertical') => void;
+  paperMode: boolean;
+  togglePaperMode: () => void;
+  fileMarks: Record<string, string>;
+  setFileMark: (filename: string, mark: string) => void;
+  hasPrevFile: boolean;
+  hasNextFile: boolean;
+  goToPrevFile: () => void;
+  goToNextFile: () => void;
+  isResuming: boolean;
+  pendingResumeHandle: any;
+  resumeSavedFolder: () => Promise<void>;
 }
 
 export interface TTSSettings {
@@ -91,9 +96,7 @@ import { translations, Language } from './i18n';
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dirHandle, setDirHandle] = useState<any | null>(null);
-  const [savedFolderName, setSavedFolderName] = useState<string | null>(null);
   const [allFiles, setAllFiles] = useState<FileObj[]>([]);
-  const [filteredFiles, setFilteredFiles] = useState<FileObj[]>([]);
   const [allCategories, setAllCategories] = useState<CategoryObj[]>([]);
   const [physicalFolders, setPhysicalFolders] = useState<PhysicalFolder[]>([]);
   const [searchQueries, setSearchQueries] = useState<string[]>([]);
@@ -127,6 +130,48 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const setWritingMode = (mode: 'horizontal' | 'vertical') => {
     setWritingModeState(mode);
     localStorage.setItem('lv_writingMode', mode);
+  };
+
+  const [paperMode, setPaperModeState] = useState<boolean>(() => {
+    return localStorage.getItem('lv_paperMode') === '1';
+  });
+
+  const togglePaperMode = () => {
+    setPaperModeState(prev => {
+      const next = !prev;
+      localStorage.setItem('lv_paperMode', next ? '1' : '0');
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (paperMode) {
+      document.body.classList.add('paper-mode');
+    } else {
+      document.body.classList.remove('paper-mode');
+    }
+  }, [paperMode]);
+
+  const [fileMarks, setFileMarks] = useState<Record<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem('lv_file_marks');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const setFileMark = (filename: string, mark: string) => {
+    setFileMarks(prev => {
+      const next = { ...prev };
+      if (!mark) {
+        delete next[filename];
+      } else {
+        next[filename] = mark;
+      }
+      localStorage.setItem('lv_file_marks', JSON.stringify(next));
+      return next;
+    });
   };
 
   const setSortMode = (mode: 'date' | 'name') => {
@@ -191,10 +236,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [categoryOpenState, setCategoryOpenState] = useState<Record<string, boolean>>({});
   
   const [movePanelState, setMovePanelState] = useState<{isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any} | null>(null);
-  const [renameDialogState, setRenameDialogState] = useState<{isOpen: boolean, currentName: string} | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
+  const [pendingResumeHandle, setPendingResumeHandle] = useState<any>(null);
 
   useEffect(() => {
     localStorage.setItem('lv_highlightOff', isHighlightOff ? '1' : '0');
@@ -213,62 +259,103 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isSelectMode]);
 
+  const resumeSavedFolder = async () => {
+    if (!pendingResumeHandle) return;
+    try {
+      setIsResuming(true);
+      const perm = await (pendingResumeHandle as any).requestPermission({ mode: 'readwrite' });
+      if (perm === 'granted') {
+        setDirHandle(pendingResumeHandle);
+        setLoading(true);
+        await loadFiles(pendingResumeHandle);
+        setLoading(false);
+        setPendingResumeHandle(null);
+      }
+    } catch(e) {
+      console.warn('Resume request failed:', e);
+    } finally {
+      setIsResuming(false);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
+      let fallbackData = await loadFallbackData();
+      if (!fallbackData && !window.showDirectoryPicker) {
+        const sampleContent = `# AI Search 検索ログ & Markdown再現テスト
+
+AI Searchから出力されたリサーチ結果のMarkdownデータです。
+外枠やマス目のある**枠線付きテーブル（表）**、**太字**、# 見出し、箇条書き（リスト）が綺麗に整形表示されます。
+
+## 機能比較テーブル
+
+| 機能名 | 従来表示 | アップデート後 | 対応状況 |
+| :--- | :--- | :--- | :--- |
+| テーブル（表）枠線 | 記号のまま | 外枠・マス目付きテーブル | 完了 |
+| 縦組み（VERT） | 一部崩れ | 縦書き列構造で完全再現 | 完了 |
+| 太字・見出し装飾 | アスタリスク | 本来のタイポグラフィ | 完了 |
+| LH・SIZE連動 | 固定 | ツールバー＆設定と完全追従 | 完了 |
+
+### 今後のスケジュール
+- **Phase 1**: マークダウンパーサーの実装
+- **Phase 2**: 縦組みモードおよびテーブルレスポンシブ対応
+- **Phase 3**: ツールバーのLH/SIZE同期の最適化
+
+> 本文エリアをダブルクリックすると「編集（EDIT）」モードへ瞬時に切り替わります。
+`;
+        const sampleFile: FileObj = {
+          handle: null,
+          filename: '2025-05-18_14-30_「AI Search 検索ログ & Markdownサンプル」.md',
+          category: 'AI Research',
+          date: '2025-05-18',
+          time: '14:30',
+          title: 'AI Search 検索ログ & Markdownサンプル',
+          dateSource: 'filename',
+          folderHandle: null,
+          content: sampleContent
+        };
+        fallbackData = {
+          rootFolderName: 'AI Search Logs',
+          pFolders: [{ name: 'AI Research', handle: null }],
+          fileObjs: [sampleFile]
+        };
+        await saveFallbackData(fallbackData);
+      }
+
       if (!window.showDirectoryPicker) {
-        const fallbackData = await loadFallbackData();
         if (fallbackData) {
           setDirHandle({ name: fallbackData.rootFolderName, isFallback: true });
           setIsFallbackMode(true);
           setAllFiles(fallbackData.fileObjs);
           setPhysicalFolders(fallbackData.pFolders);
           updateFilter(fallbackData.fileObjs, fallbackData.pFolders, searchQueries);
-
-          const lastCat = localStorage.getItem('lv_lastFileCategory');
-          const lastFile = localStorage.getItem('lv_lastFileName');
-          if (lastFile) {
-            const target = fallbackData.fileObjs.find((f: any) => (f.category || '') === (lastCat || '') && f.filename === lastFile);
-            if (target) {
-              setCurrentFileObj(target);
-              setCurrentContent(target.content);
-              setIsEditing(false);
-            }
+          if (fallbackData.fileObjs.length > 0) {
+            selectFile(fallbackData.fileObjs[0]);
           }
         }
       } else {
         const handle = await loadFolderHandle();
         if (handle) {
-          setSavedFolderName(handle.name);
+          setIsResuming(true);
           try {
-            const permission = await (handle as any).queryPermission({ mode: 'readwrite' });
-            if (permission === 'granted') {
+            const perm = typeof (handle as any).queryPermission === 'function'
+              ? await (handle as any).queryPermission({ mode: 'readwrite' })
+              : 'prompt';
+
+            if (perm === 'granted') {
               setDirHandle(handle);
               setLoading(true);
               await loadFiles(handle);
               setLoading(false);
             } else {
-              // 権限がない場合、まずはキャッシュデータからとりあえず表示する
-              const fallbackData = await loadFallbackData();
-              if (fallbackData) {
-                setDirHandle(handle);
-                setIsFallbackMode(true);
-                setAllFiles(fallbackData.fileObjs);
-                setPhysicalFolders(fallbackData.pFolders);
-                updateFilter(fallbackData.fileObjs, fallbackData.pFolders, searchQueries);
-
-                const lastCat = localStorage.getItem('lv_lastFileCategory');
-                const lastFile = localStorage.getItem('lv_lastFileName');
-                if (lastFile) {
-                  const target = fallbackData.fileObjs.find((f: any) => (f.category || '') === (lastCat || '') && f.filename === lastFile);
-                  if (target) {
-                    setCurrentFileObj(target);
-                    setCurrentContent(target.content);
-                    setIsEditing(false);
-                  }
-                }
-              }
+              setPendingResumeHandle(handle);
             }
-          } catch(e) { console.warn(e); }
+          } catch(e) {
+            console.warn('Resume check failed:', e);
+            setPendingResumeHandle(handle);
+          } finally {
+            setIsResuming(false);
+          }
         }
       }
     };
@@ -279,18 +366,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const entries: {handle: any, category: string | null, folderHandle: any | null}[] = [];
     const pFolders: PhysicalFolder[] = [];
     
-    async function collect(dirH: any, cat: string | null) {
+    async function collect(dirH: any, currentCat: string | null) {
       if (!dirH.values) return;
       for await (const item of dirH.values()) {
         if (item.kind === 'file' && (item.name.endsWith('.txt') || item.name.endsWith('.md'))) {
-          entries.push({ handle: item, category: cat, folderHandle: cat ? dirH : null });
+          entries.push({ handle: item, category: currentCat, folderHandle: currentCat ? dirH : null });
         } else if (item.kind === 'directory') {
-          if (dirH.name === '00_AIエージェント専用' || dirH.name === 'AIエージェント専用' || cat === '00_AIエージェント専用' || cat === 'AIエージェント専用' || (cat && (cat.startsWith('00_AIエージェント専用/') || cat.startsWith('AIエージェント専用/')))) {
-            continue;
-          }
-          const subCat = cat ? cat + '/' + item.name : item.name;
-          pFolders.push({ name: subCat, handle: item });
-          await collect(item, subCat);
+          if (item.name.startsWith('.')) continue; // ignore hidden folders like .git
+          const nextCat = currentCat ? `${currentCat}/${item.name}` : item.name;
+          pFolders.push({ name: nextCat, handle: item });
+          await collect(item, nextCat);
         }
       }
     }
@@ -298,52 +383,48 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     
     pFolders.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
     
-    const filesPromises = await Promise.all(entries.map(async entry => {
-      try {
-        const p = parseFilename(entry.handle.name);
-        const file = await entry.handle.getFile();
-        const content = await file.text();
-        let d = p.date, t = p.time, src = '';
-        if (!d) {
-          const lm = new Date(file.lastModified);
-          d = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
-          t = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}`;
-          src = 'os';
-        }
-        return { 
-          filename: entry.handle.name, handle: entry.handle, 
-          category: entry.category, folderHandle: entry.folderHandle, 
-          date: d, time: t, title: p.title || entry.handle.name.replace(/\.[^.]+$/,''), 
-          dateSource: src, content 
-        };
-      } catch (e) {
-        console.warn("Skipping file due to getFile error (likely renamed or deleted):", entry.handle.name, e);
-        return null;
+    const files = await Promise.all(entries.map(async entry => {
+      const p = parseFilename(entry.handle.name);
+      const file = await entry.handle.getFile();
+      const content = await file.text();
+      let d = p.date, t = p.time, src = '';
+      if (!d) {
+        const lm = new Date(file.lastModified);
+        d = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
+        t = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}`;
+        src = 'os';
       }
+      return { 
+        filename: entry.handle.name, handle: entry.handle, 
+        category: entry.category, folderHandle: entry.folderHandle, 
+        date: d, time: t, title: p.title || entry.handle.name.replace(/\.[^.]+$/,''), 
+        dateSource: src, content 
+      };
     }));
-    const files = filesPromises.filter((f): f is Exclude<typeof f, null> => f !== null);
     
     files.sort((a, b) => {
       const dtA = (a.date || '') + (a.time || '');
       const dtB = (b.date || '') + (b.time || '');
       return dtB.localeCompare(dtA);
-    });    setAllFiles(files);
+    });
+
+    setAllFiles(files);
     setPhysicalFolders(pFolders);
     updateFilter(files, pFolders, searchQueries);
 
-    const lastCat = localStorage.getItem('lv_lastFileCategory');
-    const lastFile = localStorage.getItem('lv_lastFileName');
-    if (lastFile) {
-      const target = files.find(f => (f.category || '') === (lastCat || '') && f.filename === lastFile);
-      if (target) {
-        setCurrentFileObj(target);
-        setCurrentContent(target.content);
-        setIsEditing(false);
+    // レジューム機能: 最後に開いていたファイルがあれば同じ場所を開く
+    try {
+      const lastFileRaw = localStorage.getItem('lv_lastFile');
+      if (lastFileRaw) {
+        const lastFileInfo = JSON.parse(lastFileRaw);
+        const target = files.find(f => f.filename === lastFileInfo.filename && (lastFileInfo.category ? f.category === lastFileInfo.category : true));
+        if (target) {
+          selectFile(target);
+        }
       }
+    } catch (e) {
+      console.warn('Failed to restore last opened file:', e);
     }
-
-    // 読み込みが完了した時点でIndexedDBにキャッシュ保存する
-    await saveFallbackData({ fileObjs: files, pFolders, rootFolderName: handle.name }).catch(e => console.warn(e));
   };
 
   const updateFilter = (files: FileObj[], pFolders: PhysicalFolder[], queries: string[]) => {
@@ -390,7 +471,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     setAllCategories(Array.from(catMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja')));
-    setFilteredFiles(filtered);
   };
 
   useEffect(() => {
@@ -419,7 +499,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             const parts = (file as any).webkitRelativePath.split('/');
             let category: string | null = null;
             if (parts.length > 2) {
-               category = parts[1];
+               category = parts.slice(1, -1).join('/');
                pFoldersMap.set(category, { name: category, handle: null });
             }
             
@@ -470,7 +550,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
       setDirHandle(handle);
-      setSavedFolderName(handle.name);
       setIsFallbackMode(false);
       await saveFolderHandle(handle);
       setLoading(true);
@@ -488,7 +567,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const fallbackData = await loadFallbackData();
       if (fallbackData) {
         setDirHandle({ name: fallbackData.rootFolderName, isFallback: true });
-        setSavedFolderName(fallbackData.rootFolderName);
         setIsFallbackMode(true);
         setAllFiles(fallbackData.fileObjs);
         setPhysicalFolders(fallbackData.pFolders);
@@ -501,8 +579,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (await (handle as any).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
       setDirHandle(handle);
-      setSavedFolderName(handle.name);
-      setIsFallbackMode(false); // 権限が取得できたらFallbackMode（仮表示）を解除する
       setLoading(true);
       await loadFiles(handle);
       setLoading(false);
@@ -534,8 +610,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setCurrentFileObj(f);
     setCurrentContent(f.content);
     setIsEditing(false);
-    localStorage.setItem('lv_lastFileCategory', f.category || '');
-    localStorage.setItem('lv_lastFileName', f.filename);
+    try {
+      localStorage.setItem('lv_lastFile', JSON.stringify({ filename: f.filename, category: f.category }));
+    } catch (e) {}
   };
 
   const toggleEdit = () => setIsEditing(!isEditing);
@@ -608,26 +685,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const expandAllGroups = () => {
     const newState: Record<string, boolean> = {};
     allCategories.forEach(cat => { newState['cat:' + cat.name] = true; });
-    allFiles.forEach(f => {
+    allFiles.filter(f => !f.category).forEach(f => {
       const dKey = f.date || '__nodate__';
       if (dKey !== '__nodate__') {
-        const mKey = dKey.slice(0, 7);
-        const vFolder = getVirtualFolder(f.filename, f.date);
-        if (f.category) {
-          if (f.category === '00_AIエージェント専用' || f.category === 'AIエージェント専用') {
-            newState[`vdir:cat:${f.category}:${vFolder}`] = true;
-          } else {
-            newState[`cat:${f.category}:month:${mKey}`] = true;
-            newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = true;
-          }
-        } else {
-          if (dirHandle && (dirHandle.name === '00_AIエージェント専用' || dirHandle.name === 'AIエージェント専用')) {
-            newState[`vdir:${vFolder}`] = true;
-          } else {
-            newState['month:' + mKey] = true;
-            newState[`vdir:${mKey}:${vFolder}`] = true;
-          }
-        }
+        newState['month:' + dKey.slice(0, 7)] = true;
+        newState['date:' + dKey] = true;
       }
     });
     setCategoryOpenState(newState);
@@ -636,26 +698,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const collapseAllGroups = () => {
     const newState: Record<string, boolean> = {};
     allCategories.forEach(cat => { newState['cat:' + cat.name] = false; });
-    allFiles.forEach(f => {
+    allFiles.filter(f => !f.category).forEach(f => {
       const dKey = f.date || '__nodate__';
       if (dKey !== '__nodate__') {
-        const mKey = dKey.slice(0, 7);
-        const vFolder = getVirtualFolder(f.filename, f.date);
-        if (f.category) {
-          if (f.category === '00_AIエージェント専用' || f.category === 'AIエージェント専用') {
-            newState[`vdir:cat:${f.category}:${vFolder}`] = false;
-          } else {
-            newState[`cat:${f.category}:month:${mKey}`] = false;
-            newState[`vdir:cat:${f.category}:${mKey}:${vFolder}`] = false;
-          }
-        } else {
-          if (dirHandle && (dirHandle.name === '00_AIエージェント専用' || dirHandle.name === 'AIエージェント専用')) {
-            newState[`vdir:${vFolder}`] = false;
-          } else {
-            newState['month:' + mKey] = false;
-            newState[`vdir:${mKey}:${vFolder}`] = false;
-          }
-        }
+        newState['month:' + dKey.slice(0, 7)] = false;
+        newState['date:' + dKey] = false;
       }
     });
     setCategoryOpenState(newState);
@@ -695,15 +742,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const moveToNewFolder = async (folderName: string, isBulk: boolean) => {
     if (!folderName) return;
-    const sanitized = folderName.trim().replace(/[\\/]/g, '-').replace(/[:*?"<>|]/g, '_');
-    if (sanitized === '') return;
-    if (sanitized !== folderName.trim()) {
-      alert('フォルダー名に使用できない文字（\\ / : * ? " < > |）が含まれていたため、自動的に置換（- や _）しました。');
-    }
     try {
-      const nh = await dirHandle.getDirectoryHandle(sanitized, {create: true});
+      const nh = await dirHandle.getDirectoryHandle(folderName, {create: true});
       const files = isBulk ? Array.from(selectedFileMap.values()) : (currentFileObj ? [currentFileObj] : []);
-      await execBulkMove(files, nh, sanitized);
+      await execBulkMove(files, nh, folderName);
     } catch(e: any) { alert(e.message); }
   };
 
@@ -740,316 +782,45 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch(e:any) { alert(e.message); }
   };
 
-  const renameCurrentFile = () => {
+  const renameCurrentFile = async (newName: string) => {
     if (isFallbackMode) {
       alert(t.main.fallbackRenameError);
       return;
     }
-    if (!currentFileObj) return;
-
-    setRenameDialogState({ isOpen: true, currentName: currentFileObj.filename });
-  };
-
-  const closeRenameDialog = () => setRenameDialogState(null);
-
-  const execRename = async (newName: string) => {
-    if (!currentFileObj) return;
-    
-    const trimmedName = newName.trim();
-    if (!trimmedName || trimmedName === currentFileObj.filename) return;
-
-    let finalNewName = trimmedName;
-    const match = currentFileObj.filename.match(/\.([^.]+)$/);
-    const ext = match ? `.${match[1]}` : '.txt';
-    if (!finalNewName.endsWith('.txt') && !finalNewName.endsWith('.md')) {
-      finalNewName += ext;
-    }
-
-    if (finalNewName === currentFileObj.filename) {
-      closeRenameDialog();
-      return;
-    }
-
+    if(!currentFileObj || !newName || newName === currentFileObj.filename) return;
     try {
       const th = currentFileObj.folderHandle || dirHandle;
-      if (currentFileObj.handle && typeof currentFileObj.handle.move === 'function') {
-        await currentFileObj.handle.move(finalNewName);
-        setCurrentFileObj({...currentFileObj, filename: finalNewName});
-      } else {
-        const nf = await th.getFileHandle(finalNewName, {create: true});
-        const w = await nf.createWritable();
-        await w.write(currentFileObj.content);
-        await w.close();
-        await th.removeEntry(currentFileObj.filename);
-        setCurrentFileObj({...currentFileObj, filename: finalNewName, handle: nf});
-      }
+      const nf = await th.getFileHandle(newName, {create: true});
+      const w = await nf.createWritable();
+      await w.write(currentFileObj.content);
+      await w.close();
+      await th.removeEntry(currentFileObj.filename);
+      setCurrentFileObj({...currentFileObj, filename: newName, handle: nf});
       await loadFiles(dirHandle);
-      closeRenameDialog();
     } catch(e:any) { alert(e.message); }
   };
 
-  const toggleFileMarker = async (marker: string) => {
-    if (isFallbackMode) {
-      alert(t.main.fallbackRenameError);
-      return;
-    }
-    if (!currentFileObj) return;
-
-    const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
-    const OLD_MARKERS = ["●", "■", "▲", "▼", "◆", "★", "☆", "✓"];
-    const filename = currentFileObj.filename;
-    
-    let prefix = "";
-    let baseName = filename;
-    const prefixMatch = filename.match(/^(\d{8}_\d{4}_(?:-\s*)?)/);
-    if (prefixMatch) {
-      prefix = prefixMatch[1];
-      baseName = filename.slice(prefix.length);
-    }
-    
-    // 拡張子とベース名を分離してカッコ判定を行う
-    let dotIdx = baseName.lastIndexOf('.');
-    let nameWithoutExt = dotIdx !== -1 ? baseName.slice(0, dotIdx) : baseName;
-    let ext = dotIdx !== -1 ? baseName.slice(dotIdx) : "";
-
-    let hasBracket = false;
-    let bracketOpen = "";
-    let bracketClose = "";
-    let innerName = nameWithoutExt;
-    if ((nameWithoutExt.startsWith("「") && nameWithoutExt.endsWith("」")) || (nameWithoutExt.startsWith("『") && nameWithoutExt.endsWith("』"))) {
-      hasBracket = true;
-      bracketOpen = nameWithoutExt[0];
-      bracketClose = nameWithoutExt[nameWithoutExt.length - 1];
-      innerName = nameWithoutExt.slice(1, -1);
-    }
-
-    let hasExistingMarker = false;
-    let existingMarker = "";
-    let restOfName = innerName;
-    
-    const ALL_DETECT_MARKERS = [...MARKERS, ...OLD_MARKERS];
-    for (const m of ALL_DETECT_MARKERS) {
-      if (innerName.startsWith(m)) {
-        hasExistingMarker = true;
-        existingMarker = m;
-        restOfName = innerName.slice(m.length).replace(/^\s+/, "");
-        break;
-      }
-    }
-    
-    let newBaseName = "";
-    if (marker === "❌" || marker === "") {
-      // マークを剥がす
-      newBaseName = restOfName;
-    } else if (hasExistingMarker && existingMarker === marker) {
-      // 同じマークの場合は剥がす
-      newBaseName = restOfName;
-    } else {
-      // 別のマークを付与
-      newBaseName = `${marker} ${restOfName}`;
-    }
-
-    // カッコを包み直す
-    if (hasBracket) {
-      newBaseName = `${bracketOpen}${newBaseName}${bracketClose}`;
-    }
-    // 拡張子を戻す
-    newBaseName = newBaseName + ext;
-    
-    const finalNewName = prefix + newBaseName;
-    if (finalNewName === filename) return;
-
+  const renameFolder = async (oldName: string, folderHandle: any, explicitNewName?: string) => {
+    const newName = explicitNewName !== undefined 
+      ? explicitNewName 
+      : prompt(`${t.main.renameFolderPrompt} ${oldName}\n\n${t.main.renamePrompt}`, oldName);
+    if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
+    const trimmed = newName.trim();
     try {
-      const th = currentFileObj.folderHandle || dirHandle;
-      if (currentFileObj.handle && typeof currentFileObj.handle.move === 'function') {
-        await currentFileObj.handle.move(finalNewName);
-        setCurrentFileObj({ ...currentFileObj, filename: finalNewName });
-      } else {
-        const nf = await th.getFileHandle(finalNewName, {create: true});
-        const w = await nf.createWritable();
-        await w.write(currentFileObj.content);
-        await w.close();
-        await th.removeEntry(filename);
-        setCurrentFileObj({ ...currentFileObj, filename: finalNewName, handle: nf });
-      }
-      await loadFiles(dirHandle);
-    } catch(e:any) { 
-      alert(e.message); 
-    }
-  };
-
-  const bulkToggleFileMarker = async (marker: string) => {
-    if (isFallbackMode) {
-      alert(t.main.fallbackRenameError);
-      return;
-    }
-    if (selectedFileMap.size === 0) return;
-
-    const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
-    const OLD_MARKERS = ["●", "■", "▲", "▼", "◆", "★", "☆", "✓"];
-    const ALL_DETECT_MARKERS = [...MARKERS, ...OLD_MARKERS];
-
-    setLoading(true);
-
-    let updatedCurrentFileObj = currentFileObj;
-
-    for (const f of selectedFileMap.values()) {
-      const filename = f.filename;
-      let prefix = "";
-      let baseName = filename;
-      const prefixMatch = filename.match(/^(\d{8}_\d{4}_(?:-\s*)?)/);
-      if (prefixMatch) {
-        prefix = prefixMatch[1];
-        baseName = filename.slice(prefix.length);
-      }
-
-      let dotIdx = baseName.lastIndexOf('.');
-      let nameWithoutExt = dotIdx !== -1 ? baseName.slice(0, dotIdx) : baseName;
-      let ext = dotIdx !== -1 ? baseName.slice(dotIdx) : "";
-
-      let hasBracket = false;
-      let bracketOpen = "";
-      let bracketClose = "";
-      let innerName = nameWithoutExt;
-      if ((nameWithoutExt.startsWith("「") && nameWithoutExt.endsWith("」")) || (nameWithoutExt.startsWith("『") && nameWithoutExt.endsWith("』"))) {
-        hasBracket = true;
-        bracketOpen = nameWithoutExt[0];
-        bracketClose = nameWithoutExt[nameWithoutExt.length - 1];
-        innerName = nameWithoutExt.slice(1, -1);
-      }
-
-      let hasExistingMarker = false;
-      let existingMarker = "";
-      let restOfName = innerName;
-      
-      for (const m of ALL_DETECT_MARKERS) {
-        if (innerName.startsWith(m)) {
-          hasExistingMarker = true;
-          existingMarker = m;
-          restOfName = innerName.slice(m.length).replace(/^\s+/, "");
-          break;
+      const newFolderHandle = await dirHandle.getDirectoryHandle(trimmed, { create: true });
+      for await (const item of folderHandle.values()) {
+        if (item.kind === 'file') {
+          const file = await item.getFile(); const text = await file.text();
+          const newFileHandle = await newFolderHandle.getFileHandle(item.name, { create: true });
+          const writable = await newFileHandle.createWritable(); await writable.write(text); await writable.close();
         }
       }
-
-      let newBaseName = "";
-      if (marker === "❌" || marker === "") {
-        newBaseName = restOfName;
-      } else if (hasExistingMarker && existingMarker === marker) {
-        newBaseName = restOfName;
-      } else {
-        newBaseName = `${marker} ${restOfName}`;
-      }
-
-      if (hasBracket) {
-        newBaseName = `${bracketOpen}${newBaseName}${bracketClose}`;
-      }
-      newBaseName = newBaseName + ext;
-      
-      const finalNewName = prefix + newBaseName;
-      if (finalNewName === filename) continue;
-
-      try {
-        const th = f.folderHandle || dirHandle;
-        if (f.handle && typeof f.handle.move === 'function') {
-          await f.handle.move(finalNewName);
-          if (updatedCurrentFileObj && updatedCurrentFileObj.filename === f.filename && updatedCurrentFileObj.category === f.category) {
-            updatedCurrentFileObj = { ...updatedCurrentFileObj, filename: finalNewName };
-          }
-        } else {
-          const nf = await th.getFileHandle(finalNewName, {create: true});
-          const w = await nf.createWritable();
-          await w.write(f.content);
-          await w.close();
-          await th.removeEntry(filename);
-          if (updatedCurrentFileObj && updatedCurrentFileObj.filename === f.filename && updatedCurrentFileObj.category === f.category) {
-            updatedCurrentFileObj = { ...updatedCurrentFileObj, filename: finalNewName, handle: nf };
-          }
-        }
-      } catch(e: any) {
-        console.error(`Failed to rename file ${filename} to ${finalNewName}:`, e);
-      }
-    }
-
-    setCurrentFileObj(updatedCurrentFileObj);
-    await loadFiles(dirHandle);
-    toggleSelectMode();
-    setLoading(false);
-  };
-
-  const createFolder = async (parentPath: string | null) => {
-    if (isFallbackMode) {
-      alert(t.main.fallbackDeleteError || "この機能は現在の環境では利用できません。");
-      return;
-    }
-    const msg = parentPath 
-      ? `「${parentPath.split('/').pop()}」の中に新規サブフォルダーを作成します。\n\nフォルダー名を入力してください:`
-      : `一番上の階層に新規フォルダーを作成します。\n\nフォルダー名を入力してください:`;
-    const newName = prompt(msg, '00_');
-    if (!newName || newName.trim() === '') return;
-    
-    const trimmed = newName.trim().replace(/[\\/]/g, '-').replace(/[:*?"<>|]/g, '_');
-    if (trimmed !== newName.trim()) {
-      alert('フォルダー名に使用できない文字（\\ / : * ? " < > |）が含まれていたため、自動的に置換（- や _）しました。');
-    }
-
-    try {
-      let parentHandle = dirHandle;
-      if (parentPath) {
-        const parts = parentPath.split('/');
-        for (const p of parts) {
-          if (!p) continue;
-          parentHandle = await parentHandle.getDirectoryHandle(p);
-        }
-      }
-      await parentHandle.getDirectoryHandle(trimmed, { create: true });
-      await loadFiles(dirHandle);
-    } catch(e:any){ alert(e.message); }
-  };
-
-  const renameFolder = async (oldName: string, folderHandle: any) => {
-    const parts = oldName.split('/');
-    const actualOldName = parts[parts.length - 1];
-
-    const newName = prompt(`${t.main.renameFolderPrompt} ${actualOldName}\n\n${t.main.renamePrompt}`, actualOldName);
-    if (!newName || newName.trim() === '' || newName.trim() === actualOldName) return;
-    const trimmed = newName.trim().replace(/[\\/]/g, '-').replace(/[:*?"<>|]/g, '_');
-    if (trimmed !== newName.trim()) {
-      alert('フォルダー名に使用できない文字（\\ / : * ? " < > |）が含まれていたため、自動的に置換（- や _）しました。');
-    }
-    try {
-      let parentHandle = dirHandle;
-      for (let i = 0; i < parts.length - 1; i++) {
-        if (!parts[i]) continue;
-        parentHandle = await parentHandle.getDirectoryHandle(parts[i]);
-      }
-
-      const newFolderHandle = await parentHandle.getDirectoryHandle(trimmed, { create: true });
-      
-      const copyFolderRecursive = async (src: any, dest: any) => {
-        for await (const item of src.values()) {
-          if (item.kind === 'file') {
-            const file = await item.getFile();
-            const text = await file.text();
-            const newFileHandle = await dest.getFileHandle(item.name, { create: true });
-            const writable = await newFileHandle.createWritable();
-            await writable.write(text);
-            await writable.close();
-          } else if (item.kind === 'directory') {
-            const newSubDir = await dest.getDirectoryHandle(item.name, { create: true });
-            await copyFolderRecursive(item, newSubDir);
-          }
-        }
-      };
-
-      await copyFolderRecursive(folderHandle, newFolderHandle);
-      await parentHandle.removeEntry(actualOldName, { recursive: true });
-      
-      const newCategoryPath = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' + trimmed : trimmed;
+      await dirHandle.removeEntry(oldName, { recursive: true });
       
       if (currentFileObj && currentFileObj.category === oldName) {
         const newHandle = await newFolderHandle.getFileHandle(currentFileObj.filename, { create: false }).catch(() => null);
         if (newHandle) {
-          setCurrentFileObj({ ...currentFileObj, category: newCategoryPath, folderHandle: newFolderHandle, handle: newHandle });
+          setCurrentFileObj({ ...currentFileObj, category: trimmed, folderHandle: newFolderHandle, handle: newHandle });
         }
       }
       closeMovePanels();
@@ -1063,35 +834,69 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     let count = 0;
-    async function countFiles(handle: any) {
-      for await (const item of handle.values()) {
-        if (item.kind === 'file') count++;
-        else if (item.kind === 'directory') await countFiles(item);
-      }
-    }
-    await countFiles(folderHandle);
+    for await (const item of folderHandle.values()) { if (item.kind === 'file') count++; }
     const msg = count > 0 ? `「${name}」\n⚠️ ${count} ${t.main.confirmDeleteFolder}` : `「${name}」\n${t.main.confirmDeleteFolder}`;
     if (!confirm(msg)) return;
     try {
-      const parts = name.split('/');
-      const actualName = parts[parts.length - 1];
-      let parentHandle = dirHandle;
-      for (let i = 0; i < parts.length - 1; i++) {
-        if (!parts[i]) continue;
-        parentHandle = await parentHandle.getDirectoryHandle(parts[i]);
-      }
-      await parentHandle.removeEntry(actualName, { recursive: true });
-      if (currentFileObj && currentFileObj.category && currentFileObj.category.startsWith(name)) setCurrentFileObj(null);
+      await dirHandle.removeEntry(name, { recursive: true });
+      if (currentFileObj && currentFileObj.category === name) setCurrentFileObj(null);
       closeMovePanels();
       await loadFiles(dirHandle);
     } catch(e:any){ alert(e.message); }
+  };
+
+  const createNewFolder = async () => {
+    if (isFallbackMode) return;
+    const folderName = prompt(t.main.newFolderPrompt || "新しいフォルダー名:");
+    if (!folderName || !folderName.trim()) return;
+    try {
+      await dirHandle.getDirectoryHandle(folderName.trim(), { create: true });
+      await loadFiles(dirHandle);
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const createNewFile = async (folderHandle: any) => {
+    if (isFallbackMode || !folderHandle) return;
+    const fileName = prompt(t.main.newFilePrompt || "新しいファイル名:");
+    if (!fileName || !fileName.trim()) return;
+    let name = fileName.trim();
+    if (!name.endsWith('.md') && !name.endsWith('.txt')) name += '.md';
+    try {
+      const fh = await folderHandle.getFileHandle(name, { create: true });
+      const w = await fh.createWritable();
+      await w.write("");
+      await w.close();
+      await loadFiles(dirHandle);
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const currentFileIndex = allFiles.findIndex(f => 
+    f.filename === currentFileObj?.filename && f.category === currentFileObj?.category
+  );
+  const hasPrevFile = currentFileIndex > 0;
+  const hasNextFile = currentFileIndex >= 0 && currentFileIndex < allFiles.length - 1;
+
+  const goToPrevFile = () => {
+    if (currentFileIndex > 0) {
+      selectFile(allFiles[currentFileIndex - 1]);
+    }
+  };
+
+  const goToNextFile = () => {
+    if (currentFileIndex >= 0 && currentFileIndex < allFiles.length - 1) {
+      selectFile(allFiles[currentFileIndex + 1]);
+    }
   };
 
   window.__draggedFiles = isSelectMode ? Array.from(selectedFileMap.values()) : (currentFileObj ? [currentFileObj] : null);
 
   return (
     <AppContext.Provider value={{
-      dirHandle, savedFolderName, isFallbackMode, allFiles, filteredFiles, allCategories, physicalFolders, searchQueries,
+      dirHandle, isFallbackMode, allFiles, allCategories, physicalFolders, searchQueries,
       currentFileObj, currentContent, isEditing, selectedFiles, selectedFileMap, isSelectMode,
       settingsOpen, isHighlightOff, categoryOpenState, movePanelState, loading, refreshing,
       sortMode, sortDirection, setSortMode, setSortDirection,
@@ -1099,9 +904,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
-      renameCurrentFile, execRename, renameDialogState, closeRenameDialog, toggleFileMarker, 
-      bulkToggleFileMarker, renameFolder, createFolder, deleteFolder, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
-      ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode
+      renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode,
+      paperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+      isResuming, pendingResumeHandle, resumeSavedFolder
     }}>
       {children}
     </AppContext.Provider>

@@ -4,45 +4,49 @@ import { THEMES, FONT_MAP, applyThemeStyle } from '../theme';
 import { applySettingsToDOM } from '../settingsSync';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, writingMode } = useAppContext();
+  const { settingsOpen, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
   const [vals, setVals] = useState({
     fontSize: '15', fontWeight: '400', lineHeight: '1.8', letterSpacing: '0',
-    sbTitleSize: '13', headingSize: '48', sbWidth: '280', contentWidth: '900',
-    verticalHeight: '100',
-    cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '120',
-    theme: 'mono', font: 'meiryo',
-    sbCatSize: '10', folderColor: '#FBBF24'
+    sbTitleSize: '13', sbCatSize: '10', headingSize: '48', sbWidth: '280', contentWidth: '900', vertCardHeight: '600',
+    cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '56',
+    theme: 'mono', font: 'meiryo', folderColor: '#FBBF24'
   });
 
   useEffect(() => {
-    setVals({
-      fontSize: localStorage.getItem('lv_fontSize') || '15',
-      fontWeight: localStorage.getItem('lv_fontWeight') || '400',
-      lineHeight: localStorage.getItem('lv_lineHeight') || '1.8',
-      letterSpacing: localStorage.getItem('lv_letterSpacing') || '0',
-      sbTitleSize: localStorage.getItem('lv_sbTitleSize') || '13',
-      headingSize: localStorage.getItem('lv_headingSize') || '48',
-      sbWidth: localStorage.getItem('lv_sbWidth') || '280',
-      contentWidth: localStorage.getItem('lv_contentWidth') || '900',
-      verticalHeight: localStorage.getItem('lv_verticalHeight') || '100',
-      cardPadding: localStorage.getItem('lv_cardPadding') || '24',
-      cardRadius: localStorage.getItem('lv_cardRadius') || '16',
-      msgGap: localStorage.getItem('lv_msgGap') || '16',
-      pagePad: localStorage.getItem('lv_pagePad') || '120',
-      theme: localStorage.getItem('lv_theme') || 'mono',
-      font: localStorage.getItem('lv_font') || 'meiryo',
-      sbCatSize: localStorage.getItem('lv_sbCatSize') || '10',
-      folderColor: localStorage.getItem('lv_folderColor') || '#FBBF24'
-    });
+    const loadSettings = () => {
+      setVals({
+        fontSize: localStorage.getItem('lv_fontSize') || '15',
+        fontWeight: localStorage.getItem('lv_fontWeight') || '400',
+        lineHeight: localStorage.getItem('lv_lineHeight') || '1.8',
+        letterSpacing: localStorage.getItem('lv_letterSpacing') || '0',
+        sbTitleSize: localStorage.getItem('lv_sbTitleSize') || '13',
+        sbCatSize: localStorage.getItem('lv_sbCatSize') || '10',
+        headingSize: localStorage.getItem('lv_headingSize') || '48',
+        sbWidth: localStorage.getItem('lv_sbWidth') || '280',
+        contentWidth: localStorage.getItem('lv_contentWidth') || '900',
+        vertCardHeight: localStorage.getItem('lv_vertCardHeight') || '600',
+        cardPadding: localStorage.getItem('lv_cardPadding') || '24',
+        cardRadius: localStorage.getItem('lv_cardRadius') || '16',
+        msgGap: localStorage.getItem('lv_msgGap') || '16',
+        pagePad: localStorage.getItem('lv_pagePad') || '56',
+        theme: (localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono',
+        font: localStorage.getItem('lv_font') || 'meiryo',
+        folderColor: localStorage.getItem('lv_folderColor') || '#FBBF24'
+      });
+    };
+    loadSettings();
+    window.addEventListener('settingsChanged', loadSettings);
+    return () => window.removeEventListener('settingsChanged', loadSettings);
   }, [settingsOpen]);
 
   const updateSetting = (key: string, val: string) => {
     localStorage.setItem(`lv_${key}`, val);
     setVals(prev => ({ ...prev, [key]: val }));
     applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
   };
 
   if (!settingsOpen) return null;
@@ -175,12 +179,10 @@ export const SettingsPanel = () => {
               <div className="setting-label">{t.settings.contentWidth} <span id="content-width-val">{vals.contentWidth}px</span></div>
               <input className="setting-slider" type="range" min="480" max="1400" step="20" value={vals.contentWidth} onChange={e => updateSetting('contentWidth', e.target.value)} />
             </div>
-            {writingMode === 'vertical' && (
-              <div className="setting-row">
-                <div className="setting-label">{lang === 'en' ? 'Vertical Card Height' : '縦書きカードの高さ'} <span id="vertical-height-val">{vals.verticalHeight}%</span></div>
-                <input className="setting-slider" type="range" min="40" max="100" step="5" value={vals.verticalHeight} onChange={e => updateSetting('verticalHeight', e.target.value)} />
-              </div>
-            )}
+            <div className="setting-row">
+              <div className="setting-label">{lang === 'en' ? 'Vertical Card Height' : '縦書きカードの高さ'} <span id="vert-card-height-val">{vals.vertCardHeight}px</span></div>
+              <input className="setting-slider" type="range" min="300" max="1500" step="20" value={vals.vertCardHeight} onChange={e => updateSetting('vertCardHeight', e.target.value)} />
+            </div>
             <div className="setting-row">
               <div className="setting-label">{t.settings.cardPadding} <span id="card-padding-val">{vals.cardPadding}px</span></div>
               <input className="setting-slider" type="range" min="10" max="48" step="2" value={vals.cardPadding} onChange={e => updateSetting('cardPadding', e.target.value)} />
@@ -216,7 +218,6 @@ export const SettingsPanel = () => {
                 ))}
               </div>
             </div>
-
             <div className="setting-row" style={{marginTop: '20px'}}>
               <div className="setting-label">{lang === 'en' ? 'Folder Icon Color' : 'フォルダーアイコン色'}</div>
               <div style={{display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center'}}>
@@ -286,12 +287,12 @@ export const SettingsPanel = () => {
             <div className="setting-row">
               <div className="setting-label">ボイス (VOICE)</div>
               <select
-                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'dark' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'dark' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '8px', padding: '8px', fontSize: '11px', outline: 'none' }}
+                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'dark' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '8px', padding: '8px', fontSize: '11px', outline: 'none' }}
                 value={ttsSettings.voiceURI}
                 onChange={e => updateTtsSettings({ voiceURI: e.target.value })}
               >
                 {voices.map(v => (
-                  <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : vals.theme === 'dark' ? '#1D1C21' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'dark' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
+                  <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
                 ))}
               </select>
             </div>

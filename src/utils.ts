@@ -64,75 +64,13 @@ export function parseFilename(name: string) {
   const m = name.match(/^(\d{4})-?(\d{2})-?(\d{2})_(\d{2})-?(\d{2})\.?_(.+)\.[^.]+$/);
   if (m) {
     let title = m[6];
-    if ((title.startsWith('「') && title.endsWith('」')) || (title.startsWith('【') && title.endsWith('】'))) {
-      title = title.slice(1, -1);
-    }
+    title = title.replace(/^[「【]/, '').replace(/[」】]$/, '');
     return { date: `${m[1]}-${m[2]}-${m[3]}`, time: `${m[4]}:${m[5]}`, title: title };
   }
   let fallbackTitle = name.replace(/\.[^.]+$/, '');
-  if ((fallbackTitle.startsWith('「') && fallbackTitle.endsWith('」')) || (fallbackTitle.startsWith('【') && fallbackTitle.endsWith('】'))) {
-    fallbackTitle = fallbackTitle.slice(1, -1);
-  }
+  fallbackTitle = fallbackTitle.replace(/^[「【]/, '').replace(/[」】]$/, '');
   return { date: '', time: '', title: fallbackTitle };
 }
-
-export function getVirtualFolder(filename: string, date: string | null): string {
-  let cleanName = filename;
-  
-  // 分類処理のために、一時的に先頭のマーカー（★, ☆, ✔, 💡, 📌, ⚠️）を取り除く
-  const MARKERS = ["★", "☆", "✔", "💡", "📌", "⚠️"];
-  let prefix = "";
-  let baseName = filename;
-  const prefixMatch = filename.match(/^(\d{8}_\d{4}_)/);
-  if (prefixMatch) {
-    prefix = prefixMatch[1];
-    baseName = filename.slice(prefix.length);
-  }
-  for (const m of MARKERS) {
-    if (baseName.startsWith(m)) {
-      baseName = baseName.slice(m.length).replace(/^\s+/, "");
-      break;
-    }
-  }
-  cleanName = prefix + baseName;
-
-  if (/^\d{8}_\d{4}_/.test(cleanName)) {
-    cleanName = cleanName.slice(14);
-  }
-  
-  const cleanNameLower = cleanName.toLowerCase();
-  if (cleanNameLower === 'agents' || cleanNameLower === 'agents.md') {
-    return '00_【進行】';
-  }
-  
-  if (cleanName.startsWith('00_【進行】_') || cleanName.startsWith('00-') || cleanName.includes('_【進行】_')) {
-    return '00_【進行】';
-  }
-  if (cleanName.startsWith('【定型】_') || cleanName.startsWith('【定型スキル】_')) {
-    return '【定型スキル】';
-  }
-  if (cleanName.startsWith('- ')) {
-    const idx = cleanName.indexOf('_', 2);
-    let catName = "";
-    if (idx !== -1) {
-      catName = cleanName.substring(0, idx);
-    } else {
-      catName = cleanName.substring(0, cleanName.lastIndexOf('.')) || cleanName;
-    }
-    return catName.toUpperCase();
-  }
-  
-  if (date) {
-    const parts = date.split('-');
-    const mm = parts[1];
-    const dd = parts[2];
-    if (mm && dd) {
-      return `${parseInt(mm)}/${parseInt(dd)}`;
-    }
-  }
-  return 'その他ログ';
-}
-
 
 export function escapeRegExp(string: string) { return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 export function escHtml(s: string) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -189,14 +127,4 @@ export function extractFirstSentence(text: string) {
   }
   if (combined.length > 60) combined = combined.slice(0, 60) + '…';
   return combined;
-}
-
-export function decorateMarkers(html: string): string {
-  return html
-    .replace(/(★)/g, '<span class="file-marker-star" style="color: #fbbf24; font-weight: bold; margin-right: 2px;">$1</span>')
-    .replace(/(☆)/g, '<span class="file-marker-star-empty" style="color: #fbbf24; margin-right: 2px;">$1</span>')
-    .replace(/(✔)/g, '<span class="file-marker-check" style="color: #10b981; font-weight: bold; margin-right: 2px;">$1</span>')
-    .replace(/(💡)/g, '<span class="file-marker-idea" style="margin-right: 2px;">$1</span>')
-    .replace(/(📌)/g, '<span class="file-marker-pin" style="margin-right: 2px;">$1</span>')
-    .replace(/(⚠️)/g, '<span class="file-marker-warn" style="margin-right: 2px;">$1</span>');
 }
