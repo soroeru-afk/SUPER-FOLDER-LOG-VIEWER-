@@ -218,7 +218,7 @@ export const Sidebar = () => {
               onClick={(e) => { e.stopPropagation(); createNewFile(targetHandle); }}
               style={{
                 marginLeft: 'auto', background: 'var(--sb-accent)', color: '#fff',
-                width: '18px', height: '18px', borderRadius: '4px', display: 'flex',
+                width: '18px', height: '18px', borderRadius: '0px', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', fontSize: '12px',
                 marginRight: '6px'
               }}
@@ -413,7 +413,7 @@ export const Sidebar = () => {
             <button 
               title={t.app.fallbackReopen}
               onClick={(e) => { e.stopPropagation(); window.open(window.location.href, '_blank'); }}
-              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid var(--sb-border)', color: 'var(--sb-accent)', borderRadius: '6px', padding: '5px 8px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 'bold' }}
+              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid var(--sb-border)', color: 'var(--sb-accent)', borderRadius: '0px', padding: '5px 8px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 'bold' }}
             >
               <ExternalLinkIcon />
               {t.app.fallbackReopen}
@@ -483,7 +483,7 @@ export const Sidebar = () => {
           <span id="file-count" style={{textTransform:'uppercase', fontSize: '11px', fontWeight: 'bold', opacity: 0.85, letterSpacing: '0.5px'}}>
             {allFiles.length} FILES
           </span>
-          <div style={{display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--sb-border)', background: 'var(--sb-item-hover)'}}>
+          <div style={{display: 'inline-flex', borderRadius: '0px', overflow: 'hidden', border: '1px solid var(--sb-border)', background: 'var(--sb-item-hover)'}}>
             <button 
               className="nav-history-btn"
               disabled={!canGoBack}
@@ -541,7 +541,7 @@ export const Sidebar = () => {
                 background: sortMode === 'date' ? 'var(--sb-item-active)' : 'transparent', 
                 border: '1px solid var(--sb-border)', 
                 color: sortMode === 'date' ? 'var(--sb-accent)' : 'var(--sb-text)', 
-                padding: '3px 7px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
+                padding: '3px 7px', fontSize: '10px', borderRadius: '0px', cursor: 'pointer',
                 fontWeight: sortMode === 'date' ? 'bold' : '600',
                 display: 'flex', alignItems: 'center', gap: '2px'
               }}
@@ -558,7 +558,7 @@ export const Sidebar = () => {
                 background: sortMode === 'name' ? 'var(--sb-item-active)' : 'transparent', 
                 border: '1px solid var(--sb-border)', 
                 color: sortMode === 'name' ? 'var(--sb-accent)' : 'var(--sb-text)', 
-                padding: '3px 7px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
+                padding: '3px 7px', fontSize: '10px', borderRadius: '0px', cursor: 'pointer',
                 fontWeight: sortMode === 'name' ? 'bold' : '600',
                 display: 'flex', alignItems: 'center', gap: '2px'
               }}
@@ -579,7 +579,7 @@ export const Sidebar = () => {
                 background: isAddMode ? 'var(--sb-item-active)' : 'transparent',
                 border: '1px solid var(--sb-border)', 
                 color: 'var(--sb-text)', opacity: 1, fontSize: '10px', fontWeight: 'bold', 
-                letterSpacing: '1px', padding: '3px 6px', borderRadius: '5px', cursor: 'pointer',
+                letterSpacing: '1px', padding: '3px 6px', borderRadius: '0px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'
               }}
               title={t.main.newFolderPrompt}
@@ -608,7 +608,7 @@ export const Sidebar = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 border: '1px solid var(--sb-border)',
-                borderRadius: '5px',
+                borderRadius: '0px',
                 color: 'var(--sb-text)',
                 opacity: 0.85
               }}
@@ -699,7 +699,7 @@ export const Sidebar = () => {
           onClick={createNewFolder}
           style={{
             margin: '0 10px 10px', padding: '10px', background: 'rgba(59,130,246,0.1)', 
-            border: '1px dashed rgba(59,130,246,0.4)', borderRadius: '8px', 
+            border: '1px dashed rgba(59,130,246,0.4)', borderRadius: '0px', 
             color: '#60A5FA', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
             display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
           }}>

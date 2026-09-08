@@ -649,7 +649,7 @@ export const MainContent = () => {
                         alignItems: 'center', 
                         background: 'var(--btn-bg)', 
                         border: '1px solid var(--btn-border)', 
-                        borderRadius: '6px', 
+                        borderRadius: '0px', 
                         overflow: 'hidden',
                         height: '26px',
                         boxSizing: 'border-box'
@@ -882,7 +882,7 @@ export const MainContent = () => {
               zIndex: 100,
               width: '44px',
               height: '44px',
-              borderRadius: '50%',
+              borderRadius: '0px',
               background: 'var(--btn-bg)',
               color: 'var(--btn-text)',
               border: '1px solid var(--btn-border)',
@@ -913,14 +913,18 @@ export const MainContent = () => {
           style={{
             position: 'fixed', zIndex: 200, 
             background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', 
-            borderRadius: '14px', padding: 0, boxShadow: '0 12px 48px rgba(0,0,0,0.55)', 
-            width: movePanelState.type === 'bulk' ? 'calc(var(--sb-width) - 20px)' : '360px',
+            borderRadius: '0px', padding: 0, boxShadow: '0 12px 48px rgba(0,0,0,0.55)', 
+            width: movePanelState.type === 'bulk' && (!movePanelState.triggerRect || movePanelState.triggerRect.left < 280) ? 'calc(var(--sb-width) - 20px)' : '360px',
             maxWidth: 'calc(100vw - 32px)',
             boxSizing: 'border-box',
             overflow: 'hidden',
-            top: movePanelState.type === 'bulk' ? 'auto' : Math.max(10, Math.min(movePanelState.triggerRect.bottom + 5, window.innerHeight - 340)) + 'px',
-            bottom: movePanelState.type === 'bulk' ? '70px' : 'auto',
-            left: movePanelState.type === 'bulk' ? '10px' : Math.max(16, Math.min(movePanelState.triggerRect.left, window.innerWidth - 376)) + 'px'
+            top: movePanelState.triggerRect && (movePanelState.type !== 'bulk' || movePanelState.triggerRect.left >= 280)
+              ? Math.max(10, Math.min(movePanelState.triggerRect.bottom + 6, window.innerHeight - 360)) + 'px'
+              : (movePanelState.type === 'bulk' ? 'auto' : Math.max(10, Math.min((movePanelState.triggerRect?.bottom || 0) + 5, window.innerHeight - 340)) + 'px'),
+            bottom: movePanelState.type === 'bulk' && (!movePanelState.triggerRect || movePanelState.triggerRect.left < 280) ? '70px' : 'auto',
+            left: movePanelState.triggerRect && (movePanelState.type !== 'bulk' || movePanelState.triggerRect.left >= 280)
+              ? Math.max(16, Math.min(movePanelState.triggerRect.left, window.innerWidth - 376)) + 'px'
+              : '10px'
           }}
           onClick={e => e.stopPropagation()}
         >
@@ -931,11 +935,38 @@ export const MainContent = () => {
                 <button className="move-folder-btn" style={{color: 'var(--panel-text)', fontSize: '13px', opacity: 1}} onClick={async (e) => { e.stopPropagation(); const isBulk = movePanelState.type === 'bulk'; await execBulkMove(isBulk ? Array.from(selectedFileMap.values()) : [currentFileObj!], null, null); closeMovePanels(); }}>
                   <FolderIcon /> {t.main.moveToRoot}
                 </button>
-                {physicalFolders.map(cat => (
-                  <button key={cat.name} className="move-folder-btn" onClick={async (e) => { e.stopPropagation(); const isBulk = movePanelState.type === 'bulk'; await execBulkMove(isBulk ? Array.from(selectedFileMap.values()) : [currentFileObj!], cat.handle, cat.name); closeMovePanels(); }}>
-                    <FolderIcon /> {cat.name}
-                  </button>
-                ))}
+                {physicalFolders.map(cat => {
+                  const parts = cat.name.split('/');
+                  const depth = parts.length - 1;
+                  const shortName = parts[parts.length - 1];
+                  const parentPath = depth > 0 ? parts.slice(0, -1).join(' / ') : null;
+
+                  return (
+                    <button 
+                      key={cat.name} 
+                      className={`move-folder-btn ${depth > 0 ? 'is-subfolder' : ''}`}
+                      style={{ paddingLeft: `${depth * 14 + 12}px` }}
+                      onClick={async (e) => { 
+                        e.stopPropagation(); 
+                        const isBulk = movePanelState.type === 'bulk'; 
+                        await execBulkMove(isBulk ? Array.from(selectedFileMap.values()) : [currentFileObj!], cat.handle, cat.name); 
+                        closeMovePanels(); 
+                      }}
+                      title={`移動先: ${cat.name}`}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        {depth > 0 && <span style={{ opacity: 0.45, fontSize: '11px', fontFamily: 'monospace' }}>└</span>}
+                        <FolderIcon /> 
+                        <span style={{ fontWeight: depth > 0 ? 500 : 700 }}>{shortName}</span>
+                        {parentPath && (
+                          <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px' }}>
+                            ({parentPath})
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
                 {physicalFolders.length === 0 && <div style={{padding:'12px',opacity:0.5,fontSize:'12px'}}>{t.main.noDestFolder}</div>}
               </div>
               <div className="move-panel-new">
@@ -976,10 +1007,21 @@ export const MainContent = () => {
                 {physicalFolders.length === 0 ? (
                   <div className="folder-edit-empty">{t.main.noFolders}</div>
                 ) : (
-                  physicalFolders.map(cat => (
-                    <div className="folder-edit-row" key={cat.name}>
-                      <div className="folder-edit-name" title={cat.name}><FolderIcon /> {cat.name}</div>
-                      <div className="folder-edit-actions">
+                  physicalFolders.map(cat => {
+                    const parts = cat.name.split('/');
+                    const depth = parts.length - 1;
+                    const shortName = parts[parts.length - 1];
+                    const parentPath = depth > 0 ? parts.slice(0, -1).join(' / ') : null;
+
+                    return (
+                      <div className="folder-edit-row" key={cat.name} style={{ paddingLeft: `${depth * 14 + 10}px` }}>
+                        <div className="folder-edit-name" title={cat.name}>
+                          {depth > 0 && <span style={{ opacity: 0.45, fontSize: '11px', fontFamily: 'monospace', marginRight: '4px' }}>└</span>}
+                          <FolderIcon /> 
+                          <span style={{ fontWeight: depth > 0 ? 500 : 700 }}>{shortName}</span>
+                          {parentPath && <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px' }}>({parentPath})</span>}
+                        </div>
+                        <div className="folder-edit-actions">
                         <button 
                           className="folder-edit-action" 
                           title={t.main.rename} 
@@ -1000,8 +1042,9 @@ export const MainContent = () => {
                         </button>
                       </div>
                     </div>
-                  ))
-                )}
+                  );
+                })
+              )}
               </div>
               <button className="move-panel-close" onClick={closeMovePanels}>{t.main.close}</button>
             </>

@@ -70,7 +70,7 @@ export const translations = {
     settings: {
       title: "表示設定",
       textOpen: "文字",
-      layoutOpen: "レイアウト",
+      layoutOpen: "配置",
       themeOpen: "テーマ",
       audioOpen: "音声",
       theme: "カラーテーマ",
@@ -85,9 +85,9 @@ export const translations = {
       sbTitleSize: "サイドバー タイトルサイズ",
       sbWidth: "サイドバー幅",
       contentWidth: "本文最大幅",
-      msgGap: "メッセージ間隔",
+      msgGap: "メッセージ・段落間隔",
       cardPadding: "本文カードの余白",
-      cardRadius: "カードの角丸",
+      cardRadius: "本文枠の角丸（テキストエリア）",
       pagePad: "ページ左右余白",
       reset: "初期値に戻す",
       close: "閉じる"
@@ -179,9 +179,9 @@ export const translations = {
       sbTitleSize: "Sidebar Title Size",
       sbWidth: "Sidebar Width",
       contentWidth: "Content Width",
-      msgGap: "Message Gap",
+      msgGap: "Message / Paragraph Gap",
       cardPadding: "Card Padding",
-      cardRadius: "Card Border Radius",
+      cardRadius: "Text Card Radius",
       pagePad: "Page Padding L/R",
       reset: "Reset",
       close: "Close"

@@ -48,6 +48,9 @@ export interface AppState {
   saveFile: (content: string) => Promise<void>;
   toggleSelectMode: () => void;
   toggleFileSelection: (f: FileObj) => void;
+  selectAllFiles: (files: FileObj[]) => void;
+  deselectAllFiles: (files: FileObj[]) => void;
+  clearFileSelection: () => void;
   toggleHighlight: () => void;
   toggleSettings: () => void;
   setCategoryOpen: (key: string, open: boolean) => void;
@@ -63,8 +66,9 @@ export interface AppState {
   renameCurrentFile: (newName: string) => Promise<void>;
   renameFolder: (oldName: string, folderHandle: any, explicitNewName?: string) => Promise<void>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
-  createNewFolder: () => Promise<void>;
+  createNewFolder: (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string) => Promise<boolean>;
   createNewFile: (folderHandle: any) => Promise<void>;
+  importExistingFiles: (targetFolderHandle: any, targetCategory?: string) => Promise<void>;
   lang: 'en' | 'ja';
   setLang: (lang: 'en' | 'ja') => void;
   t: any;
@@ -364,11 +368,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const loadVoices = () => {
       let v = window.speechSynthesis.getVoices();
       if (v.length > 0) {
-        setVoices(v);
+        // Google の音声は除外
+        const nonGoogle = v.filter(voice => !voice.name.toLowerCase().includes('google'));
+        
+        // Microsoft の 4 音声（一郎・あゆみ・さやか・はるか）を優先抽出
+        const msKeywords = ['ichiro', 'ayumi', 'sayaka', 'haruka', '一郎', 'あゆみ', 'さやか', 'はるか'];
+        const msVoices = nonGoogle.filter(voice => 
+          msKeywords.some(kw => voice.name.toLowerCase().includes(kw))
+        );
+        
+        const finalVoices = msVoices.length > 0 
+          ? msVoices 
+          : nonGoogle.filter(voice => voice.lang.toLowerCase().startsWith('ja'));
+
+        const listToSet = finalVoices.length > 0 ? finalVoices : nonGoogle;
+        setVoices(listToSet);
+
         if (!localStorage.getItem('lv_ttsVoiceURI')) {
-          const defaultVoice = v.find(voice => voice.name.toLowerCase().includes('ichiro')) 
-            || v.find(voice => voice.name.toLowerCase().includes('google 日本語'))
-            || v.find(voice => voice.lang.startsWith('ja'));
+          const defaultVoice = listToSet.find(voice => 
+            voice.name.toLowerCase().includes('ichiro') || voice.name.includes('一郎')
+          ) || listToSet[0];
+
           if (defaultVoice) {
             setTtsSettings(prev => ({ ...prev, voiceURI: defaultVoice.voiceURI }));
             localStorage.setItem('lv_ttsVoiceURI', defaultVoice.voiceURI);
@@ -529,6 +549,17 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     init();
   }, []);
 
+  // 階層パス（例: "親フォルダー/子フォルダー"）から DirectoryHandle を再帰的に作成・取得する
+  const getDirectoryHandleByPath = async (rootDirHandle: any, pathStr: string, create = true) => {
+    if (!rootDirHandle || !pathStr) return rootDirHandle;
+    const parts = pathStr.split('/').filter(p => p.trim().length > 0);
+    let current = rootDirHandle;
+    for (const part of parts) {
+      current = await current.getDirectoryHandle(part, { create });
+    }
+    return current;
+  };
+
   const loadFiles = async (handle: any) => {
     const entries: {handle: any, category: string | null, folderHandle: any | null}[] = [];
     const pFolders: PhysicalFolder[] = [];
@@ -666,8 +697,11 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
             const parts = (file as any).webkitRelativePath.split('/');
             let category: string | null = null;
             if (parts.length > 2) {
+               for (let i = 1; i < parts.length - 1; i++) {
+                 const catPath = parts.slice(1, i + 1).join('/');
+                 pFoldersMap.set(catPath, { name: catPath, handle: null });
+               }
                category = parts.slice(1, -1).join('/');
-               pFoldersMap.set(category, { name: category, handle: null });
             }
             
             const p = parseFilename(file.name);
@@ -844,6 +878,38 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     if (newSet.size === 0) setMovePanelState(null);
   };
 
+  const selectAllFiles = (files: FileObj[]) => {
+    const newSet = new Set(selectedFiles);
+    const newMap = new Map(selectedFileMap);
+    files.forEach(f => {
+      const key = (f.category || '') + '::' + f.filename;
+      newSet.add(key);
+      newMap.set(key, f);
+    });
+    setSelectedFiles(newSet);
+    setSelectedFileMap(newMap);
+  };
+
+  const deselectAllFiles = (files: FileObj[]) => {
+    const newSet = new Set(selectedFiles);
+    const newMap = new Map(selectedFileMap);
+    files.forEach(f => {
+      const key = (f.category || '') + '::' + f.filename;
+      newSet.delete(key);
+      newMap.delete(key);
+    });
+    setSelectedFiles(newSet);
+    setSelectedFileMap(newMap);
+    if (newSet.size === 0) setMovePanelState(null);
+  };
+
+  const clearFileSelection = () => {
+    setSelectedFiles(new Set());
+    setSelectedFileMap(new Map());
+    setIsSelectMode(false);
+    setMovePanelState(null);
+  };
+
   const toggleHighlight = () => setIsHighlightOff(!isHighlightOff);
   const toggleSettings = () => setSettingsOpen(!settingsOpen);
   
@@ -912,14 +978,16 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
     await loadFiles(dirHandle);
     if(isSelectMode) toggleSelectMode();
+    else clearFileSelection();
   };
 
   const moveToNewFolder = async (folderName: string, isBulk: boolean) => {
     if (!folderName) return;
     try {
-      const nh = await dirHandle.getDirectoryHandle(folderName, {create: true});
+      const trimmed = folderName.trim();
+      const nh = await getDirectoryHandleByPath(dirHandle, trimmed, true);
       const files = isBulk ? Array.from(selectedFileMap.values()) : (currentFileObj ? [currentFileObj] : []);
-      await execBulkMove(files, nh, folderName);
+      await execBulkMove(files, nh, trimmed);
     } catch(e: any) { alert(e.message); }
   };
 
@@ -939,7 +1007,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
     if (dc) setCurrentFileObj(null);
     await loadFiles(dirHandle);
-    toggleSelectMode();
+    if(isSelectMode) toggleSelectMode();
+    else clearFileSelection();
   };
 
   const deleteCurrentFile = async () => {
@@ -1019,15 +1088,24 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     } catch(e:any){ alert(e.message); }
   };
 
-  const createNewFolder = async () => {
-    if (isFallbackMode) return;
-    const folderName = prompt(t.main.newFolderPrompt || "新しいフォルダー名:");
-    if (!folderName || !folderName.trim()) return;
+  const createNewFolder = async (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string): Promise<boolean> => {
+    if (isFallbackMode) return false;
+    const targetParent = parentFolderHandle || dirHandle;
+    let folderName = explicitFolderName;
+    if (!folderName) {
+      const promptMsg = parentPath 
+        ? `【${parentPath}】${lang === 'en' ? ' - Subfolder name:' : ' の中に作成する新しいフォルダー名:'}`
+        : (t.main.newFolderPrompt || "新しいフォルダー名:");
+      folderName = prompt(promptMsg) || undefined;
+    }
+    if (!folderName || !folderName.trim()) return false;
     try {
-      await dirHandle.getDirectoryHandle(folderName.trim(), { create: true });
+      await getDirectoryHandleByPath(targetParent, folderName.trim(), true);
       await loadFiles(dirHandle);
+      return true;
     } catch (e: any) {
       alert(e.message);
+      return false;
     }
   };
 
@@ -1043,6 +1121,59 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       await w.write("");
       await w.close();
       await loadFiles(dirHandle);
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const importExistingFiles = async (targetFolderHandle: any, targetCategory?: string) => {
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = '.txt,.md,.markdown,.log,.json,.csv,.text,text/*';
+      
+      input.onchange = async () => {
+        if (!input.files || input.files.length === 0) return;
+        const files = Array.from(input.files);
+        
+        if (dirHandle && targetFolderHandle) {
+          for (const file of files) {
+            try {
+              const fileContent = await file.text();
+              const fh = await targetFolderHandle.getFileHandle(file.name, { create: true });
+              const w = await fh.createWritable();
+              await w.write(fileContent);
+              await w.close();
+            } catch (err: any) {
+              console.error(`Error saving ${file.name}:`, err);
+            }
+          }
+          await loadFiles(dirHandle);
+        } else if (isFallbackMode) {
+          const newLoadedFiles: any[] = [];
+          for (const file of files) {
+            const content = await file.text();
+            const ext = file.name.split('.').pop() || 'txt';
+            newLoadedFiles.push({
+              fileHandle: null,
+              filename: file.name,
+              category: targetCategory || '',
+              content: content,
+              title: file.name.replace(/\.[^/.]+$/, ''),
+              digest: content.slice(0, 160).replace(/[#*`\n\r]/g, ' ').trim(),
+              charCount: content.length,
+              lineCount: content.split('\n').length,
+              lastModified: file.lastModified,
+              fileSize: file.size,
+              extension: ext
+            });
+          }
+          setAllFiles(prev => [...prev, ...newLoadedFiles]);
+        }
+      };
+      
+      input.click();
     } catch (e: any) {
       alert(e.message);
     }
@@ -1077,10 +1208,10 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       viewMode, setViewMode, explorerCategory, setExplorerCategory, openExplorer,
       canGoBack, canGoForward, goBack, goForward, goBackExplorer, goForwardExplorer,
       openFolder, reopenFolder, refreshFolder, setSearchQuery, clearSearch, removeSearchQuery,
-      selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
+      selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, selectAllFiles, deselectAllFiles, clearFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
-      renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode,
       paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
       isResuming, pendingResumeHandle, resumeSavedFolder

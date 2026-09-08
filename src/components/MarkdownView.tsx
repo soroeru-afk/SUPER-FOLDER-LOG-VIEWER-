@@ -61,12 +61,12 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                   background: 'var(--card-bg)',
                   fontSize: 'calc(var(--text-font-size, 15px) * 0.88)',
                   lineHeight: 'var(--text-line-height, 1.8)',
-                  margin: isVertical ? '8px 18px' : '18px 0',
+                  margin: isVertical ? '8px 18px' : 'calc(var(--msg-gap, 16px) * 1.1) 0',
                   color: 'var(--main-text)',
                   width: isVertical ? 'auto' : '100%',
                   minWidth: isVertical ? 'auto' : '300px',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                  borderRadius: '6px'
+                  borderRadius: '0px'
                 }}
               >
                 <thead>
@@ -196,7 +196,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                       marginBottom: isVertical ? '0' : '6px',
                       marginLeft: isVertical ? '6px' : '0',
                       cursor: 'pointer',
-                      borderRadius: '4px',
+                      borderRadius: '0px',
                       padding: '2px 4px'
                     }}
                     onClick={(e) => {
@@ -242,12 +242,12 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
               key={blockIndex}
               className="markdown-quote"
               style={{
-                margin: isVertical ? '0 16px' : '12px 0',
+                margin: isVertical ? '0 16px' : 'calc(var(--msg-gap, 16px) * 0.75) 0',
                 padding: isVertical ? '8px 12px 8px 4px' : '6px 14px',
                 borderLeft: isVertical ? 'none' : '3px solid var(--sb-accent)',
                 borderTop: isVertical ? '3px solid var(--sb-accent)' : 'none',
                 background: 'var(--sb-item-hover)',
-                borderRadius: '4px',
+                borderRadius: '0px',
                 color: 'var(--main-text)',
                 opacity: 0.9,
                 cursor: 'pointer'
@@ -273,9 +273,12 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
           return (
             <div
               key={blockIndex}
+              className="markdown-empty-line"
               style={{
-                height: isVertical ? 'auto' : '1.4em',
-                width: isVertical ? '1.4em' : 'auto',
+                height: isVertical ? 'auto' : 'calc(var(--msg-gap, 16px) * 0.9)',
+                width: isVertical ? 'calc(var(--msg-gap, 16px) * 0.9)' : 'auto',
+                minHeight: isVertical ? 'auto' : '8px',
+                minWidth: isVertical ? '8px' : 'auto',
                 display: 'block'
               }}
             />
@@ -295,7 +298,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
               cursor: 'pointer',
               display: isVertical ? 'inline-block' : 'block',
               transition: 'background 0.2s',
-              borderRadius: '4px',
+              borderRadius: '0px',
               margin: isVertical ? '0 0' : '0 -4px',
               padding: isVertical ? '2px 0' : '0 4px',
               lineHeight: 'var(--text-line-height, 1.8)',

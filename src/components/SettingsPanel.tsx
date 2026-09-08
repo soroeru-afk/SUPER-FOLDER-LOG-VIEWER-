@@ -4,14 +4,14 @@ import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderCol
 import { applySettingsToDOM } from '../settingsSync';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, paperMode, setPaperMode, paperColor, setPaperColor } = useAppContext();
+  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, paperMode, setPaperMode, paperColor, setPaperColor } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
   const [vals, setVals] = useState({
     fontSize: '15', fontWeight: '400', lineHeight: '1.8', letterSpacing: '0',
     sbTitleSize: '13', sbCatSize: '10', headingSize: '48', sbWidth: '280', contentWidth: '900', vertCardHeight: '600',
-    cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '56',
+    cardPadding: '24', cardRadius: '0', msgGap: '16', pagePad: '56',
     cardDigestSize: '13',
     theme: 'mono', font: 'meiryo', folderColor: '#FBBF24'
   });
@@ -30,7 +30,7 @@ export const SettingsPanel = () => {
         contentWidth: localStorage.getItem('lv_contentWidth') || '900',
         vertCardHeight: localStorage.getItem('lv_vertCardHeight') || '600',
         cardPadding: localStorage.getItem('lv_cardPadding') || '24',
-        cardRadius: localStorage.getItem('lv_cardRadius') || '16',
+        cardRadius: localStorage.getItem('lv_cardRadius') ?? '0',
         msgGap: localStorage.getItem('lv_msgGap') || '16',
         pagePad: localStorage.getItem('lv_pagePad') || '56',
         cardDigestSize: localStorage.getItem('lv_cardDigestSize') || '13',
@@ -75,6 +75,14 @@ export const SettingsPanel = () => {
         <button className={`panel-tab ${tab === 'layout' ? 'active' : ''}`} onClick={() => setTab('layout')}>{t.settings.layoutOpen}</button>
         <button className={`panel-tab ${tab === 'theme' ? 'active' : ''}`} onClick={() => setTab('theme')}>{t.settings.themeOpen}</button>
         <button className={`panel-tab ${tab === 'audio' ? 'active' : ''}`} onClick={() => setTab('audio')}>{t.settings.audioOpen}</button>
+        <button
+          className="panel-close-btn"
+          onClick={toggleSettings}
+          title={lang === 'en' ? 'Close Settings' : '設定を閉じる'}
+          aria-label={lang === 'en' ? 'Close' : '閉じる'}
+        >
+          ✕
+        </button>
       </div>
       <div className="panel-body">
         
@@ -161,7 +169,7 @@ export const SettingsPanel = () => {
               <div
                 style={{
                   display: 'inline-flex',
-                  borderRadius: '7px',
+                  borderRadius: '0px',
                   overflow: 'hidden',
                   border: '1px solid var(--panel-item-border)',
                   background: 'var(--panel-item-bg)',
@@ -220,12 +228,54 @@ export const SettingsPanel = () => {
               <input className="setting-slider" type="range" min="10" max="48" step="2" value={vals.cardPadding} onChange={e => updateSetting('cardPadding', e.target.value)} />
             </div>
             <div className="setting-row">
-              <div className="setting-label">{t.settings.cardRadius} <span id="card-radius-val">{vals.cardRadius}px</span></div>
+              <div className="setting-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{t.settings.cardRadius} <span id="card-radius-val">{vals.cardRadius}px</span></span>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => updateSetting('cardRadius', '0')}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      border: '1px solid var(--panel-item-border)',
+                      background: vals.cardRadius === '0' ? 'var(--sb-accent)' : 'var(--panel-item-bg)',
+                      color: vals.cardRadius === '0' ? '#ffffff' : 'var(--panel-text)',
+                      cursor: 'pointer',
+                      borderRadius: '0px',
+                    }}
+                  >
+                    ■ {lang === 'en' ? 'Square (0px)' : 'スクエア (0px)'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateSetting('cardRadius', '12')}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      border: '1px solid var(--panel-item-border)',
+                      background: vals.cardRadius !== '0' ? 'var(--sb-accent)' : 'var(--panel-item-bg)',
+                      color: vals.cardRadius !== '0' ? '#ffffff' : 'var(--panel-text)',
+                      cursor: 'pointer',
+                      borderRadius: '0px',
+                    }}
+                  >
+                    {lang === 'en' ? 'Rounded' : '角丸'}
+                  </button>
+                </div>
+              </div>
               <input className="setting-slider" type="range" min="0" max="32" step="2" value={vals.cardRadius} onChange={e => updateSetting('cardRadius', e.target.value)} />
+              <div style={{ fontSize: '10px', opacity: 0.65, marginTop: '3px' }}>
+                {lang === 'en' ? 'Applies to text reader card background only (other list cards stay square)' : 'テキスト本文の背景枠のみに適用されます（他の一覧カード等は角のまま保持）'}
+              </div>
             </div>
             <div className="setting-row">
               <div className="setting-label">{t.settings.msgGap} <span id="msg-gap-val">{vals.msgGap}px</span></div>
               <input className="setting-slider" type="range" min="4" max="40" step="2" value={vals.msgGap} onChange={e => updateSetting('msgGap', e.target.value)} />
+              <div style={{ fontSize: '10px', opacity: 0.65, marginTop: '3px' }}>
+                {lang === 'en' ? 'Adjusts spacing between paragraphs, message blocks, and file list rows' : '段落の空行・メッセージ・ファイル一覧行の間隔を調整'}
+              </div>
             </div>
             <div className="setting-row">
               <div className="setting-label">{t.settings.pagePad} <span id="page-pad-val">{vals.pagePad}px</span></div>
@@ -258,7 +308,7 @@ export const SettingsPanel = () => {
                     key={col} 
                     onClick={() => updateSetting('folderColor', col)}
                     style={{
-                      width: '24px', height: '24px', borderRadius: '50%', background: col,
+                      width: '24px', height: '24px', borderRadius: '0px', background: col,
                       border: vals.folderColor === col ? '2px solid var(--panel-text)' : '2px solid transparent',
                       cursor: 'pointer'
                     }}
@@ -269,7 +319,7 @@ export const SettingsPanel = () => {
                   type="color" 
                   value={vals.folderColor || '#FBBF24'} 
                   onChange={e => updateSetting('folderColor', e.target.value)} 
-                  style={{ width: '28px', height: '28px', padding: 0, border: '1px solid var(--panel-border)', cursor: 'pointer', background: 'transparent', borderRadius: '4px' }}
+                  style={{ width: '28px', height: '28px', padding: 0, border: '1px solid var(--panel-border)', cursor: 'pointer', background: 'transparent', borderRadius: '0px' }}
                 />
               </div>
             </div>
@@ -282,7 +332,7 @@ export const SettingsPanel = () => {
                 <div
                   style={{
                     display: 'inline-flex',
-                    borderRadius: '7px',
+                    borderRadius: '0px',
                     overflow: 'hidden',
                     border: '1px solid var(--panel-item-border)',
                     background: 'var(--panel-item-bg)',
@@ -327,7 +377,7 @@ export const SettingsPanel = () => {
                 <div
                   style={{
                     display: 'inline-flex',
-                    borderRadius: '7px',
+                    borderRadius: '0px',
                     overflow: 'hidden',
                     border: '1px solid var(--panel-item-border)',
                     background: 'var(--panel-item-bg)',
@@ -418,12 +468,14 @@ export const SettingsPanel = () => {
             <div className="setting-row">
               <div className="setting-label">ボイス (VOICE)</div>
               <select
-                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'dark' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '8px', padding: '8px', fontSize: '11px', outline: 'none' }}
+                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'dark' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '0px', padding: '8px', fontSize: '11px', outline: 'none' }}
                 value={ttsSettings.voiceURI}
                 onChange={e => updateTtsSettings({ voiceURI: e.target.value })}
               >
-                {voices.map(v => (
-                  <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
+                {voices
+                  .filter(v => !v.name.toLowerCase().includes('google'))
+                  .map(v => (
+                    <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
                 ))}
               </select>
             </div>
