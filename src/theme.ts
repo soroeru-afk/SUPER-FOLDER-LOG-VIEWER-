@@ -120,4 +120,13 @@ export function applyThemeStyle(key: string) {
   r.setProperty('--sb-item-opacity', t.sbItemOpacity || '0.85');
   r.setProperty('--sb-category-opacity', t.sbCategoryOpacity || '0.85');
   r.setProperty('--sb-category-color', t.sbMutedOverride || t.sbMain || '');
+
+  // PWA/ブラウザのヘッダー色（theme-color）の設定
+  // Whiteテーマ時のみ白（#FFFFFF）、それ以外のテーマはすべて黒（#000000）に固定
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (metaThemeColor) {
+    const headerColor = key === 'white' ? '#FFFFFF' : '#000000';
+    metaThemeColor.setAttribute('content', headerColor);
+  }
 }
+
