@@ -277,6 +277,36 @@ export const Sidebar = () => {
     };
     treeTop.forEach(node => computeTotalCount(node));
 
+    // アーカイブ/年月型フォルダ（YYYY-MM）のみを対象とした連動ソート処理
+    const sortChildrenIfArchive = (nodes: CategoryNode[]) => {
+      nodes.forEach(node => {
+        if (node.children && node.children.length > 0) {
+          const isArchiveGroup = node.children.some(child => {
+            const shortName = child.name.split('/').pop() || child.name;
+            return /^\d{4}[-._]\d{2}$/.test(shortName) || node.name.includes('過去ログアーカイブ') || child.name.includes('過去ログアーカイブ');
+          });
+
+          if (isArchiveGroup) {
+            node.children.sort((a, b) => {
+              const nameA = a.name.split('/').pop() || a.name;
+              const nameB = b.name.split('/').pop() || b.name;
+              let cmp = nameA.localeCompare(nameB, undefined, { numeric: true });
+              if (sortMode === 'date') {
+                // 日付順ソートの場合、デフォルト（desc:日付降順）で最新月（2026-08）を一番上にするため反転
+                if (sortDirection === 'desc') cmp = -cmp;
+              } else if (sortMode === 'name') {
+                if (sortDirection === 'desc') cmp = -cmp;
+              }
+              return cmp;
+            });
+          }
+
+          sortChildrenIfArchive(node.children);
+        }
+      });
+    };
+    sortChildrenIfArchive(treeTop);
+
     const buildCategoryTree = (node: CategoryNode, depth: number): React.ReactNode => {
       const shortName = node.name.split('/').pop() || node.name;
       const childNodes = node.children.map(child => buildCategoryTree(child, depth + 1));
