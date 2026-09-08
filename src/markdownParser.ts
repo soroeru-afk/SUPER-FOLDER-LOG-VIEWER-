@@ -61,8 +61,18 @@ export function formatInlineMarkdown(text: string, searchQueries: string[] = [])
 
   // URLのリンク化 (HTMLエスケープ済み前提)
   html = html.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s&"<>)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>'
+  );
+  html = html.replace(
     /(https?:\/\/[^\s&"<>]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:var(--sb-accent);text-decoration:underline;">$1</a>'
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>'
+  );
+
+  // ソースノード・NODEタグの青色バッジ化（[ NODE: ... ] や [ 04SOURCENODES ] などの角括弧ノード）
+  html = html.replace(
+    /(\[\s*(?:NODE:|SOURCE|[A-Z0-9_-]*NODE)[^\]]*\])/gi,
+    '<span class="md-node-tag">$1</span>'
   );
 
   // 検索語ハイライト

@@ -47,6 +47,9 @@
   --panel-item-border: rgba(255,255,255,0.1);
   --panel-slider-bg: rgba(255,255,255,0.15);
   --panel-scrollbar: rgba(255,255,255,0.1);
+  --scrollbar-track: transparent;
+  --scrollbar-thumb-hover: rgba(0,0,0,0.35);
+  color-scheme: light dark;
 
   --font-body: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
   --font-sidebar: inherit;
@@ -453,14 +456,27 @@ body.highlight-off mark {
   padding: 30px var(--page-pad, 48px) 32px;
   position: relative;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(140, 140, 140, 0.35)) var(--scrollbar-track, transparent);
 }
-#content-area::-webkit-scrollbar { width: 5px; height: 5px; }
-#content-area::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+#content-area::-webkit-scrollbar { width: 6px; height: 6px; }
+#content-area::-webkit-scrollbar-track { background: var(--scrollbar-track, transparent); border-radius: 4px; }
+#content-area::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, rgba(140, 140, 140, 0.35)); border-radius: 4px; }
+#content-area::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover, var(--sb-accent, #3b82f6)); }
 
+#plain-text,
+#messages {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(140, 140, 140, 0.35)) var(--scrollbar-track, transparent);
+}
 #plain-text::-webkit-scrollbar,
-#messages::-webkit-scrollbar { width: 5px; height: 5px; }
+#messages::-webkit-scrollbar { width: 6px; height: 6px; }
+#plain-text::-webkit-scrollbar-track,
+#messages::-webkit-scrollbar-track { background: var(--scrollbar-track, transparent); border-radius: 4px; }
 #plain-text::-webkit-scrollbar-thumb,
-#messages::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+#messages::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, rgba(140, 140, 140, 0.35)); border-radius: 4px; }
+#plain-text::-webkit-scrollbar-thumb:hover,
+#messages::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover, var(--sb-accent, #3b82f6)); }
 
 .scroll-nav-btn {
   position: absolute;
@@ -1577,16 +1593,17 @@ body.select-mode .file-item.selected .file-title { color: var(--sb-accent); }
   font-size: var(--text-font-size, 15px);
 }
 
-/* ─── Paper Mode (テキストビューの範囲だけベージュ紙調) ─── */
-body.paper-mode .vertical-writing-text-inner,
-body.paper-mode .vertical-msg-body,
-body.paper-mode #plain-text,
-body.paper-mode .msg-body,
-body.paper-mode .horizontal-card {
+/* ─── Paper Mode (テキストビューの範囲を用紙調に切り替え) ─── */
+/* 1. ベージュペーパー (淡いクラフト・和紙調) */
+body.paper-mode:not(.paper-mode-white) .vertical-writing-text-inner,
+body.paper-mode:not(.paper-mode-white) .vertical-msg-body,
+body.paper-mode:not(.paper-mode-white) #plain-text,
+body.paper-mode:not(.paper-mode-white) .msg-body,
+body.paper-mode:not(.paper-mode-white) .horizontal-card {
   --heading-color: #1a1612 !important;
   --main-text: #2a241f !important;
   --card-border: #ded5c2 !important;
-  --sb-accent: #8b4513 !important;
+  --sb-accent: #1d4ed8 !important; /* 赤茶色から落ち着いたブルーへ */
   --sb-item-hover: rgba(180, 150, 100, 0.12) !important;
   background-color: #f6f1e5 !important;
   border-color: #ded5c2 !important;
@@ -1594,87 +1611,228 @@ body.paper-mode .horizontal-card {
   box-shadow: 0 3px 12px rgba(60, 45, 20, 0.06);
 }
 
-body.paper-mode .vertical-writing-text-inner *,
-body.paper-mode .vertical-msg-body *,
-body.paper-mode #plain-text *,
-body.paper-mode .msg-body *,
-body.paper-mode .horizontal-card * {
+body.paper-mode:not(.paper-mode-white) .vertical-writing-text-inner *,
+body.paper-mode:not(.paper-mode-white) .vertical-msg-body *,
+body.paper-mode:not(.paper-mode-white) #plain-text *,
+body.paper-mode:not(.paper-mode-white) .msg-body *,
+body.paper-mode:not(.paper-mode-white) .horizontal-card * {
   color: #2a241f !important;
 }
 
-/* 見出し（タイトル・H1〜H6）は深みのある墨色と専用の罫線 */
-body.paper-mode .markdown-heading,
-body.paper-mode .vertical-writing-text-inner .markdown-heading,
-body.paper-mode #plain-text .markdown-heading,
-body.paper-mode h1,
-body.paper-mode h2,
-body.paper-mode h3,
-body.paper-mode h4,
-body.paper-mode h5,
-body.paper-mode h6 {
+body.paper-mode:not(.paper-mode-white) .markdown-heading,
+body.paper-mode:not(.paper-mode-white) .vertical-writing-text-inner .markdown-heading,
+body.paper-mode:not(.paper-mode-white) #plain-text .markdown-heading,
+body.paper-mode:not(.paper-mode-white) h1,
+body.paper-mode:not(.paper-mode-white) h2,
+body.paper-mode:not(.paper-mode-white) h3,
+body.paper-mode:not(.paper-mode-white) h4,
+body.paper-mode:not(.paper-mode-white) h5,
+body.paper-mode:not(.paper-mode-white) h6 {
   color: #1a1612 !important;
   border-color: #ded5c2 !important;
 }
 
-/* 通常テキスト行 */
-body.paper-mode .markdown-line {
+body.paper-mode:not(.paper-mode-white) .markdown-line {
   color: #2a241f !important;
 }
 
-/* テーブルスタイル */
-body.paper-mode .markdown-table {
+body.paper-mode:not(.paper-mode-white) .markdown-table {
   background-color: #fcf9f2 !important;
   border-color: #d6ccb8 !important;
   color: #2a241f !important;
 }
-body.paper-mode .markdown-table th,
-body.paper-mode .markdown-table td {
+body.paper-mode:not(.paper-mode-white) .markdown-table th,
+body.paper-mode:not(.paper-mode-white) .markdown-table td {
   border-color: #d6ccb8 !important;
   color: #2a241f !important;
 }
-body.paper-mode .markdown-table th {
+body.paper-mode:not(.paper-mode-white) .markdown-table thead tr,
+body.paper-mode:not(.paper-mode-white) .markdown-table th {
   background-color: #ede4d1 !important;
   color: #1a1612 !important;
+  font-weight: 700 !important;
 }
-body.paper-mode .markdown-table td {
+body.paper-mode:not(.paper-mode-white) .markdown-table tbody tr:nth-child(odd) td,
+body.paper-mode:not(.paper-mode-white) .markdown-table tbody tr:nth-child(odd) {
   background-color: #fcf9f2 !important;
-  color: #2a241f !important;
 }
-body.paper-mode .markdown-table tr:hover td {
+body.paper-mode:not(.paper-mode-white) .markdown-table tbody tr:nth-child(even) td,
+body.paper-mode:not(.paper-mode-white) .markdown-table tbody tr:nth-child(even) {
+  background-color: #ede4d1 !important;
+}
+body.paper-mode:not(.paper-mode-white) .markdown-table tbody tr:hover td {
   background-color: #eee4d0 !important;
 }
 
-/* インラインコード */
-body.paper-mode .md-inline-code {
-  background-color: #ede4d1 !important;
-  border-color: #d6ccb8 !important;
-  color: #8c4b18 !important;
+/* インラインコード・ノード：赤茶をやめて上品なブルー系へ */
+body.paper-mode:not(.paper-mode-white) .md-inline-code,
+body.paper-mode:not(.paper-mode-white) .md-node-tag {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  border-color: #cbd5e1 !important;
+  color: #1d4ed8 !important;
 }
 
-/* 引用 */
-body.paper-mode .markdown-quote {
+body.paper-mode:not(.paper-mode-white) .markdown-quote {
   background-color: #efe8da !important;
-  border-left-color: #bfa170 !important;
-  border-top-color: #bfa170 !important;
+  border-left-color: #1d4ed8 !important;
+  border-top-color: #1d4ed8 !important;
   color: #2a241f !important;
 }
 
-/* 水平線 */
-body.paper-mode .markdown-hr {
+body.paper-mode:not(.paper-mode-white) .markdown-hr {
   border-color: #d6ccb8 !important;
 }
 
-/* リンク */
-body.paper-mode .markdown-container a {
-  color: #8b4513 !important;
-  text-decoration-color: #c4a470 !important;
+/* リンク：赤茶をやめてブルーへ */
+body.paper-mode:not(.paper-mode-white) .markdown-container a,
+body.paper-mode:not(.paper-mode-white) .md-link {
+  color: #1d4ed8 !important;
+  text-decoration-color: #93c5fd !important;
 }
 
-/* ホバー時の背景 */
-body.paper-mode .markdown-heading:hover,
-body.paper-mode .markdown-line:hover,
-body.paper-mode .markdown-list-item:hover {
+body.paper-mode:not(.paper-mode-white) .markdown-heading:hover,
+body.paper-mode:not(.paper-mode-white) .markdown-line:hover,
+body.paper-mode:not(.paper-mode-white) .markdown-list-item:hover {
   background-color: rgba(180, 150, 100, 0.12) !important;
+}
+
+/* 2. ホワイトペーパー (Whiteテーマ通常色テーブルと完全同等のニュートラルグレー調) */
+body.paper-mode.paper-mode-white .vertical-writing-text-inner,
+body.paper-mode.paper-mode-white .vertical-msg-body,
+body.paper-mode.paper-mode-white #plain-text,
+body.paper-mode.paper-mode-white .msg-body,
+body.paper-mode.paper-mode-white .horizontal-card {
+  --heading-color: #111827 !important;
+  --main-text: #111827 !important;
+  --card-border: #D1D5DB !important; /* 青みを排した純粋なグレー */
+  --sb-accent: #2563EB !important;
+  --sb-item-hover: rgba(0, 0, 0, 0.04) !important;
+  background-color: #FFFFFF !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+body.paper-mode.paper-mode-white .vertical-writing-text-inner *,
+body.paper-mode.paper-mode-white .vertical-msg-body *,
+body.paper-mode.paper-mode-white #plain-text *,
+body.paper-mode.paper-mode-white .msg-body *,
+body.paper-mode.paper-mode-white .horizontal-card * {
+  color: #111827 !important;
+}
+
+body.paper-mode.paper-mode-white .markdown-heading,
+body.paper-mode.paper-mode-white .vertical-writing-text-inner .markdown-heading,
+body.paper-mode.paper-mode-white #plain-text .markdown-heading,
+body.paper-mode.paper-mode-white h1,
+body.paper-mode.paper-mode-white h2,
+body.paper-mode.paper-mode-white h3,
+body.paper-mode.paper-mode-white h4,
+body.paper-mode.paper-mode-white h5,
+body.paper-mode.paper-mode-white h6 {
+  color: #111827 !important;
+  border-color: #E5E7EB !important;
+}
+
+body.paper-mode.paper-mode-white .markdown-line {
+  color: #111827 !important;
+}
+
+/* Whiteテーマ通常時と完全に一致するテーブル色（交互グレーのストライプ行＆ニュートラル枠線） */
+body.paper-mode.paper-mode-white .markdown-table {
+  background-color: #FFFFFF !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+body.paper-mode.paper-mode-white .markdown-table th,
+body.paper-mode.paper-mode-white .markdown-table td {
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+body.paper-mode.paper-mode-white .markdown-table thead tr,
+body.paper-mode.paper-mode-white .markdown-table th {
+  background-color: rgba(0, 0, 0, 0.04) !important; /* Whiteテーマ通常時の--sb-item-hoverと完全に一致 */
+  color: #111827 !important;
+  font-weight: 700 !important;
+}
+body.paper-mode.paper-mode-white .markdown-table tbody tr:nth-child(odd) td,
+body.paper-mode.paper-mode-white .markdown-table tbody tr:nth-child(odd) {
+  background-color: #FFFFFF !important;
+}
+body.paper-mode.paper-mode-white .markdown-table tbody tr:nth-child(even) td,
+body.paper-mode.paper-mode-white .markdown-table tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.04) !important; /* Whiteテーマ通常時と同じ交互グレー */
+}
+body.paper-mode.paper-mode-white .markdown-table tbody tr:hover td {
+  background-color: rgba(0, 0, 0, 0.07) !important;
+}
+
+/* インラインコード・ノード：赤をやめてクリアなブルーへ */
+body.paper-mode.paper-mode-white .md-inline-code,
+body.paper-mode.paper-mode-white .md-node-tag {
+  background-color: #F3F4F6 !important;
+  border-color: #E5E7EB !important;
+  color: #2563EB !important;
+}
+
+body.paper-mode.paper-mode-white .markdown-quote {
+  background-color: #F9FAFB !important;
+  border-left-color: #2563EB !important;
+  border-top-color: #2563EB !important;
+  color: #111827 !important;
+}
+
+body.paper-mode.paper-mode-white .markdown-hr {
+  border-color: #E5E7EB !important;
+}
+
+body.paper-mode.paper-mode-white .markdown-container a,
+body.paper-mode.paper-mode-white .md-link {
+  color: #2563EB !important;
+  text-decoration-color: #93c5fd !important;
+}
+
+body.paper-mode.paper-mode-white .markdown-heading:hover,
+body.paper-mode.paper-mode-white .markdown-line:hover,
+body.paper-mode.paper-mode-white .markdown-list-item:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* ─── Paper Mode ツールバーボタンスタイル（青ではなく品のあるグレー） ─── */
+.tool-btn.paper-btn-on {
+  background: #4B5563 !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+.tool-btn.paper-btn-on:hover {
+  background: #374151 !important;
+}
+.tool-btn.paper-sub-active {
+  background: #64748B !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+.tool-btn.paper-sub-active:hover {
+  background: #475569 !important;
+}
+
+/* 通常モードでのノードタグやリンク共通スタイル */
+.md-node-tag {
+  display: inline-block;
+  font-family: monospace;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: 0 2px;
+  font-size: 0.9em;
+  color: var(--sb-accent, #2563EB);
+  vertical-align: middle;
+}
+.md-link {
+  color: var(--sb-accent, #2563EB);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ─── Navigation Buttons (PREV / NEXT) ─── */
@@ -1795,5 +1953,538 @@ body.paper-mode .markdown-list-item:hover {
   background: rgba(239, 68, 68, 0.35);
   color: #fca5a5;
 }
+
+/* ==========================================================================
+   Folder Explorer / Digest Card View (展開モード)
+   ========================================================================== */
+.explorer-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: var(--content-max-width, 1100px);
+  margin: 0 auto;
+  padding: 24px var(--page-pad, 48px) 32px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.explorer-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.explorer-breadcrumb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--card-border, rgba(120, 120, 120, 0.2));
+}
+
+.explorer-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.explorer-crumb {
+  background: transparent;
+  border: none;
+  color: var(--sb-accent, #3b82f6);
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.explorer-crumb:hover:not(:disabled) {
+  background: var(--sb-item-hover, rgba(120, 120, 120, 0.12));
+  text-decoration: underline;
+}
+
+.explorer-crumb.active {
+  color: var(--main-text, #1e293b);
+  cursor: default;
+  font-weight: 700;
+}
+
+.explorer-crumb-sep {
+  opacity: 0.5;
+  font-size: 12px;
+  color: var(--main-text, inherit);
+}
+
+.explorer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.explorer-btn {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  color: var(--main-text, #334155);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.explorer-btn:hover {
+  background: var(--sb-item-hover, rgba(120, 120, 120, 0.1));
+  border-color: var(--sb-accent, #3b82f6);
+  color: var(--sb-accent, #3b82f6);
+}
+
+.explorer-btn.primary {
+  background: var(--sb-accent, #3b82f6);
+  border-color: var(--sb-accent, #3b82f6);
+  color: #ffffff;
+}
+
+.explorer-btn.primary:hover {
+  opacity: 0.9;
+  color: #ffffff;
+}
+
+.explorer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.explorer-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.explorer-search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 12px;
+  opacity: 0.5;
+  pointer-events: none;
+  color: var(--main-text, inherit);
+}
+
+.explorer-search-input {
+  width: 100%;
+  padding: 6px 28px 6px 30px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  background: var(--card-bg, #ffffff);
+  color: var(--main-text, #1e293b);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.explorer-search-input:focus {
+  border-color: var(--sb-accent, #3b82f6);
+}
+
+.explorer-clear-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  opacity: 0.5;
+  cursor: pointer;
+  color: var(--main-text, inherit);
+}
+.explorer-clear-btn:hover {
+  opacity: 0.9;
+}
+
+.explorer-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.explorer-stat-badge {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+  letter-spacing: 0.5px;
+  color: var(--main-text, inherit);
+}
+
+.explorer-sort-group {
+  display: flex;
+  gap: 4px;
+}
+
+.explorer-sort-btn {
+  background: transparent;
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  color: var(--main-text, #475569);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.explorer-sort-btn:hover {
+  background: var(--sb-item-hover, rgba(120, 120, 120, 0.1));
+}
+
+.explorer-sort-btn.active {
+  background: var(--sb-item-active, rgba(59, 130, 246, 0.1));
+  border-color: var(--sb-accent, #3b82f6);
+  color: var(--sb-accent, #3b82f6);
+  font-weight: bold;
+}
+
+.explorer-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(140, 140, 140, 0.35)) var(--scrollbar-track, transparent);
+}
+
+.explorer-scroll-area::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.explorer-scroll-area::-webkit-scrollbar-track {
+  background: var(--scrollbar-track, transparent);
+  border-radius: 4px;
+}
+
+.explorer-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, rgba(140, 140, 140, 0.35));
+  border-radius: 4px;
+}
+
+.explorer-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, var(--sb-accent, #3b82f6));
+}
+
+.explorer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.explorer-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  opacity: 0.85;
+  text-transform: uppercase;
+  color: var(--main-text, inherit);
+}
+
+/* サブディレクトリカード グリッド */
+.explorer-folders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.folder-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+  gap: 10px;
+  min-height: 80px;
+  box-sizing: border-box;
+}
+
+.folder-card:hover {
+  border-color: var(--sb-accent, #3b82f6);
+  background: var(--sb-item-hover, rgba(59, 130, 246, 0.08));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.folder-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.folder-card-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sb-item-hover, rgba(120, 120, 120, 0.12));
+  color: var(--sb-folder-color, var(--sb-accent, #FBBF24));
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.2));
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+}
+
+.folder-card:hover .folder-card-icon-wrap {
+  background: var(--sb-folder-color, var(--sb-accent, #FBBF24));
+  color: #ffffff;
+  border-color: transparent;
+  transform: scale(1.05);
+}
+
+.folder-card-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--main-text, #1e293b);
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.folder-card-count {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--sb-item-hover, rgba(120, 120, 120, 0.15));
+  color: var(--main-text, #475569);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  flex-shrink: 0;
+}
+
+.folder-card-substats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.75;
+  color: var(--main-text, #64748b);
+  margin-top: auto;
+  padding-top: 2px;
+}
+
+.folder-card-open-arrow {
+  color: var(--sb-accent, #3b82f6);
+  font-weight: 600;
+}
+
+/* 記事ダイジェストカード グリッド */
+.explorer-files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+}
+
+.article-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  border-radius: 10px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  min-height: 145px;
+  box-sizing: border-box;
+}
+
+.article-card:hover {
+  border-color: var(--sb-accent, #3b82f6);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.article-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.article-card-filename {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--main-text, inherit);
+  opacity: 0.65;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.article-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.article-mark-badge {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.2);
+  line-height: 1;
+}
+
+.article-date-badge {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--main-text, inherit);
+  opacity: 0.85;
+  background: var(--sb-item-hover, rgba(120, 120, 120, 0.16));
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.article-card-title {
+  font-size: calc(var(--card-digest-size, 13px) + 2px);
+  font-weight: 700;
+  color: var(--main-text, #0f172a);
+  line-height: 1.35;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s;
+}
+
+.article-card:hover .article-card-title {
+  color: var(--sb-accent, #3b82f6);
+}
+
+.article-card-digest {
+  font-size: var(--card-digest-size, 13px);
+  line-height: 1.6;
+  opacity: 0.85;
+  color: var(--main-text, #334155);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 12px;
+  flex: 1;
+}
+
+.article-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--card-border, rgba(120, 120, 120, 0.15));
+  font-size: 11px;
+}
+
+.article-char-count {
+  color: var(--main-text, inherit);
+  opacity: 0.65;
+  font-family: monospace;
+}
+
+.article-open-label {
+  color: var(--sb-accent, #3b82f6);
+  font-weight: 600;
+  transition: transform 0.15s;
+}
+
+.article-card:hover .article-open-label {
+  transform: translateX(3px);
+}
+
+.explorer-empty-box {
+  padding: 32px;
+  text-align: center;
+  opacity: 0.6;
+  font-size: 13px;
+  border: 1px dashed var(--card-border, rgba(120, 120, 120, 0.3));
+  border-radius: 8px;
+}
+
+/* 本文テキスト画面のパンくずリスト */
+.content-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.content-breadcrumb-crumb {
+  background: transparent;
+  border: none;
+  color: var(--sb-accent, #3b82f6);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.12s;
+}
+
+.content-breadcrumb-crumb:hover {
+  background: var(--sb-item-hover, rgba(120, 120, 120, 0.12));
+  text-decoration: underline;
+}
+
+.content-breadcrumb-sep {
+  opacity: 0.4;
+  font-size: 10px;
+}
+
+.content-breadcrumb-current {
+  opacity: 0.65;
+  font-family: monospace;
+  font-size: 11px;
+}
+
 
 

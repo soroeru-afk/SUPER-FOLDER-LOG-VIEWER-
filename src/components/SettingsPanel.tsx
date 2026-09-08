@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { THEMES, FONT_MAP, applyThemeStyle } from '../theme';
+import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderColorForTheme } from '../theme';
 import { applySettingsToDOM } from '../settingsSync';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices } = useAppContext();
+  const { settingsOpen, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, paperMode, setPaperMode, paperColor, setPaperColor } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -12,6 +12,7 @@ export const SettingsPanel = () => {
     fontSize: '15', fontWeight: '400', lineHeight: '1.8', letterSpacing: '0',
     sbTitleSize: '13', sbCatSize: '10', headingSize: '48', sbWidth: '280', contentWidth: '900', vertCardHeight: '600',
     cardPadding: '24', cardRadius: '16', msgGap: '16', pagePad: '56',
+    cardDigestSize: '13',
     theme: 'mono', font: 'meiryo', folderColor: '#FBBF24'
   });
 
@@ -32,9 +33,10 @@ export const SettingsPanel = () => {
         cardRadius: localStorage.getItem('lv_cardRadius') || '16',
         msgGap: localStorage.getItem('lv_msgGap') || '16',
         pagePad: localStorage.getItem('lv_pagePad') || '56',
+        cardDigestSize: localStorage.getItem('lv_cardDigestSize') || '13',
         theme: (localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono',
         font: localStorage.getItem('lv_font') || 'meiryo',
-        folderColor: localStorage.getItem('lv_folderColor') || '#FBBF24'
+        folderColor: getFolderColorForTheme((localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono')
       });
     };
     loadSettings();
@@ -43,6 +45,21 @@ export const SettingsPanel = () => {
   }, [settingsOpen]);
 
   const updateSetting = (key: string, val: string) => {
+    if (key === 'theme') {
+      localStorage.setItem('lv_theme', val);
+      const themeColor = getFolderColorForTheme(val);
+      setVals(prev => ({ ...prev, theme: val, folderColor: themeColor }));
+      applySettingsToDOM();
+      window.dispatchEvent(new Event('settingsChanged'));
+      return;
+    }
+    if (key === 'folderColor') {
+      setFolderColorForTheme(vals.theme, val);
+      setVals(prev => ({ ...prev, folderColor: val }));
+      applySettingsToDOM();
+      window.dispatchEvent(new Event('settingsChanged'));
+      return;
+    }
     localStorage.setItem(`lv_${key}`, val);
     setVals(prev => ({ ...prev, [key]: val }));
     applySettingsToDOM();
@@ -116,6 +133,21 @@ export const SettingsPanel = () => {
             <div className="setting-row">
               <div className="setting-label">{t.settings.headingSize} <span id="heading-size-val">{vals.headingSize}px</span></div>
               <input className="setting-slider" type="range" min="36" max="72" step="2" value={vals.headingSize} onChange={e => updateSetting('headingSize', e.target.value)} />
+            </div>
+            <div className="setting-row">
+              <div className="setting-label">
+                {lang === 'en' ? 'Card Digest Text Size' : 'カードダイジェスト文字サイズ'}{' '}
+                <span id="card-digest-size-val">{vals.cardDigestSize}px</span>
+              </div>
+              <input 
+                className="setting-slider" 
+                type="range" 
+                min="10" 
+                max="18" 
+                step="1" 
+                value={vals.cardDigestSize} 
+                onChange={e => updateSetting('cardDigestSize', e.target.value)} 
+              />
             </div>
           </div>
         )}
@@ -239,6 +271,105 @@ export const SettingsPanel = () => {
                   onChange={e => updateSetting('folderColor', e.target.value)} 
                   style={{ width: '28px', height: '28px', padding: 0, border: '1px solid var(--panel-border)', cursor: 'pointer', background: 'transparent', borderRadius: '4px' }}
                 />
+              </div>
+            </div>
+
+            <div className="setting-row" style={{marginTop: '20px', paddingBottom: '4px'}}>
+              <div className="setting-label" style={{marginBottom: '8px', fontSize: '11px', display: 'block'}}>
+                {lang === 'en' ? 'Paper Mode' : 'ペーパーモード（用紙調ビュー）'}
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    borderRadius: '7px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--panel-item-border)',
+                    background: 'var(--panel-item-bg)',
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  <button
+                    onClick={() => setPaperMode(true)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: paperMode ? 'var(--panel-tab-active)' : 'transparent',
+                      color: paperMode ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                  >
+                    ON
+                  </button>
+                  <button
+                    onClick={() => setPaperMode(false)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: !paperMode ? 'var(--panel-tab-active)' : 'transparent',
+                      color: !paperMode ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                  >
+                    OFF
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    borderRadius: '7px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--panel-item-border)',
+                    background: 'var(--panel-item-bg)',
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  <button
+                    onClick={() => setPaperColor('beige')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: paperColor === 'beige' ? 'var(--panel-tab-active)' : 'transparent',
+                      color: paperColor === 'beige' ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                    title="淡いベージュ紙調"
+                  >
+                    BEIGE
+                  </button>
+                  <button
+                    onClick={() => setPaperColor('white')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: paperColor === 'white' ? 'var(--panel-tab-active)' : 'transparent',
+                      color: paperColor === 'white' ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                    title="ホワイト紙調（白地＆テーブル明瞭調）"
+                  >
+                    WHITE
+                  </button>
+                </div>
               </div>
             </div>
           </div>

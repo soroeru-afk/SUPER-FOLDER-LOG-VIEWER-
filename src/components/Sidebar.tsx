@@ -16,7 +16,8 @@ export const Sidebar = () => {
     createNewFolder, createNewFile,
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
-    fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder
+    fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder,
+    openExplorer, viewMode, setViewMode
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -184,7 +185,13 @@ export const Sidebar = () => {
         <button 
           className={`category-header ${isOpen ? 'open' : ''}`}
           style={{ paddingLeft: `${10 + depth * 14}px` }}
-          onClick={() => setCategoryOpen(groupKey, !isOpen)}
+          onClick={() => {
+            setCategoryOpen(groupKey, !isOpen);
+            if (isCategory) {
+              const targetCatName = groupKey.slice(4);
+              openExplorer(targetCatName);
+            }
+          }}
           onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('drag-over'); }}
           onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
           onDrop={async e => {
@@ -277,35 +284,55 @@ export const Sidebar = () => {
     };
     treeTop.forEach(node => computeTotalCount(node));
 
-    // アーカイブ/年月型フォルダ（YYYY-MM）のみを対象とした連動ソート処理
-    const sortChildrenIfArchive = (nodes: CategoryNode[]) => {
-      nodes.forEach(node => {
-        if (node.children && node.children.length > 0) {
-          const isArchiveGroup = node.children.some(child => {
-            const shortName = child.name.split('/').pop() || child.name;
-            return /^\d{4}[-._]\d{2}$/.test(shortName) || node.name.includes('過去ログアーカイブ') || child.name.includes('過去ログアーカイブ');
-          });
+    // フォルダ並び順のソート連動対応 (日付順・名前順)
+    // 対象限定制御: 親フォルダが過去ログアーカイブ/AIエージェント関連、またはYYYY-MM等の年月名を持つフォルダ群に限定
+    const isYearMonthName = (name: string) => /^\d{4}[-_./]\d{2}$/.test(name.trim());
+    const isArchiveOrAiFolder = (name: string) => /過去ログ|アーカイブ|archive|agent|エージェント|ai/i.test(name);
 
-          if (isArchiveGroup) {
-            node.children.sort((a, b) => {
-              const nameA = a.name.split('/').pop() || a.name;
-              const nameB = b.name.split('/').pop() || b.name;
-              let cmp = nameA.localeCompare(nameB, undefined, { numeric: true });
-              if (sortMode === 'date') {
-                // 日付順ソートの場合、デフォルト（desc:日付降順）で最新月（2026-08）を一番上にするため反転
-                if (sortDirection === 'desc') cmp = -cmp;
-              } else if (sortMode === 'name') {
-                if (sortDirection === 'desc') cmp = -cmp;
-              }
-              return cmp;
-            });
+    const sortCategoryNodes = (nodes: CategoryNode[], parentName: string = '') => {
+      const isTarget = isArchiveOrAiFolder(parentName) || nodes.some(n => {
+        const short = n.name.split('/').pop() || n.name;
+        return isYearMonthName(short);
+      });
+
+      if (isTarget) {
+        nodes.sort((a, b) => {
+          const shortA = a.name.split('/').pop() || a.name;
+          const shortB = b.name.split('/').pop() || b.name;
+          const isDateA = isYearMonthName(shortA);
+          const isDateB = isYearMonthName(shortB);
+
+          if (sortMode === 'date') {
+            // 日付順: 降順(desc)なら最新月が上 (例: 2026-08 -> 2026-07 -> 2026-06)
+            if (isDateA && isDateB) {
+              return sortDirection === 'desc'
+                ? shortB.localeCompare(shortA, undefined, { numeric: true })
+                : shortA.localeCompare(shortB, undefined, { numeric: true });
+            }
+            if (isDateA && !isDateB) return sortDirection === 'desc' ? -1 : 1;
+            if (!isDateA && isDateB) return sortDirection === 'desc' ? 1 : -1;
+
+            return sortDirection === 'desc'
+              ? shortB.localeCompare(shortA, 'ja', { numeric: true })
+              : shortA.localeCompare(shortB, 'ja', { numeric: true });
+          } else {
+            // 名前順: 昇順(asc)なら a->b、降順(desc)なら b->a
+            return sortDirection === 'asc'
+              ? shortA.localeCompare(shortB, 'ja', { numeric: true })
+              : shortB.localeCompare(shortA, 'ja', { numeric: true });
           }
+        });
+      }
 
-          sortChildrenIfArchive(node.children);
+      // 再帰的に子階層も処理
+      nodes.forEach(n => {
+        if (n.children && n.children.length > 0) {
+          sortCategoryNodes(n.children, n.name);
         }
       });
     };
-    sortChildrenIfArchive(treeTop);
+
+    sortCategoryNodes(treeTop);
 
     const buildCategoryTree = (node: CategoryNode, depth: number): React.ReactNode => {
       const shortName = node.name.split('/').pop() || node.name;
@@ -328,7 +355,13 @@ export const Sidebar = () => {
       });
       if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
       
-      Object.keys(byMonth).filter(k=>k!=='__nodate__').sort((a,b)=>b.localeCompare(a)).forEach(mKey => {
+      Object.keys(byMonth).filter(k=>k!=='__nodate__').sort((a,b) => {
+        if (sortMode === 'date') {
+          return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
+        } else {
+          return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+        }
+      }).forEach(mKey => {
         const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
         let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
         if(searchQueries.length>0) mOpen=true;
@@ -343,7 +376,13 @@ export const Sidebar = () => {
               <span className="category-arrow">▶</span>
             </button>
             <div className={`category-files ${mOpen?'open':''}`}>
-              {Object.keys(byMonth[mKey]).sort((a,b)=>b.localeCompare(a)).map(dKey => {
+              {Object.keys(byMonth[mKey]).sort((a,b) => {
+                if (sortMode === 'date') {
+                  return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
+                } else {
+                  return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+                }
+              }).map(dKey => {
                 const isToday = dKey === today; const [,,dd] = dKey.split('-');
                 return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
               })}
@@ -437,19 +476,68 @@ export const Sidebar = () => {
         {renderBreadcrumbs()}
       </div>
 
-      <div id="file-list-header" style={{display: dirHandle ? 'flex' : 'none'}}>
-        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-          <span id="file-count" style={{textTransform:'uppercase'}}>{allFiles.length} files</span>
-          <div style={{display:'flex', gap:'4px'}}>
+      <div id="file-list-header" style={{display: dirHandle ? 'flex' : 'none', flexDirection: 'column', gap: '8px', padding: '8px 12px'}}>
+        {/* 上段: ファイル件数 と 表示モード切替（リーダー / 展開） */}
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px'}}>
+          <span id="file-count" style={{textTransform:'uppercase', fontSize: '11px', fontWeight: 'bold', opacity: 0.85, letterSpacing: '0.5px'}}>
+            {allFiles.length} FILES
+          </span>
+          <div style={{display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--sb-border)', background: 'var(--sb-item-hover)'}}>
+            <button 
+              className={`sort-btn ${viewMode === 'reader' ? 'active' : ''}`}
+              style={{
+                background: viewMode === 'reader' ? 'var(--sb-accent)' : 'transparent',
+                color: viewMode === 'reader' ? '#ffffff' : 'var(--sb-text)',
+                border: 'none',
+                padding: '3px 8px',
+                fontSize: '10px',
+                cursor: 'pointer',
+                fontWeight: viewMode === 'reader' ? 'bold' : '500',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                transition: 'all 0.15s'
+              }}
+              onClick={() => setViewMode('reader')}
+              title={lang === 'en' ? 'Normal Reader View' : '通常リーダー表示'}
+            >
+              📖 {lang === 'en' ? 'Reader' : 'リーダー'}
+            </button>
+            <button 
+              className={`sort-btn ${viewMode === 'explorer' ? 'active' : ''}`}
+              style={{
+                background: viewMode === 'explorer' ? 'var(--sb-accent)' : 'transparent',
+                color: viewMode === 'explorer' ? '#ffffff' : 'var(--sb-text)',
+                border: 'none',
+                padding: '3px 8px',
+                fontSize: '10px',
+                cursor: 'pointer',
+                fontWeight: viewMode === 'explorer' ? 'bold' : '500',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                transition: 'all 0.15s'
+              }}
+              onClick={() => openExplorer(null)}
+              title={lang === 'en' ? 'Folder Explorer View' : 'フォルダーカード展開表示'}
+            >
+              📁 {lang === 'en' ? 'Explorer' : '展開'}
+            </button>
+          </div>
+        </div>
+
+        {/* 下段: ソート切り替え と ツールアクションボタン群 */}
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px', flexWrap: 'wrap'}}>
+          <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
             <button 
               className={`sort-btn ${sortMode === 'date' ? 'active' : ''}`}
               style={{
                 background: sortMode === 'date' ? 'var(--sb-item-active)' : 'transparent', 
                 border: '1px solid var(--sb-border)', 
                 color: sortMode === 'date' ? 'var(--sb-accent)' : 'var(--sb-text)', 
-                padding: '3px 8px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
+                padding: '3px 7px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
                 fontWeight: sortMode === 'date' ? 'bold' : '600',
-                display: 'flex', alignItems: 'center', gap: '3px'
+                display: 'flex', alignItems: 'center', gap: '2px'
               }}
               onClick={() => {
                 if (sortMode === 'date') setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
@@ -464,9 +552,9 @@ export const Sidebar = () => {
                 background: sortMode === 'name' ? 'var(--sb-item-active)' : 'transparent', 
                 border: '1px solid var(--sb-border)', 
                 color: sortMode === 'name' ? 'var(--sb-accent)' : 'var(--sb-text)', 
-                padding: '3px 8px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
+                padding: '3px 7px', fontSize: '10px', borderRadius: '5px', cursor: 'pointer',
                 fontWeight: sortMode === 'name' ? 'bold' : '600',
-                display: 'flex', alignItems: 'center', gap: '3px'
+                display: 'flex', alignItems: 'center', gap: '2px'
               }}
               onClick={() => {
                 if (sortMode === 'name') setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -476,54 +564,55 @@ export const Sidebar = () => {
               {t.sidebar.sortName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
             </button>
           </div>
-        </div>
-        <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
-          <button 
-            onClick={() => setIsAddMode(!isAddMode)}
-            className={isAddMode ? 'active' : ''}
-            style={{
-              background: isAddMode ? 'var(--sb-item-active)' : 'transparent',
-              border: '1px solid var(--sb-border)', 
-              color: 'var(--sb-text)', opacity: 1, fontSize: '10px', fontWeight: 'bold', 
-              letterSpacing: '1px', padding: '3px 8px', borderRadius: '7px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
-            }}
-            title={t.main.newFolderPrompt}
-          >
-            ＋ <FolderIcon />
-          </button>
-          <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
-          <button 
-            id="highlight-toggle-btn" 
-            className={isHighlightOff ? 'off' : ''} 
-            onClick={toggleHighlight} 
-            title={lang === 'en' ? 'Toggle Keyword Highlight (ON/OFF)' : '本文ハイライト表示切替（ON/OFF）'}
-          >
-            <HighlightIcon /> HL
-          </button>
-          <button 
-            onClick={handleToggleAllGroups} 
-            title={isAnyGroupOpen() ? (lang === 'en' ? 'Collapse all folders' : '全て折りたたむ') : (lang === 'en' ? 'Expand all folders' : '全て展開')} 
-            className="header-icon-btn"
-            style={{
-              fontSize: '13px',
-              fontWeight: 'bold',
-              minWidth: '22px',
-              height: '22px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--sb-border)',
-              borderRadius: '5px',
-              color: 'var(--sb-text)',
-              opacity: 0.85
-            }}
-          >
-            {isAnyGroupOpen() ? '－' : '＋'}
-          </button>
-          <button id="refresh-btn" onClick={refreshFolder} title={lang === 'en' ? 'Refresh' : '更新'}>
-            <RefreshIcon className={refreshing ? 'spin' : ''} />
-          </button>
+
+          <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
+            <button 
+              onClick={() => setIsAddMode(!isAddMode)}
+              className={isAddMode ? 'active' : ''}
+              style={{
+                background: isAddMode ? 'var(--sb-item-active)' : 'transparent',
+                border: '1px solid var(--sb-border)', 
+                color: 'var(--sb-text)', opacity: 1, fontSize: '10px', fontWeight: 'bold', 
+                letterSpacing: '1px', padding: '3px 6px', borderRadius: '5px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'
+              }}
+              title={t.main.newFolderPrompt}
+            >
+              ＋ <FolderIcon />
+            </button>
+            <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
+            <button 
+              id="highlight-toggle-btn" 
+              className={isHighlightOff ? 'off' : ''} 
+              onClick={toggleHighlight} 
+              title={lang === 'en' ? 'Toggle Keyword Highlight (ON/OFF)' : '本文ハイライト表示切替（ON/OFF）'}
+            >
+              <HighlightIcon /> HL
+            </button>
+            <button 
+              onClick={handleToggleAllGroups} 
+              title={isAnyGroupOpen() ? (lang === 'en' ? 'Collapse all folders' : '全て折りたたむ') : (lang === 'en' ? 'Expand all folders' : '全て展開')} 
+              className="header-icon-btn"
+              style={{
+                fontSize: '13px',
+                fontWeight: 'bold',
+                minWidth: '22px',
+                height: '22px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid var(--sb-border)',
+                borderRadius: '5px',
+                color: 'var(--sb-text)',
+                opacity: 0.85
+              }}
+            >
+              {isAnyGroupOpen() ? '－' : '＋'}
+            </button>
+            <button id="refresh-btn" onClick={refreshFolder} title={lang === 'en' ? 'Refresh' : '更新'}>
+              <RefreshIcon className={refreshing ? 'spin' : ''} />
+            </button>
+          </div>
         </div>
       </div>
 

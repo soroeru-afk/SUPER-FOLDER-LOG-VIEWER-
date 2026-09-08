@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { THEMES, FONT_MAP, applyThemeStyle } from './theme';
+import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme } from './theme';
 
 export function applySettingsToDOM() {
   const fs = localStorage.getItem('lv_fontSize') || '15';
@@ -11,20 +11,23 @@ export function applySettingsToDOM() {
   const mg = localStorage.getItem('lv_msgGap') || '16';
   const hs = parseInt(localStorage.getItem('lv_headingSize') || '48');
   const sp = localStorage.getItem('lv_pagePad') || '56';
+  const cds = localStorage.getItem('lv_cardDigestSize') || '13';
 
   document.documentElement.style.setProperty('--text-font-size', fs + 'px');
   document.documentElement.style.setProperty('--text-font-weight', fw);
   document.documentElement.style.setProperty('--text-line-height', lh);
   document.documentElement.style.setProperty('--text-letter-spacing', ls + 'px');
+  document.documentElement.style.setProperty('--card-digest-size', cds + 'px');
   
   document.documentElement.style.setProperty('--card-padding-v', cp + 'px');
   document.documentElement.style.setProperty('--card-padding-h', Math.round(parseInt(cp) * 1.15) + 'px');
   document.documentElement.style.setProperty('--card-radius', cr + 'px');
   document.documentElement.style.setProperty('--msg-gap', mg + 'px');
 
+  const themeKey = localStorage.getItem('lv_theme') || 'mono';
   document.documentElement.style.setProperty('--sidebar-title-size', (localStorage.getItem('lv_sbTitleSize') || '13') + 'px');
   document.documentElement.style.setProperty('--sb-category-size', (localStorage.getItem('lv_sbCatSize') || '10') + 'px');
-  document.documentElement.style.setProperty('--sb-folder-color', localStorage.getItem('lv_folderColor') || '');
+  document.documentElement.style.setProperty('--sb-folder-color', getFolderColorForTheme(themeKey));
   document.documentElement.style.setProperty('--heading-font-size', hs + 'px');
   document.documentElement.style.setProperty('--heading-letter-spacing', hs >= 56 ? '-2px' : hs >= 48 ? '-1px' : '0px');
   document.documentElement.style.setProperty('--sb-width', (localStorage.getItem('lv_sbWidth') || '280') + 'px');
@@ -46,6 +49,7 @@ export function initSettings() {
     lv_fontSize: '15', lv_fontWeight: '400', lv_lineHeight: '1.8', lv_letterSpacing: '0',
     lv_sbTitleSize: '13', lv_sbCatSize: '10', lv_headingSize: '48', lv_sbWidth: '280', lv_contentWidth: '900', lv_vertCardHeight: '600',
     lv_cardPadding: '28', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '56',
+    lv_cardDigestSize: '13',
     lv_theme: 'mono', lv_font: 'meiryo', lv_folderColor: '#FBBF24'
   };
   Object.entries(defs).forEach(([k, v]) => {

@@ -5,6 +5,7 @@ import { ChevronsLeft, ChevronLeft, ChevronsRight, ChevronRight } from 'lucide-r
 import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
 import { MarkdownView } from './MarkdownView';
+import { FolderExplorer } from './FolderExplorer';
 
 export const MainContent = () => {
   const {
@@ -14,8 +15,9 @@ export const MainContent = () => {
     movePanelState, closeMovePanels, physicalFolders, execBulkMove, moveToNewFolder,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
-    paperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
-    isResuming, pendingResumeHandle, resumeSavedFolder, loading
+    paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+    isResuming, pendingResumeHandle, resumeSavedFolder, loading,
+    viewMode, openExplorer
   } = useAppContext();
 
   const [markPaletteOpen, setMarkPaletteOpen] = useState(false);
@@ -496,7 +498,7 @@ export const MainContent = () => {
   return (
     <div id="main" className={writingMode === 'vertical' && !isEditing ? "vertical-mode-active" : ""} onClick={closeMovePanels}>
       
-      {!currentFileObj && (
+      {!dirHandle && allFiles.length === 0 && (
         <div id="welcome">
           <div id="welcome-big">ARCHIVE</div>
           {isResuming || loading ? (
@@ -521,16 +523,63 @@ export const MainContent = () => {
         </div>
       )}
 
-      {currentFileObj && (
+      {(dirHandle || allFiles.length > 0) && viewMode === 'explorer' && (
+        <FolderExplorer />
+      )}
+
+      {(dirHandle || allFiles.length > 0) && viewMode === 'reader' && !currentFileObj && (
+        <div id="welcome">
+          <div id="welcome-big">ARCHIVE</div>
+          <p style={{ marginBottom: '16px', opacity: 0.75 }}>
+            {lang === 'en' ? 'Select a log file from the sidebar, or switch to Folder Explorer.' : 'サイドバーからログファイルを選択するか、展開モードを開いてください。'}
+          </p>
+          <button 
+            className="tool-btn primary" 
+            onClick={() => openExplorer(null)}
+            style={{ padding: '8px 20px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            📁 {lang === 'en' ? 'Open Folder Explorer' : '展開モード（エクスプローラー）を開く'}
+          </button>
+        </div>
+      )}
+
+      {(dirHandle || allFiles.length > 0) && viewMode === 'reader' && currentFileObj && (
         <>
           <div id="content-area" onScroll={handleContentScroll}>
             <div id="bg-date">{currentFileObj.date ? currentFileObj.date.slice(5).replace('-','.') : ''}</div>
           <div id="content-inner">
+            {/* パンくずリスト */}
+            <div className="content-breadcrumb">
+              <button className="content-breadcrumb-crumb" onClick={() => openExplorer(null)}>
+                📁 [ ALL DATA ]
+              </button>
+              {currentFileObj.category && currentFileObj.category.split('/').map((part, idx, arr) => {
+                const catPath = arr.slice(0, idx + 1).join('/');
+                return (
+                  <React.Fragment key={catPath}>
+                    <span className="content-breadcrumb-sep">›</span>
+                    <button className="content-breadcrumb-crumb" onClick={() => openExplorer(catPath)}>
+                      {part}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+              <span className="content-breadcrumb-sep">›</span>
+              <span className="content-breadcrumb-current">{currentFileObj.filename}</span>
+            </div>
+
             <div id="file-meta">{currentFileObj.filename}</div>
             <div id="file-heading" dangerouslySetInnerHTML={{__html: getHeadingHTML()}} />
 
             <div id="toolbar">
               <div className="toolbar-row">
+                <button 
+                  className="tool-btn" 
+                  onClick={() => openExplorer(currentFileObj.category || null)}
+                  title={lang === 'en' ? 'Open folder cards' : 'フォルダーカード一覧を開く'}
+                >
+                  <FolderIcon /> {lang === 'en' ? 'Explorer' : '一覧'}
+                </button>
                 <button className="tool-btn primary" onClick={isEditing ? () => saveFile(editValue) : toggleEdit}>
                   {isEditing ? <><SaveIcon /> {t.main.save}</> : <><EditIcon /> {t.main.edit}</>}
                 </button>
@@ -591,13 +640,91 @@ export const MainContent = () => {
                         VERT
                       </button>
                     </div>
-                    <button
-                      className={`tool-btn ${paperMode ? 'primary' : ''}`}
-                      onClick={togglePaperMode}
-                      title={paperMode ? 'ペーパーモード解除' : 'ペーパーモード（淡いベージュ紙調）'}
+                    <div 
+                      className="paper-mode-control" 
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        background: 'var(--btn-bg)', 
+                        border: '1px solid var(--btn-border)', 
+                        borderRadius: '6px', 
+                        overflow: 'hidden',
+                        height: '26px',
+                        boxSizing: 'border-box'
+                      }}
                     >
-                      {paperMode ? 'PAPER / OFF' : 'PAPER / ON'}
-                    </button>
+                      <button
+                        className={`tool-btn ${paperMode ? 'paper-btn-on' : ''}`}
+                        onClick={togglePaperMode}
+                        title={
+                          paperMode 
+                            ? (lang === 'en' ? 'Paper Mode: ON (Click to turn OFF)' : 'ペーパーモード: ON（クリックで通常テーマ表示に戻す）') 
+                            : (lang === 'en' ? 'Paper Mode: OFF (Click to turn ON)' : 'ペーパーモード: OFF（クリックでONにする）')
+                        }
+                        style={{
+                          height: '100%',
+                          borderRadius: 0,
+                          border: 'none',
+                          borderRight: '1px solid var(--btn-border)',
+                          padding: '0 8px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          background: paperMode ? '#4B5563' : 'transparent',
+                          color: paperMode ? '#FFFFFF' : 'var(--btn-text)',
+                          transition: 'all 0.15s',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {paperMode ? 'PAPER ON' : 'PAPER OFF'}
+                      </button>
+                      <button
+                        className={`tool-btn ${paperColor === 'beige' && paperMode ? 'paper-sub-active' : ''}`}
+                        onClick={() => {
+                          setPaperColor('beige');
+                          if (!paperMode) setPaperMode(true);
+                        }}
+                        title={lang === 'en' ? 'Warm Beige Paper' : 'ベージュペーパー（淡いクラフト紙調）'}
+                        style={{
+                          height: '100%',
+                          borderRadius: 0,
+                          border: 'none',
+                          borderRight: '1px solid var(--btn-border)',
+                          padding: '0 7px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          background: (paperColor === 'beige' && paperMode) ? '#64748B' : 'transparent',
+                          color: (paperColor === 'beige' && paperMode) ? '#FFFFFF' : 'var(--btn-text)',
+                          opacity: paperMode ? 1 : 0.42,
+                          transition: 'all 0.15s',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        BEIGE
+                      </button>
+                      <button
+                        className={`tool-btn ${paperColor === 'white' && paperMode ? 'paper-sub-active' : ''}`}
+                        onClick={() => {
+                          setPaperColor('white');
+                          if (!paperMode) setPaperMode(true);
+                        }}
+                        title={lang === 'en' ? 'Clean White Paper (Neutral table)' : 'ホワイトペーパー（白地＆テーブル明瞭調）'}
+                        style={{
+                          height: '100%',
+                          borderRadius: 0,
+                          border: 'none',
+                          padding: '0 7px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          background: (paperColor === 'white' && paperMode) ? '#64748B' : 'transparent',
+                          color: (paperColor === 'white' && paperMode) ? '#FFFFFF' : 'var(--btn-text)',
+                          opacity: paperMode ? 1 : 0.42,
+                          transition: 'all 0.15s',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        WHITE
+                      </button>
+                    </div>
                     <button
                       className={`tool-btn ${!hasPrevFile ? 'disabled-nav' : ''}`}
                       onClick={goToPrevFile}

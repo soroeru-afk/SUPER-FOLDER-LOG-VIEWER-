@@ -23,6 +23,11 @@ export interface AppState {
   refreshing: boolean;
   sortMode: 'date' | 'name';
   sortDirection: 'asc' | 'desc';
+  viewMode: 'reader' | 'explorer';
+  setViewMode: (mode: 'reader' | 'explorer') => void;
+  explorerCategory: string | null;
+  setExplorerCategory: (cat: string | null) => void;
+  openExplorer: (catName?: string | null) => void;
 
   setSortMode: (mode: 'date' | 'name') => void;
   setSortDirection: (dir: 'asc' | 'desc') => void;
@@ -65,6 +70,9 @@ export interface AppState {
   writingMode: 'horizontal' | 'vertical';
   setWritingMode: (mode: 'horizontal' | 'vertical') => void;
   paperMode: boolean;
+  paperColor: 'beige' | 'white';
+  setPaperColor: (color: 'beige' | 'white') => void;
+  setPaperMode: (val: boolean) => void;
   togglePaperMode: () => void;
   fileMarks: Record<string, string>;
   setFileMark: (filename: string, mark: string) => void;
@@ -124,6 +132,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [sortDirection, setSortDirectionState] = useState<'asc' | 'desc'>(
     () => (localStorage.getItem('lv_sortDirection') as 'asc' | 'desc') || 'desc'
   );
+
+  const [viewMode, setViewMode] = useState<'reader' | 'explorer'>('explorer');
+  const [explorerCategory, setExplorerCategory] = useState<string | null>(null);
+
+  const openExplorer = (catName: string | null = null) => {
+    setExplorerCategory(catName);
+    setViewMode('explorer');
+  };
+
   const [writingMode, setWritingModeState] = useState<'horizontal' | 'vertical'>(
     () => (localStorage.getItem('lv_writingMode') as 'horizontal' | 'vertical') || 'horizontal'
   );
@@ -137,6 +154,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return localStorage.getItem('lv_paperMode') === '1';
   });
 
+  const [paperColor, setPaperColorState] = useState<'beige' | 'white'>(() => {
+    return (localStorage.getItem('lv_paperColor') as 'beige' | 'white') || 'beige';
+  });
+
+  const setPaperColor = (color: 'beige' | 'white') => {
+    setPaperColorState(color);
+    localStorage.setItem('lv_paperColor', color);
+  };
+
+  const setPaperMode = (val: boolean) => {
+    setPaperModeState(val);
+    localStorage.setItem('lv_paperMode', val ? '1' : '0');
+  };
+
   const togglePaperMode = () => {
     setPaperModeState(prev => {
       const next = !prev;
@@ -146,12 +177,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    document.body.classList.remove('paper-mode', 'paper-mode-beige', 'paper-mode-white');
     if (paperMode) {
       document.body.classList.add('paper-mode');
-    } else {
-      document.body.classList.remove('paper-mode');
+      if (paperColor === 'white') {
+        document.body.classList.add('paper-mode-white');
+      } else {
+        document.body.classList.add('paper-mode-beige');
+      }
     }
-  }, [paperMode]);
+  }, [paperMode, paperColor]);
 
   const [fileMarks, setFileMarks] = useState<Record<string, string>>(() => {
     try {
@@ -626,6 +661,10 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setCurrentFileObj(f);
     setCurrentContent(f.content);
     setIsEditing(false);
+    setViewMode('reader');
+    if (f.category) {
+      setExplorerCategory(f.category);
+    }
     try {
       localStorage.setItem('lv_lastFile', JSON.stringify({ filename: f.filename, category: f.category }));
     } catch (e) {}
@@ -916,13 +955,14 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       currentFileObj, currentContent, isEditing, selectedFiles, selectedFileMap, isSelectMode,
       settingsOpen, isHighlightOff, categoryOpenState, movePanelState, loading, refreshing,
       sortMode, sortDirection, setSortMode, setSortDirection,
+      viewMode, setViewMode, explorerCategory, setExplorerCategory, openExplorer,
       openFolder, reopenFolder, refreshFolder, setSearchQuery, clearSearch, removeSearchQuery,
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode,
-      paperMode, togglePaperMode, fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+      paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
       isResuming, pendingResumeHandle, resumeSavedFolder
     }}>
       {children}
