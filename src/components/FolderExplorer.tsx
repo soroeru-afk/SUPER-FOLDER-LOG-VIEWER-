@@ -21,10 +21,24 @@ export const FolderExplorer: React.FC = () => {
     physicalFolders,
     viewMode,
     setViewMode,
-    currentFileObj
+    currentFileObj,
+    loading,
+    isResuming
   } = useAppContext();
 
   const [filterText, setFilterText] = useState('');
+  const [layoutMode, setLayoutMode] = useState<'card' | 'list'>(() => {
+    return (localStorage.getItem('sf_explorer_layout') as 'card' | 'list') || 'card';
+  });
+
+  const handleSetLayoutMode = (mode: 'card' | 'list') => {
+    setLayoutMode(mode);
+    try {
+      localStorage.setItem('sf_explorer_layout', mode);
+    } catch {
+      // ignore
+    }
+  };
 
   // 本文ダイジェスト（プレビュー）の生成用ヘルパー
   const getDigestSnippet = (content: string, maxLen = 130) => {
@@ -291,6 +305,24 @@ export const FolderExplorer: React.FC = () => {
                 {t.sidebar.sortName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
               </button>
             </div>
+
+            {/* 表示形式（カード / リスト）切り替え */}
+            <div className="explorer-layout-group" role="group" aria-label="Layout view">
+              <button 
+                className={`explorer-layout-btn ${layoutMode === 'card' ? 'active' : ''}`}
+                onClick={() => handleSetLayoutMode('card')}
+                title={lang === 'en' ? 'Card Grid View (4 columns)' : 'カード型表示（グリッド）'}
+              >
+                <span style={{ fontSize: '12px' }}>⊞</span> {lang === 'en' ? 'CARD' : 'カード'}
+              </button>
+              <button 
+                className={`explorer-layout-btn ${layoutMode === 'list' ? 'active' : ''}`}
+                onClick={() => handleSetLayoutMode('list')}
+                title={lang === 'en' ? 'Horizontal List View' : 'リスト型表示（横長1行）'}
+              >
+                <span style={{ fontSize: '12px' }}>☰</span> {lang === 'en' ? 'LIST' : 'リスト'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -341,18 +373,34 @@ export const FolderExplorer: React.FC = () => {
           </section>
         )}
 
-        {/* 04. ログファイル・テキストのダイジェストカード一覧 */}
+        {/* 04. ログファイル・テキストのダイジェストカード/リスト一覧 */}
         <section className="explorer-section">
-          <div className="explorer-section-title">
-            <span className="section-icon">📄</span>
-            <span>LOGS / ARTICLES ({filesInCurrentFolder.length})</span>
+          <div className="explorer-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="section-icon">📄</span>
+              <span>LOGS / ARTICLES ({filesInCurrentFolder.length})</span>
+            </div>
+            <div className="explorer-view-pill">
+              <span className="explorer-view-indicator">
+                {layoutMode === 'card' ? (lang === 'en' ? '⊞ Grid Mode' : '⊞ カード型') : (lang === 'en' ? '☰ List Mode' : '☰ リスト型')}
+              </span>
+            </div>
           </div>
 
           {filesInCurrentFolder.length === 0 ? (
             <div className="explorer-empty-box">
-              <p>{lang === 'en' ? 'No files in this directory' : 'このフォルダーにはファイルがありません'}</p>
+              {loading || isResuming ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '24px 0' }}>
+                  <span className="dice-spinner-mini" style={{ fontSize: '24px' }}>🎲</span>
+                  <span style={{ fontSize: '13px', opacity: 0.85 }}>
+                    {lang === 'en' ? 'Loading folder logs...' : 'フォルダーを読み込み中です...'}
+                  </span>
+                </div>
+              ) : (
+                <p>{lang === 'en' ? 'No files in this directory' : 'このフォルダーにはファイルがありません'}</p>
+              )}
             </div>
-          ) : (
+          ) : layoutMode === 'card' ? (
             <div className="explorer-files-grid">
               {filesInCurrentFolder.map(f => {
                 const mark = fileMarks[f.filename];
@@ -401,6 +449,65 @@ export const FolderExplorer: React.FC = () => {
                       <span className="article-open-label">
                         {lang === 'en' ? 'Open ➔' : '開く ➔'}
                       </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* 横長リスト型（イメージビュアーのようなスリム＆高一覧性ビュー） */
+            <div className="explorer-files-list">
+              {filesInCurrentFolder.map(f => {
+                const mark = fileMarks[f.filename];
+                const digest = getDigestSnippet(f.content, 90);
+                const charCount = f.content ? f.content.length : 0;
+
+                return (
+                  <div 
+                    key={f.filename}
+                    className="article-list-row"
+                    onClick={() => selectFile(f)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter') selectFile(f); }}
+                  >
+                    <div className="article-list-left">
+                      <div className="article-list-icon-box">
+                        <span className="article-list-doc-icon">📄</span>
+                      </div>
+                      <div className="article-list-content">
+                        <div className="article-list-title-line">
+                          {mark && <span className="article-mark-badge" style={{ marginRight: '6px' }}>{mark}</span>}
+                          <span className="article-list-title" title={f.title || f.filename}>
+                            {f.title || f.filename}
+                          </span>
+                        </div>
+                        <div className="article-list-sub-line">
+                          <span className="article-list-filename" title={f.filename}>
+                            {f.filename}
+                          </span>
+                          {digest && (
+                            <>
+                              <span className="article-list-dot">•</span>
+                              <span className="article-list-snippet">
+                                {digest}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="article-list-right">
+                      {f.date && (
+                        <span className="article-list-date" title="日付">
+                          {f.date}
+                        </span>
+                      )}
+                      <span className="article-list-chars" title="文字数">
+                        {charCount.toLocaleString()} {lang === 'en' ? 'chars' : '文字'}
+                      </span>
+                      <span className="article-list-open-arrow">➔</span>
                     </div>
                   </div>
                 );

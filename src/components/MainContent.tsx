@@ -495,10 +495,12 @@ export const MainContent = () => {
 
   const [newFolderName, setNewFolderName] = useState('');
 
+  const isInitialLoading = (isResuming || loading) && allFiles.length === 0;
+
   return (
     <div id="main" className={writingMode === 'vertical' && !isEditing ? "vertical-mode-active" : ""} onClick={closeMovePanels}>
       
-      {!dirHandle && allFiles.length === 0 && (
+      {((!dirHandle && allFiles.length === 0) || isInitialLoading) && (
         <div id="welcome">
           <div id="welcome-big">ARCHIVE</div>
           {isResuming || loading ? (
@@ -523,11 +525,11 @@ export const MainContent = () => {
         </div>
       )}
 
-      {(dirHandle || allFiles.length > 0) && viewMode === 'explorer' && (
+      {!isInitialLoading && (dirHandle || allFiles.length > 0) && viewMode === 'explorer' && (
         <FolderExplorer />
       )}
 
-      {(dirHandle || allFiles.length > 0) && viewMode === 'reader' && !currentFileObj && (
+      {!isInitialLoading && (dirHandle || allFiles.length > 0) && viewMode === 'reader' && !currentFileObj && (
         <div id="welcome">
           <div id="welcome-big">ARCHIVE</div>
           <p style={{ marginBottom: '16px', opacity: 0.75 }}>

@@ -136,7 +136,7 @@ export const SettingsPanel = () => {
             </div>
             <div className="setting-row">
               <div className="setting-label">
-                {lang === 'en' ? 'Card Digest Text Size' : 'カードダイジェスト文字サイズ'}{' '}
+                {lang === 'en' ? 'Card / List Text Size' : 'カード・リスト文字サイズ'}{' '}
                 <span id="card-digest-size-val">{vals.cardDigestSize}px</span>
               </div>
               <input 
