@@ -425,7 +425,7 @@ export const MainContent = () => {
             <div 
               className="vertical-scroll-content" 
               ref={scrollContainerRef} 
-              style={{ padding: '0 2px' }}
+              
               onWheel={e => {
                 if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
                   e.currentTarget.scrollLeft -= e.deltaY;
@@ -580,7 +580,7 @@ export const MainContent = () => {
                       </button>
                     </div>
 
-                    <div className="layout-toggle-group" style={{ display: 'flex', gap: '4px' }}>
+                    <div className="layout-toggle-group" style={{ display: 'inline-flex', gap: '3px' }}>
                       <button
                         className={`tool-btn ${writingMode === 'horizontal' ? 'primary' : ''}`}
                         onClick={() => setWritingMode('horizontal')}
@@ -617,10 +617,10 @@ export const MainContent = () => {
                     >
                       NEXT
                     </button>
-                    <button id="move-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'single')}>
+                    <button id="move-btn" style={{display:'inline-flex'}} onClick={e => openMovePanel(e, 'single')}>
                       <MoveIcon /> {t.main.moveTo}
                     </button>
-                    <button id="folder-edit-btn" style={{display:'flex'}} onClick={e => openMovePanel(e, 'folder')}>
+                    <button id="folder-edit-btn" style={{display:'inline-flex'}} onClick={e => openMovePanel(e, 'folder')}>
                       <FolderIcon /> {t.main.folderEdit}
                     </button>
 
@@ -692,7 +692,7 @@ export const MainContent = () => {
 
                     <button 
                       id="rename-file-btn" 
-                      style={{display:'flex'}} 
+                      style={{display:'inline-flex'}} 
                       onClick={() => {
                         if (!currentFileObj) return;
                         setRenameInputVal(currentFileObj.filename);
@@ -701,35 +701,40 @@ export const MainContent = () => {
                     >
                       <EditIcon /> {t.main.rename}
                     </button>
+                    <button id="delete-file-btn" style={{display:'inline-flex'}} onClick={deleteCurrentFile}>
+                      <DeleteIcon /> {t.main.delete}
+                    </button>
+
+                    {(currentFileObj.category || dirHandle) && (
+                      <div id="location-badge" style={{display: 'inline-flex'}}>
+                        <FolderIcon /> {currentFileObj.category || dirHandle?.name}
+                        {!currentFileObj.category && <span style={{opacity:0.5,fontWeight:'normal',fontSize:'9px'}}> {t.main.rootPath}</span>}
+                      </div>
+                    )}
+
+                    <button 
+                      id="play-audio-btn" 
+                      className={isPlayingAudio ? 'playing' : ''}
+                      style={{display:'inline-flex'}} 
+                      onClick={() => {
+                        const isSpeaking = window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio;
+                        if (isSpeaking) {
+                          stopAudio();
+                        } else {
+                          const lines = currentContent ? currentContent.split('\n') : [];
+                          playFromIndex(lines, 0);
+                        }
+                      }}
+                      title={isPlayingAudio ? '読み上げ停止' : '音声読み上げ再生'}
+                    >
+                      {isPlayingAudio ? (lang === 'en' ? '■ STOP' : '■ 停止') : (lang === 'en' ? '▶ VOICE' : '▶ 音声再生')}
+                    </button>
+
                   </>
                 )}
               </div>
 
-              {!isEditing && (
-                <div className="toolbar-row toolbar-sub-row">
-                  <button id="play-audio-btn" style={{display:'flex', minWidth: '94px', justifyContent: 'center'}} onClick={() => {
-                    const isSpeaking = window.speechSynthesis.speaking || window.speechSynthesis.pending || isPlayingAudio;
-                    if (isSpeaking) {
-                      stopAudio();
-                    } else {
-                      const lines = currentContent ? currentContent.split('\n') : [];
-                      playFromIndex(lines, 0);
-                    }
-                  }}>
-                    {isPlayingAudio ? (lang === 'en' ? '■ Stop\u00A0\u00A0' : '■ 停止') : `▶ ${t.settings.audioOpen}`}
-                  </button>
-                  <button id="delete-file-btn" style={{display:'flex'}} onClick={deleteCurrentFile}>
-                    <DeleteIcon /> {t.main.delete}
-                  </button>
-
-                  {(currentFileObj.category || dirHandle) && (
-                    <div id="location-badge" style={{display: 'flex'}}>
-                      <FolderIcon /> {currentFileObj.category || dirHandle?.name}
-                      {!currentFileObj.category && <span style={{opacity:0.5,fontWeight:'normal',fontSize:'10px'}}> {t.main.rootPath}</span>}
-                    </div>
-                  )}
-                </div>
-              )}
+              
             </div>
 
             {writingMode === 'vertical' && !isEditing ? (
