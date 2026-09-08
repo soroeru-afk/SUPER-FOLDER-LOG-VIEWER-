@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
 import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename } from './utils';
+import { getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme } from './theme';
 
 export interface AppState {
   dirHandle: any | null;
@@ -84,6 +85,7 @@ export interface AppState {
   setPaperColor: (color: 'beige' | 'white') => void;
   setPaperMode: (val: boolean) => void;
   togglePaperMode: () => void;
+  loadPaperForTheme: (themeKey: string) => void;
   fileMarks: Record<string, string>;
   setFileMark: (filename: string, mark: string) => void;
   setBulkFileMarks: (filenames: string[], mark: string) => void;
@@ -270,31 +272,59 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('lv_writingMode', mode);
   };
 
+  const getActiveThemeKey = () => {
+    const t = localStorage.getItem('lv_theme');
+    return (t === 'ocean' ? 'dark' : t) || 'mono';
+  };
+
   const [paperMode, setPaperModeState] = useState<boolean>(() => {
-    return localStorage.getItem('lv_paperMode') === '1';
+    const theme = (localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono';
+    return getPaperSettingsForTheme(theme).mode;
   });
 
   const [paperColor, setPaperColorState] = useState<'beige' | 'white'>(() => {
-    return (localStorage.getItem('lv_paperColor') as 'beige' | 'white') || 'beige';
+    const theme = (localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono';
+    return getPaperSettingsForTheme(theme).color;
   });
 
   const setPaperColor = (color: 'beige' | 'white') => {
     setPaperColorState(color);
-    localStorage.setItem('lv_paperColor', color);
+    const theme = getActiveThemeKey();
+    setPaperColorForTheme(theme, color);
   };
 
   const setPaperMode = (val: boolean) => {
     setPaperModeState(val);
-    localStorage.setItem('lv_paperMode', val ? '1' : '0');
+    const theme = getActiveThemeKey();
+    setPaperModeForTheme(theme, val);
   };
 
   const togglePaperMode = () => {
     setPaperModeState(prev => {
       const next = !prev;
-      localStorage.setItem('lv_paperMode', next ? '1' : '0');
+      const theme = getActiveThemeKey();
+      setPaperModeForTheme(theme, next);
       return next;
     });
   };
+
+  const loadPaperForTheme = (themeKey: string) => {
+    const ps = getPaperSettingsForTheme(themeKey);
+    setPaperModeState(ps.mode);
+    setPaperColorState(ps.color);
+  };
+
+  // テーマ切り替え時に、そのテーマ専用のペーパー設定（ON/OFF、カラー）へ自動切り替え
+  useEffect(() => {
+    const syncThemePaper = () => {
+      const theme = getActiveThemeKey();
+      const ps = getPaperSettingsForTheme(theme);
+      setPaperModeState(ps.mode);
+      setPaperColorState(ps.color);
+    };
+    window.addEventListener('settingsChanged', syncThemePaper);
+    return () => window.removeEventListener('settingsChanged', syncThemePaper);
+  }, []);
 
   useEffect(() => {
     document.body.classList.remove('paper-mode', 'paper-mode-beige', 'paper-mode-white');
@@ -1213,7 +1243,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode,
-      paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+      paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, loadPaperForTheme, fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
       isResuming, pendingResumeHandle, resumeSavedFolder
     }}>
       {children}

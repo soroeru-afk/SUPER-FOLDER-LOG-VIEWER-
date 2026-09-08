@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderColorForTheme } from '../theme';
+import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderColorForTheme, getPaperSettingsForTheme } from '../theme';
 import { applySettingsToDOM } from '../settingsSync';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, paperMode, setPaperMode, paperColor, setPaperColor } = useAppContext();
+  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, paperMode, setPaperMode, paperColor, setPaperColor, loadPaperForTheme } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +50,7 @@ export const SettingsPanel = () => {
       const themeColor = getFolderColorForTheme(val);
       setVals(prev => ({ ...prev, theme: val, folderColor: themeColor }));
       applySettingsToDOM();
+      loadPaperForTheme(val);
       window.dispatchEvent(new Event('settingsChanged'));
       return;
     }
@@ -420,6 +421,11 @@ export const SettingsPanel = () => {
                     WHITE
                   </button>
                 </div>
+              </div>
+              <div style={{ fontSize: '10px', opacity: 0.65, marginTop: '5px' }}>
+                {lang === 'en'
+                  ? 'Paper mode (ON/OFF and color) is saved and remembered individually for each theme.'
+                  : '各テーマごとにペーパーのON/OFFおよび用紙色が自動記憶・維持されます。'}
               </div>
             </div>
           </div>

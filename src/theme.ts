@@ -75,6 +75,37 @@ export function setFolderColorForTheme(themeKey: string, color: string) {
   localStorage.setItem('lv_folderColor', color);
 }
 
+export function getPaperSettingsForTheme(themeKey: string): { mode: boolean; color: 'beige' | 'white' } {
+  if (themeKey === 'ocean') themeKey = 'dark';
+  const savedMode = localStorage.getItem(`lv_paperMode_${themeKey}`);
+  const savedColor = localStorage.getItem(`lv_paperColor_${themeKey}`);
+
+  // 各テーマ個別の設定があればそれを適用。未設定のテーマは必ずペーパーOFF（通常テーマ色）で開始
+  const mode = savedMode !== null ? savedMode === '1' : false;
+  const color = (savedColor === 'white' || savedColor === 'beige') ? (savedColor as 'beige' | 'white') : 'beige';
+
+  return { mode, color };
+}
+
+export function setPaperModeForTheme(themeKey: string, mode: boolean) {
+  if (themeKey === 'ocean') themeKey = 'dark';
+  localStorage.setItem(`lv_paperMode_${themeKey}`, mode ? '1' : '0');
+  localStorage.setItem('lv_paperMode', mode ? '1' : '0');
+}
+
+export function setPaperColorForTheme(themeKey: string, color: 'beige' | 'white') {
+  if (themeKey === 'ocean') themeKey = 'dark';
+  localStorage.setItem(`lv_paperColor_${themeKey}`, color);
+  localStorage.setItem('lv_paperColor', color);
+}
+
+export function setPaperSettingsForTheme(themeKey: string, mode: boolean, color?: 'beige' | 'white') {
+  setPaperModeForTheme(themeKey, mode);
+  if (color) {
+    setPaperColorForTheme(themeKey, color);
+  }
+}
+
 export function applyThemeStyle(key: string) {
   if (key === 'ocean') key = 'dark';
   const t = THEMES[key] || THEMES.mono;
