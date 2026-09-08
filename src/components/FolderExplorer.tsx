@@ -19,8 +19,6 @@ export const FolderExplorer: React.FC = () => {
     lang,
     createNewFile,
     physicalFolders,
-    viewMode,
-    setViewMode,
     currentFileObj,
     loading,
     isResuming
@@ -234,15 +232,6 @@ export const FolderExplorer: React.FC = () => {
           </div>
 
           <div className="explorer-actions">
-            {/* 通常モード（リーダー）への切り替えボタン */}
-            <button 
-              className="explorer-btn" 
-              onClick={() => setViewMode('reader')} 
-              title={lang === 'en' ? 'Switch to Normal/Reader View' : '通常（リーダー）表示に切り替え'}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-            >
-              📖 {currentFileObj ? (lang === 'en' ? 'Reader' : 'リーダー') : (lang === 'en' ? 'Normal View' : '通常モード')}
-            </button>
             {explorerCategory && (
               <button className="explorer-btn" onClick={handleGoUp} title="1つ上のフォルダーへ">
                 ⬆ {lang === 'en' ? 'Up' : '上の階層'}

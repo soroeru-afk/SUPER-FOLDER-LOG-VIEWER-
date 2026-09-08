@@ -17,7 +17,8 @@ export const Sidebar = () => {
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
     fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder,
-    openExplorer, viewMode, setViewMode
+    openExplorer, viewMode, setViewMode,
+    canGoBack, canGoForward, goBack, goForward
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -477,51 +478,56 @@ export const Sidebar = () => {
       </div>
 
       <div id="file-list-header" style={{display: dirHandle ? 'flex' : 'none', flexDirection: 'column', gap: '8px', padding: '8px 12px'}}>
-        {/* 上段: ファイル件数 と 表示モード切替（リーダー / 展開） */}
+        {/* 上段: ファイル件数 と 閲覧状態の戻る・進む（Back / Next） */}
         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px'}}>
           <span id="file-count" style={{textTransform:'uppercase', fontSize: '11px', fontWeight: 'bold', opacity: 0.85, letterSpacing: '0.5px'}}>
             {allFiles.length} FILES
           </span>
           <div style={{display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--sb-border)', background: 'var(--sb-item-hover)'}}>
             <button 
-              className={`sort-btn ${viewMode === 'reader' ? 'active' : ''}`}
+              className="nav-history-btn"
+              disabled={!canGoBack}
+              onClick={goBack}
+              title={lang === 'en' ? 'Back (previous state) [Alt+←]' : '戻る（直前の状態へ） [Alt+←]'}
               style={{
-                background: viewMode === 'reader' ? 'var(--sb-accent)' : 'transparent',
-                color: viewMode === 'reader' ? '#ffffff' : 'var(--sb-text)',
+                background: 'transparent',
+                color: canGoBack ? 'var(--sb-text)' : 'var(--sb-muted)',
+                opacity: canGoBack ? 1 : 0.4,
                 border: 'none',
-                padding: '3px 8px',
-                fontSize: '10px',
-                cursor: 'pointer',
-                fontWeight: viewMode === 'reader' ? 'bold' : '500',
+                borderRight: '1px solid var(--sb-border)',
+                padding: '4px 9px',
+                fontSize: '11px',
+                cursor: canGoBack ? 'pointer' : 'not-allowed',
+                fontWeight: '600',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '3px',
+                gap: '4px',
                 transition: 'all 0.15s'
               }}
-              onClick={() => setViewMode('reader')}
-              title={lang === 'en' ? 'Normal Reader View' : '通常リーダー表示'}
             >
-              📖 {lang === 'en' ? 'Reader' : 'リーダー'}
+              ◀ {lang === 'en' ? 'Back' : '戻る'}
             </button>
             <button 
-              className={`sort-btn ${viewMode === 'explorer' ? 'active' : ''}`}
+              className="nav-history-btn"
+              disabled={!canGoForward}
+              onClick={goForward}
+              title={lang === 'en' ? 'Next (forward state) [Alt+→]' : '進む（次の状態へ） [Alt+→]'}
               style={{
-                background: viewMode === 'explorer' ? 'var(--sb-accent)' : 'transparent',
-                color: viewMode === 'explorer' ? '#ffffff' : 'var(--sb-text)',
+                background: 'transparent',
+                color: canGoForward ? 'var(--sb-text)' : 'var(--sb-muted)',
+                opacity: canGoForward ? 1 : 0.4,
                 border: 'none',
-                padding: '3px 8px',
-                fontSize: '10px',
-                cursor: 'pointer',
-                fontWeight: viewMode === 'explorer' ? 'bold' : '500',
+                padding: '4px 9px',
+                fontSize: '11px',
+                cursor: canGoForward ? 'pointer' : 'not-allowed',
+                fontWeight: '600',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '3px',
+                gap: '4px',
                 transition: 'all 0.15s'
               }}
-              onClick={() => openExplorer(null)}
-              title={lang === 'en' ? 'Folder Explorer View' : 'フォルダーカード展開表示'}
             >
-              📁 {lang === 'en' ? 'Explorer' : '展開'}
+              {lang === 'en' ? 'Next' : '進む'} ▶
             </button>
           </div>
         </div>

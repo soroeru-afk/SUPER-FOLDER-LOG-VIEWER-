@@ -28,6 +28,12 @@ export interface AppState {
   explorerCategory: string | null;
   setExplorerCategory: (cat: string | null) => void;
   openExplorer: (catName?: string | null) => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
+  goBackExplorer: () => void;
+  goForwardExplorer: () => void;
 
   setSortMode: (mode: 'date' | 'name') => void;
   setSortDirection: (dir: 'asc' | 'desc') => void;
@@ -136,10 +142,120 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [viewMode, setViewMode] = useState<'reader' | 'explorer'>('explorer');
   const [explorerCategory, setExplorerCategory] = useState<string | null>(null);
 
-  const openExplorer = (catName: string | null = null) => {
+  // フォルダー階層＆ファイル閲覧の統合移動履歴（Undo / Redo / Back / Next）
+  type NavItem = 
+    | { type: 'explorer'; category: string | null }
+    | { type: 'file'; filename: string; category: string | null; fileObj?: FileObj };
+
+  const isSameNavItem = (a: NavItem | undefined, b: NavItem): boolean => {
+    if (!a) return false;
+    if (a.type !== b.type) return false;
+    if (a.type === 'explorer' && b.type === 'explorer') {
+      return a.category === b.category;
+    }
+    if (a.type === 'file' && b.type === 'file') {
+      return a.filename === b.filename && a.category === b.category;
+    }
+    return false;
+  };
+
+  const [navState, setNavState] = useState<{ history: NavItem[]; index: number }>({
+    history: [{ type: 'explorer', category: null }],
+    index: 0
+  });
+
+  const pushNav = (item: NavItem) => {
+    setNavState(prev => {
+      const current = prev.history[prev.index];
+      if (isSameNavItem(current, item)) {
+        return prev;
+      }
+      const newHistory = prev.history.slice(0, prev.index + 1);
+      newHistory.push(item);
+      return {
+        history: newHistory,
+        index: newHistory.length - 1
+      };
+    });
+  };
+
+  const openExplorer = (catName: string | null = null, fromNav = false) => {
     setExplorerCategory(catName);
     setViewMode('explorer');
+    if (!fromNav) {
+      pushNav({ type: 'explorer', category: catName });
+    }
   };
+
+  const applyNavItem = (item: NavItem) => {
+    if (item.type === 'explorer') {
+      setExplorerCategory(item.category);
+      setViewMode('explorer');
+    } else if (item.type === 'file') {
+      const target = item.fileObj || allFiles.find(
+        f => f.filename === item.filename && (item.category ? f.category === item.category : true)
+      );
+      if (target) {
+        setCurrentFileObj(target);
+        setCurrentContent(target.content);
+        setIsEditing(false);
+        setViewMode('reader');
+        if (target.category) {
+          setExplorerCategory(target.category);
+        }
+      } else {
+        setExplorerCategory(item.category);
+        setViewMode('explorer');
+      }
+    }
+  };
+
+  const canGoBack = navState.index > 0;
+  const canGoForward = navState.index < navState.history.length - 1;
+
+  const goBack = () => {
+    if (navState.index > 0) {
+      const newIndex = navState.index - 1;
+      const target = navState.history[newIndex];
+      setNavState(prev => ({ ...prev, index: newIndex }));
+      applyNavItem(target);
+    }
+  };
+
+  const goForward = () => {
+    if (navState.index < navState.history.length - 1) {
+      const newIndex = navState.index + 1;
+      const target = navState.history[newIndex];
+      setNavState(prev => ({ ...prev, index: newIndex }));
+      applyNavItem(target);
+    }
+  };
+
+  const goBackExplorer = goBack;
+  const goForwardExplorer = goForward;
+
+  // キーボードショートカット（Alt+←で戻る、Alt+→で進む）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if ((e.altKey && e.key === 'ArrowLeft') || ((e.metaKey || e.ctrlKey) && e.key === '[')) {
+        if (canGoBack) {
+          e.preventDefault();
+          goBack();
+        }
+      } else if ((e.altKey && e.key === 'ArrowRight') || ((e.metaKey || e.ctrlKey) && e.key === ']')) {
+        if (canGoForward) {
+          e.preventDefault();
+          goForward();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canGoBack, canGoForward, navState, allFiles]);
 
   const [writingMode, setWritingModeState] = useState<'horizontal' | 'vertical'>(
     () => (localStorage.getItem('lv_writingMode') as 'horizontal' | 'vertical') || 'horizontal'
@@ -657,7 +773,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setSearchQuery(newVal);
   };
 
-  const selectFile = (f: FileObj) => {
+  const selectFile = (f: FileObj, fromNav = false) => {
     setCurrentFileObj(f);
     setCurrentContent(f.content);
     setIsEditing(false);
@@ -668,6 +784,9 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     try {
       localStorage.setItem('lv_lastFile', JSON.stringify({ filename: f.filename, category: f.category }));
     } catch (e) {}
+    if (!fromNav) {
+      pushNav({ type: 'file', filename: f.filename, category: f.category || null, fileObj: f });
+    }
   };
 
   const toggleEdit = () => setIsEditing(!isEditing);
@@ -956,6 +1075,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       settingsOpen, isHighlightOff, categoryOpenState, movePanelState, loading, refreshing,
       sortMode, sortDirection, setSortMode, setSortDirection,
       viewMode, setViewMode, explorerCategory, setExplorerCategory, openExplorer,
+      canGoBack, canGoForward, goBack, goForward, goBackExplorer, goForwardExplorer,
       openFolder, reopenFolder, refreshFolder, setSearchQuery, clearSearch, removeSearchQuery,
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,

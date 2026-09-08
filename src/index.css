@@ -313,6 +313,16 @@ body {
   font-weight: 800;
   color: var(--sb-muted);
 }
+.nav-history-btn {
+  user-select: none;
+}
+.nav-history-btn:hover:not(:disabled) {
+  background: var(--sb-item-active) !important;
+  color: var(--sb-accent) !important;
+}
+.nav-history-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
 #refresh-btn {
   background: none;
   border: none;
