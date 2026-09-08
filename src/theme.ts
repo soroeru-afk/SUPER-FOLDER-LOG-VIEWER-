@@ -94,11 +94,4 @@ export function applyThemeStyle(key: string) {
   r.setProperty('--sb-item-opacity', t.sbItemOpacity || '0.85');
   r.setProperty('--sb-category-opacity', t.sbCategoryOpacity || '0.85');
   r.setProperty('--sb-category-color', t.sbMutedOverride || t.sbMain || '');
-
-  // PWA/ブラウザのメタテーマカラーおよびヘッダー背景色の動的リアルタイム同期
-  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-  if (metaThemeColor) {
-    metaThemeColor.setAttribute('content', t.mainBg || t.sbBg || '#0F172A');
-  }
 }
-

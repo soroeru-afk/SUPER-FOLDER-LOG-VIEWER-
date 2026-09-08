@@ -6,7 +6,7 @@ export function applySettingsToDOM() {
   const fw = localStorage.getItem('lv_fontWeight') || '400';
   const lh = localStorage.getItem('lv_lineHeight') || '1.8';
   const ls = localStorage.getItem('lv_letterSpacing') || '0';
-  const cp = localStorage.getItem('lv_cardPadding') || '24';
+  const cp = localStorage.getItem('lv_cardPadding') || '28';
   const cr = localStorage.getItem('lv_cardRadius') || '16';
   const mg = localStorage.getItem('lv_msgGap') || '16';
   const hs = parseInt(localStorage.getItem('lv_headingSize') || '48');
@@ -18,7 +18,7 @@ export function applySettingsToDOM() {
   document.documentElement.style.setProperty('--text-letter-spacing', ls + 'px');
   
   document.documentElement.style.setProperty('--card-padding-v', cp + 'px');
-  document.documentElement.style.setProperty('--card-padding-h', Math.round(parseInt(cp) * 1.2) + 'px');
+  document.documentElement.style.setProperty('--card-padding-h', Math.round(parseInt(cp) * 1.15) + 'px');
   document.documentElement.style.setProperty('--card-radius', cr + 'px');
   document.documentElement.style.setProperty('--msg-gap', mg + 'px');
 
@@ -45,7 +45,7 @@ export function initSettings() {
   const defs: Record<string, string> = {
     lv_fontSize: '15', lv_fontWeight: '400', lv_lineHeight: '1.8', lv_letterSpacing: '0',
     lv_sbTitleSize: '13', lv_sbCatSize: '10', lv_headingSize: '48', lv_sbWidth: '280', lv_contentWidth: '900', lv_vertCardHeight: '600',
-    lv_cardPadding: '24', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '56',
+    lv_cardPadding: '28', lv_cardRadius: '16', lv_msgGap: '16', lv_pagePad: '56',
     lv_theme: 'mono', lv_font: 'meiryo', lv_folderColor: '#FBBF24'
   };
   Object.entries(defs).forEach(([k, v]) => {

@@ -236,12 +236,10 @@ export const MainContent = () => {
   useEffect(() => {
     applySettingsToDOM();
 
-    if (writingMode === 'vertical' && !isEditing) {
-      const contentAreaEl = document.getElementById('content-area');
-      if (contentAreaEl) {
-        contentAreaEl.scrollTop = 0;
-        contentAreaEl.scrollLeft = 0;
-      }
+    const contentAreaEl = document.getElementById('content-area');
+    if (contentAreaEl) {
+      contentAreaEl.scrollTop = 0;
+      contentAreaEl.scrollLeft = 0;
     }
   }, [writingMode, currentFileObj, isEditing, speakerModeEnabled]);
 
@@ -425,7 +423,6 @@ export const MainContent = () => {
             <div 
               className="vertical-scroll-content" 
               ref={scrollContainerRef} 
-              
               onWheel={e => {
                 if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
                   e.currentTarget.scrollLeft -= e.deltaY;
@@ -617,12 +614,6 @@ export const MainContent = () => {
                     >
                       NEXT
                     </button>
-                    <button id="move-btn" style={{display:'inline-flex'}} onClick={e => openMovePanel(e, 'single')}>
-                      <MoveIcon /> {t.main.moveTo}
-                    </button>
-                    <button id="folder-edit-btn" style={{display:'inline-flex'}} onClick={e => openMovePanel(e, 'folder')}>
-                      <FolderIcon /> {t.main.folderEdit}
-                    </button>
 
                     <div className="mark-dropdown-container" ref={markPaletteRef} style={{position: 'relative', display: 'inline-flex'}}>
                       <button
@@ -632,7 +623,7 @@ export const MainContent = () => {
                         title="マークを付ける / 変更"
                       >
                         {currentFileObj && fileMarks[currentFileObj.filename] ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                             <span style={
                               fileMarks[currentFileObj.filename] === '★' 
                                 ? { color: '#F59E0B' } 
@@ -690,6 +681,13 @@ export const MainContent = () => {
                       )}
                     </div>
 
+                    <button id="move-btn" style={{display:'inline-flex'}} onClick={e => openMovePanel(e, 'single')}>
+                      <MoveIcon /> {t.main.moveTo}
+                    </button>
+                    <button id="folder-edit-btn" style={{display:'inline-flex'}} onClick={e => openMovePanel(e, 'folder')}>
+                      <FolderIcon /> {t.main.folderEdit}
+                    </button>
+
                     <button 
                       id="rename-file-btn" 
                       style={{display:'inline-flex'}} 
@@ -701,6 +699,7 @@ export const MainContent = () => {
                     >
                       <EditIcon /> {t.main.rename}
                     </button>
+
                     <button id="delete-file-btn" style={{display:'inline-flex'}} onClick={deleteCurrentFile}>
                       <DeleteIcon /> {t.main.delete}
                     </button>
@@ -729,12 +728,9 @@ export const MainContent = () => {
                     >
                       {isPlayingAudio ? (lang === 'en' ? '■ STOP' : '■ 停止') : (lang === 'en' ? '▶ VOICE' : '▶ 音声再生')}
                     </button>
-
                   </>
                 )}
               </div>
-
-              
             </div>
 
             {writingMode === 'vertical' && !isEditing ? (

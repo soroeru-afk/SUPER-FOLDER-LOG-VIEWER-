@@ -61,7 +61,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                   background: 'var(--card-bg)',
                   fontSize: 'calc(var(--text-font-size, 15px) * 0.88)',
                   lineHeight: 'var(--text-line-height, 1.8)',
-                  margin: isVertical ? '0 16px' : '16px 0',
+                  margin: isVertical ? '8px 18px' : '18px 0',
                   color: 'var(--main-text)',
                   width: isVertical ? 'auto' : '100%',
                   minWidth: isVertical ? 'auto' : '300px',
@@ -78,7 +78,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                           key={hIdx}
                           style={{
                             border: '1px solid var(--card-border)',
-                            padding: isVertical ? '10px 14px' : '9px 14px',
+                            padding: isVertical ? '12px 16px' : '10px 16px',
                             textAlign: isVertical ? 'inherit' : align,
                             fontWeight: 700,
                             letterSpacing: 'var(--text-letter-spacing, 0px)',
@@ -108,7 +108,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                             key={cIdx}
                             style={{
                               border: '1px solid var(--card-border)',
-                              padding: isVertical ? '8px 14px' : '8px 14px',
+                              padding: isVertical ? '11px 16px' : '9px 16px',
                               textAlign: isVertical ? 'inherit' : align,
                               letterSpacing: 'var(--text-letter-spacing, 0px)'
                             }}
