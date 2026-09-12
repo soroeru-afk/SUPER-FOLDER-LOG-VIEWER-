@@ -214,16 +214,16 @@ body {
 #search-box {
   width: 100%;
   padding: 8px 32px 8px 34px;
-  background: var(--sb-item-hover);
-  border: 1px solid var(--sb-border);
+  background: var(--sb-input-bg, var(--sb-item-hover));
+  border: 1px solid var(--sb-input-border, var(--sb-border));
   border-radius: 0px;
   color: var(--sb-text);
   font-size: 13px;
   font-family: var(--font-body);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
-#search-box::placeholder { color: var(--sb-muted); opacity: 0.85; }
+#search-box::placeholder { color: var(--input-placeholder, var(--sb-muted)); opacity: 0.85; }
 #search-box:focus { border-color: var(--sb-accent); }
 
 #search-clear-btn {
@@ -2164,11 +2164,16 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   padding: 6px 28px 6px 30px;
   font-size: 12px;
   border-radius: 0px;
-  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
-  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--input-border, var(--card-border, rgba(120, 120, 120, 0.25)));
+  background: var(--input-bg, var(--card-bg, #ffffff));
   color: var(--main-text, #1e293b);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.explorer-search-input::placeholder {
+  color: var(--input-placeholder, inherit);
+  opacity: 0.7;
 }
 
 .explorer-search-input:focus {
@@ -2343,6 +2348,10 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   color: #ffffff;
   border-color: transparent;
   transform: scale(1.05);
+}
+
+[data-theme-dark="true"] .folder-card:hover .folder-card-icon-wrap {
+  color: #14161A;
 }
 
 .folder-card-name {

@@ -34,9 +34,9 @@ export const SettingsPanel = () => {
         msgGap: localStorage.getItem('lv_msgGap') || '16',
         pagePad: localStorage.getItem('lv_pagePad') || '56',
         cardDigestSize: localStorage.getItem('lv_cardDigestSize') || '13',
-        theme: (localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono',
+        theme: (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono',
         font: localStorage.getItem('lv_font') || 'meiryo',
-        folderColor: getFolderColorForTheme((localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono')
+        folderColor: getFolderColorForTheme((localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono')
       });
     };
     loadSettings();
@@ -304,7 +304,7 @@ export const SettingsPanel = () => {
             <div className="setting-row" style={{marginTop: '20px'}}>
               <div className="setting-label">{lang === 'en' ? 'Folder Icon Color' : 'フォルダーアイコン色'}</div>
               <div style={{display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center'}}>
-                {['#FBBF24', '#60A5FA', '#34D399', '#F87171', '#A78BFA', '#9CA3AF', '#FFF'].map(col => (
+                {['#E2E8F0', '#FBBF24', '#60A5FA', '#34D399', '#F87171', '#A78BFA', '#9CA3AF', '#FFF'].map(col => (
                   <button 
                     key={col} 
                     onClick={() => updateSetting('folderColor', col)}
@@ -474,14 +474,14 @@ export const SettingsPanel = () => {
             <div className="setting-row">
               <div className="setting-label">ボイス (VOICE)</div>
               <select
-                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'dark' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '0px', padding: '8px', fontSize: '11px', outline: 'none' }}
+                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'black' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'black' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '0px', padding: '8px', fontSize: '11px', outline: 'none' }}
                 value={ttsSettings.voiceURI}
                 onChange={e => updateTtsSettings({ voiceURI: e.target.value })}
               >
                 {voices
                   .filter(v => !v.name.toLowerCase().includes('google'))
                   .map(v => (
-                    <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
+                    <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : vals.theme === 'black' ? '#0B0C0D' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'black' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
                 ))}
               </select>
             </div>

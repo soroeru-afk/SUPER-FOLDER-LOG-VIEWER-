@@ -413,7 +413,7 @@ export const Sidebar = () => {
             <button 
               title={t.app.fallbackReopen}
               onClick={(e) => { e.stopPropagation(); window.open(window.location.href, '_blank'); }}
-              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid var(--sb-border)', color: 'var(--sb-accent)', borderRadius: '0px', padding: '5px 8px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 'bold' }}
+              style={{ background: 'var(--sb-item-hover)', border: '1px solid var(--sb-border)', color: 'var(--sb-accent)', borderRadius: '0px', padding: '5px 8px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 'bold' }}
             >
               <ExternalLinkIcon />
               {t.app.fallbackReopen}
@@ -698,9 +698,9 @@ export const Sidebar = () => {
         <button 
           onClick={createNewFolder}
           style={{
-            margin: '0 10px 10px', padding: '10px', background: 'rgba(59,130,246,0.1)', 
-            border: '1px dashed rgba(59,130,246,0.4)', borderRadius: '0px', 
-            color: '#60A5FA', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+            margin: '0 10px 10px', padding: '10px', background: 'var(--sb-item-hover)', 
+            border: '1px dashed var(--sb-border)', borderRadius: '0px', 
+            color: 'var(--sb-accent)', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
             display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
           }}>
           {t.main.newRootFolder || "+ 一番上（ルート）に新規フォルダー作成"}

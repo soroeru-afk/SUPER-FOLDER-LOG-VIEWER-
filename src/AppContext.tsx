@@ -274,16 +274,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const getActiveThemeKey = () => {
     const t = localStorage.getItem('lv_theme');
-    return (t === 'ocean' ? 'dark' : t) || 'mono';
+    return (t === 'ocean' || t === 'dark' ? 'black' : t) || 'mono';
   };
 
   const [paperMode, setPaperModeState] = useState<boolean>(() => {
-    const theme = (localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono';
+    const theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
     return getPaperSettingsForTheme(theme).mode;
   });
 
   const [paperColor, setPaperColorState] = useState<'beige' | 'white'>(() => {
-    const theme = (localStorage.getItem('lv_theme') === 'ocean' ? 'dark' : localStorage.getItem('lv_theme')) || 'mono';
+    const theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
     return getPaperSettingsForTheme(theme).color;
   });
 
