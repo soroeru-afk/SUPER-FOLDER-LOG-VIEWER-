@@ -276,7 +276,7 @@ export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {
     r.setProperty('--scrollbar-thumb-hover', 'rgba(0, 0, 0, 0.40)');
     r.setProperty('--heading-color', '#0F172A');
     r.setProperty('--speaker-color', '#64748B');
-    r.setProperty('--date-accent', isDark ? (key === 'red' ? '#DC2626' : key === 'midnight' ? '#2563EB' : '#475569') : t.dateAccent);
+    r.setProperty('--date-accent', t.dateAccent);
     r.setProperty('--summary-bg', '#F8FAFC');
     r.setProperty('--summary-border', isDark ? (key === 'red' ? '#DC2626' : key === 'midnight' ? '#2563EB' : '#CBD5E1') : t.summaryBorder);
     r.setProperty('--summary-text', '#0F172A');

@@ -2991,13 +2991,18 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
 .explorer-bulk-count-badge {
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 8px;
+  height: 26px;
+  box-sizing: border-box;
   border-radius: 0px;
-  background: var(--sb-item-hover, rgba(120, 120, 120, 0.1));
-  color: var(--main-text, inherit);
-  opacity: 0.85;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--btn-text);
+  opacity: 1;
   white-space: nowrap;
   letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .explorer-bulk-count-badge.highlight {
@@ -3596,9 +3601,11 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
   color: #64748B !important;
 }
 
-[data-main-white="true"] .article-date-badge {
-  background: #F1F5F9 !important;
-  color: #475569 !important;
+[data-main-white="true"] .article-date-badge,
+[data-main-white="true"] .article-list-date {
+  background: #E2E8F0 !important;
+  color: #0F172A !important;
+  font-weight: 700 !important;
 }
 
 [data-main-white="true"] .article-card-digest {
