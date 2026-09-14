@@ -16,6 +16,7 @@ export const MainContent = () => {
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
     paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+    mainBgWhite, toggleMainBgWhite,
     isResuming, pendingResumeHandle, resumeSavedFolder, loading,
     viewMode, openExplorer
   } = useAppContext();
@@ -727,6 +728,20 @@ export const MainContent = () => {
                         WHITE
                       </button>
                     </div>
+
+                    <button
+                      className={`tool-btn ${mainBgWhite ? 'primary' : ''}`}
+                      onClick={toggleMainBgWhite}
+                      title={
+                        mainBgWhite 
+                          ? (lang === 'en' ? 'Main Background: White (Click for theme default)' : 'メイン画面背景: 白（クリックでテーマ標準色に戻す）') 
+                          : (lang === 'en' ? 'Main Background: Theme Default (Click for white)' : 'メイン画面背景: テーマ標準（クリックで白背景にする）')
+                      }
+                      style={{ fontSize: '11px', fontWeight: 600 }}
+                    >
+                      {mainBgWhite ? '⚪ 白背景 ON' : '⚪ 白背景'}
+                    </button>
+
                     <button
                       className={`tool-btn ${!hasPrevFile ? 'disabled-nav' : ''}`}
                       onClick={goToPrevFile}
@@ -970,6 +985,31 @@ export const MainContent = () => {
                 {physicalFolders.length === 0 && <div style={{padding:'12px',opacity:0.5,fontSize:'12px'}}>{t.main.noDestFolder}</div>}
               </div>
               <div className="move-panel-new">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newFolderName.startsWith('00_')) {
+                      setNewFolderName(newFolderName.slice(3));
+                    } else {
+                      setNewFolderName('00_' + newFolderName);
+                    }
+                  }}
+                  style={{
+                    padding: '0 6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    height: '28px',
+                    border: newFolderName.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-border, rgba(120, 120, 120, 0.4))',
+                    background: newFolderName.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, transparent)',
+                    color: newFolderName.startsWith('00_') ? '#ffffff' : 'var(--btn-text, inherit)',
+                    cursor: 'pointer',
+                    flexShrink: 0
+                  }}
+                  title={newFolderName.startsWith('00_') ? '先頭の「00_」を取り除く' : '先頭に「00_」を付与'}
+                >
+                  {newFolderName.startsWith('00_') ? '00_✓' : '+00_'}
+                </button>
                 <input 
                   type="text" 
                   placeholder={t.main.newFolderName} 
@@ -1022,6 +1062,21 @@ export const MainContent = () => {
                           {parentPath && <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px' }}>({parentPath})</span>}
                         </div>
                         <div className="folder-edit-actions">
+                        <button 
+                          className="folder-edit-action" 
+                          title={cat.name.split('/').pop()?.startsWith('00_') ? '先頭の「00_」を外す' : '先頭に「00_」を付与'} 
+                          style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', width: 'auto', padding: '0 5px' }}
+                          onClick={async () => {
+                            const parts = cat.name.split('/');
+                            const short = parts[parts.length - 1];
+                            const newShort = short.startsWith('00_') ? short.slice(3) : ('00_' + short);
+                            if (newShort.trim()) {
+                              await renameFolder(cat.name, cat.handle, newShort.trim());
+                            }
+                          }}
+                        >
+                          {cat.name.split('/').pop()?.startsWith('00_') ? '00_✓' : '+00_'}
+                        </button>
                         <button 
                           className="folder-edit-action" 
                           title={t.main.rename} 
@@ -1116,7 +1171,31 @@ export const MainContent = () => {
               <span>{t.main.rename}</span>
             </div>
             <div className="modal-body">
-              <label className="modal-label">{t.main.renameFolderPrompt} {folderRenameTarget.name}</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <label className="modal-label" style={{ margin: 0 }}>{t.main.renameFolderPrompt} {folderRenameTarget.name}</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (folderRenameInputVal.startsWith('00_')) {
+                      setFolderRenameInputVal(folderRenameInputVal.slice(3));
+                    } else {
+                      setFolderRenameInputVal('00_' + folderRenameInputVal);
+                    }
+                  }}
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    border: folderRenameInputVal.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-border, rgba(120, 120, 120, 0.4))',
+                    background: folderRenameInputVal.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, transparent)',
+                    color: folderRenameInputVal.startsWith('00_') ? '#ffffff' : 'var(--btn-text, inherit)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {folderRenameInputVal.startsWith('00_') ? '✓ 00_解除' : '＋「00_」付与'}
+                </button>
+              </div>
               <input
                 type="text"
                 className="modal-input"

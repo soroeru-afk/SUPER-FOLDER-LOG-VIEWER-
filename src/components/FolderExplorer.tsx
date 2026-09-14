@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { FileObj } from '../types';
-import { FolderIcon, MoveIcon, DeleteIcon } from './Icons';
+import { FolderIcon, MoveIcon, DeleteIcon, EditIcon } from './Icons';
 
 export const FolderExplorer: React.FC = () => {
   const {
@@ -20,6 +20,7 @@ export const FolderExplorer: React.FC = () => {
     lang,
     createNewFile,
     createNewFolder,
+    renameFolder,
     importExistingFiles,
     dirHandle,
     physicalFolders,
@@ -33,7 +34,9 @@ export const FolderExplorer: React.FC = () => {
     deselectAllFiles,
     clearFileSelection,
     bulkDeleteFiles,
-    openMovePanel
+    openMovePanel,
+    mainBgWhite,
+    toggleMainBgWhite
   } = useAppContext();
 
   const [isExplorerSelectMode, setIsExplorerSelectMode] = useState(false);
@@ -47,6 +50,12 @@ export const FolderExplorer: React.FC = () => {
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [targetParentPath, setTargetParentPath] = useState<string>('');
+
+  // フォルダー名編集（リネーム）用ステート
+  const [isRenameFolderModalOpen, setIsRenameFolderModalOpen] = useState(false);
+  const [folderRenameTarget, setFolderRenameTarget] = useState<{ name: string; shortName: string; handle?: any } | null>(null);
+  const [folderRenameInputVal, setFolderRenameInputVal] = useState('');
+
   const [bulkMarkOpen, setBulkMarkOpen] = useState(false);
   const bulkMarkRef = useRef<HTMLDivElement>(null);
 
@@ -95,8 +104,11 @@ export const FolderExplorer: React.FC = () => {
     
     // 選択された親パスに対応するハンドルを取得
     let targetHandle = dirHandle;
-    if (targetParentPath && physicalFolders.has(targetParentPath)) {
-      targetHandle = physicalFolders.get(targetParentPath);
+    if (targetParentPath) {
+      const found = physicalFolders.find(p => p.name === targetParentPath);
+      if (found && found.handle) {
+        targetHandle = found.handle;
+      }
     }
     
     const success = await createNewFolder(targetHandle, targetParentPath, trimmed);
@@ -105,6 +117,57 @@ export const FolderExplorer: React.FC = () => {
       setNewFolderName('');
     }
   };
+
+  // フォルダー名変更モーダルを開く
+  const handleOpenRenameFolderModal = (catName: string, catHandle?: any) => {
+    const parts = catName.split('/');
+    const shortName = parts[parts.length - 1];
+    setFolderRenameTarget({ name: catName, shortName, handle: catHandle });
+    setFolderRenameInputVal(shortName);
+    setIsRenameFolderModalOpen(true);
+  };
+
+  // 既存フォルダーに素早く「00_」を付与 / 解除（トグル）
+  const handleTogglePrefix00 = async (catName: string, catHandle?: any) => {
+    const parts = catName.split('/');
+    const shortName = parts[parts.length - 1];
+    let newShortName = '';
+    if (shortName.startsWith('00_')) {
+      newShortName = shortName.slice(3);
+    } else {
+      newShortName = '00_' + shortName;
+    }
+    if (!newShortName.trim()) return;
+    await renameFolder(catName, catHandle, newShortName.trim());
+  };
+
+  // フォルダー名変更を実行
+  const handleRenameFolderSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!folderRenameTarget) return;
+    const trimmed = folderRenameInputVal.trim();
+    if (!trimmed || trimmed === folderRenameTarget.shortName) {
+      setIsRenameFolderModalOpen(false);
+      return;
+    }
+    const success = await renameFolder(folderRenameTarget.name, folderRenameTarget.handle, trimmed);
+    if (success) {
+      setIsRenameFolderModalOpen(false);
+      setFolderRenameTarget(null);
+      setFolderRenameInputVal('');
+    }
+  };
+
+  // 全カテゴリー（フォルダー）配下のファイル総数を算出するマップ（自身および配下サブフォルダ含む）
+  const categoryFileCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    allCategories.forEach(cat => {
+      const subPrefix = cat.name + '/';
+      const total = allFiles.filter(f => f.category === cat.name || (f.category && f.category.startsWith(subPrefix))).length;
+      counts.set(cat.name, total);
+    });
+    return counts;
+  }, [allCategories, allFiles]);
 
   // 本文ダイジェスト（プレビュー）の生成用ヘルパー
   const getDigestSnippet = (content: string, maxLen = 130) => {
@@ -368,6 +431,36 @@ export const FolderExplorer: React.FC = () => {
                 ⬆ {lang === 'en' ? 'Up' : '上の階層'}
               </button>
             )}
+            {/* 現在開いているフォルダーの名前変更ボタン */}
+            {explorerCategory && (
+              <>
+                <button 
+                  className="explorer-btn" 
+                  onClick={() => {
+                    const found = physicalFolders.find(p => p.name === explorerCategory);
+                    handleTogglePrefix00(explorerCategory, found?.handle);
+                  }} 
+                  title={
+                    explorerCategory.split('/').pop()?.startsWith('00_')
+                      ? (lang === 'en' ? 'Remove "00_" prefix' : '先頭の「00_」を外す')
+                      : (lang === 'en' ? 'Add "00_" prefix to folder name' : 'フォルダー名の先頭に「00_」を付与')
+                  }
+                  style={{ fontFamily: 'var(--font-mono, monospace)' }}
+                >
+                  {explorerCategory.split('/').pop()?.startsWith('00_') ? '↩ 00_解除' : '＋ 00_付与'}
+                </button>
+                <button 
+                  className="explorer-btn" 
+                  onClick={() => {
+                    const found = physicalFolders.find(p => p.name === explorerCategory);
+                    handleOpenRenameFolderModal(explorerCategory, found?.handle);
+                  }} 
+                  title={lang === 'en' ? 'Rename current folder' : '現在開いているフォルダー名を変更'}
+                >
+                  ✏️ {lang === 'en' ? 'Rename' : '名前変更'}
+                </button>
+              </>
+            )}
             {/* 新規フォルダー作成ボタン（作成先フォルダー選択モーダルを開く） */}
             <button 
               className="explorer-btn" 
@@ -444,6 +537,20 @@ export const FolderExplorer: React.FC = () => {
                 {t.sidebar.sortName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
               </button>
             </div>
+
+            {/* メイン白背景切り替えボタン */}
+            <button 
+              className={`explorer-sort-btn ${mainBgWhite ? 'active' : ''}`}
+              onClick={toggleMainBgWhite}
+              title={
+                mainBgWhite 
+                  ? (lang === 'en' ? 'Main Background: White (Click for theme default)' : 'メイン画面背景: 白（クリックでテーマ標準色に戻す）') 
+                  : (lang === 'en' ? 'Main Background: Theme Default (Click for white)' : 'メイン画面背景: テーマ標準（クリックで白背景にする）')
+              }
+              style={{ fontWeight: 600 }}
+            >
+              {mainBgWhite ? '⚪ 白背景 ON' : '⚪ 白背景'}
+            </button>
           </div>
         </div>
       </div>
@@ -484,9 +591,37 @@ export const FolderExplorer: React.FC = () => {
                         ? (lang === 'en' ? `📁 ${cat.childFolderCount} sub-folders` : `📁 ${cat.childFolderCount} サブフォルダ`) 
                         : (lang === 'en' ? '📁 Direct' : '📁 単一階層')}
                     </span>
-                    <span className="folder-card-open-arrow">
-                      {lang === 'en' ? 'Open ➔' : '開く ➔'}
-                    </span>
+                    <div className="folder-card-actions">
+                      <button
+                        type="button"
+                        className="folder-card-prefix-btn"
+                        title={
+                          cat.shortName.startsWith('00_')
+                            ? (lang === 'en' ? 'Remove "00_" prefix' : '「00_」を解除')
+                            : (lang === 'en' ? 'Add "00_" prefix' : '「00_」を先頭に付与')
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePrefix00(cat.name, cat.handle);
+                        }}
+                      >
+                        {cat.shortName.startsWith('00_') ? '00_✓' : '+00_'}
+                      </button>
+                      <button
+                        type="button"
+                        className="folder-card-rename-btn"
+                        title={lang === 'en' ? 'Rename this folder' : 'フォルダー名を変更'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenRenameFolderModal(cat.name, cat.handle);
+                        }}
+                      >
+                        <EditIcon />
+                      </button>
+                      <span className="folder-card-open-arrow">
+                        {lang === 'en' ? 'Open ➔' : '開く ➔'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -914,12 +1049,15 @@ export const FolderExplorer: React.FC = () => {
                     boxSizing: 'border-box',
                   }}
                 >
-                  <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level)' : 'ルートフォルダー (最上位)'}</option>
-                  {allCategories.map(cat => (
-                    <option key={cat.name} value={cat.name}>
-                      📁 {cat.name} ({cat.totalCount} {lang === 'en' ? 'files' : '件'})
-                    </option>
-                  ))}
+                  <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level)' : 'ルートフォルダー (最上位)'} ({allFiles.length} {lang === 'en' ? 'files' : '件'})</option>
+                  {allCategories.map(cat => {
+                    const count = categoryFileCounts.get(cat.name) ?? 0;
+                    return (
+                      <option key={cat.name} value={cat.name}>
+                        📁 {cat.name} ({count} {lang === 'en' ? 'files' : '件'})
+                      </option>
+                    );
+                  })}
                 </select>
                 <div style={{ fontSize: '10.5px', opacity: 0.65, marginTop: '4px' }}>
                   {lang === 'en' 
@@ -929,9 +1067,39 @@ export const FolderExplorer: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '6px', opacity: 0.85, textTransform: 'uppercase' }}>
-                  {lang === 'en' ? 'New Folder Name:' : '新しいフォルダー名:'}
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, opacity: 0.85, textTransform: 'uppercase' }}>
+                    {lang === 'en' ? 'New Folder Name:' : '新しいフォルダー名:'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newFolderName.startsWith('00_')) {
+                        setNewFolderName(newFolderName.slice(3));
+                      } else {
+                        setNewFolderName('00_' + newFolderName);
+                      }
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono, monospace)',
+                      borderRadius: '0px',
+                      border: newFolderName.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120, 120, 120, 0.35))',
+                      background: newFolderName.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--sb-item-hover, rgba(120, 120, 120, 0.1))',
+                      color: newFolderName.startsWith('00_') ? '#ffffff' : 'var(--main-text, inherit)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={newFolderName.startsWith('00_') ? '先頭の「00_」を取り除く' : '先頭に「00_」をワンクリックで付与'}
+                  >
+                    {newFolderName.startsWith('00_') ? '✓ 先頭に 00_ 付き (解除)' : '＋「00_」を付ける'}
+                  </button>
+                </div>
                 <input
                   type="text"
                   autoFocus
@@ -985,6 +1153,173 @@ export const FolderExplorer: React.FC = () => {
                   }}
                 >
                   📁 {lang === 'en' ? 'Create Folder' : '作成する'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 06. フォルダー名編集モーダル */}
+      {isRenameFolderModalOpen && folderRenameTarget && (
+        <div 
+          className="explorer-modal-overlay"
+          onClick={() => setIsRenameFolderModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            backdropFilter: 'blur(2px)'
+          }}
+        >
+          <div 
+            className="explorer-modal-card"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              background: 'var(--panel-bg, #101A2B)',
+              border: '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+              borderRadius: '0px',
+              boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              color: 'var(--main-text, #E2E8F0)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '15px' }}>
+                <span style={{ color: 'var(--sb-accent, #8FAFCF)' }}>✏️</span>
+                <span>{lang === 'en' ? 'Rename Folder' : 'フォルダー名の変更'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRenameFolderModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  opacity: 0.6,
+                  fontSize: '16px',
+                  padding: '4px 8px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRenameFolderSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '6px', opacity: 0.85, textTransform: 'uppercase' }}>
+                  {lang === 'en' ? 'Target Folder:' : '変更対象のフォルダー:'}
+                </label>
+                <div style={{
+                  padding: '8px 10px',
+                  fontSize: '12px',
+                  background: 'var(--card-bg, rgba(255, 255, 255, 0.05))',
+                  border: '1px solid var(--card-border, rgba(120, 120, 120, 0.25))',
+                  opacity: 0.85,
+                  wordBreak: 'break-all'
+                }}>
+                  📁 {folderRenameTarget.name}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, opacity: 0.85, textTransform: 'uppercase' }}>
+                    {lang === 'en' ? 'New Folder Name:' : '新しいフォルダー名:'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (folderRenameInputVal.startsWith('00_')) {
+                        setFolderRenameInputVal(folderRenameInputVal.slice(3));
+                      } else {
+                        setFolderRenameInputVal('00_' + folderRenameInputVal);
+                      }
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono, monospace)',
+                      borderRadius: '0px',
+                      border: folderRenameInputVal.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120, 120, 120, 0.35))',
+                      background: folderRenameInputVal.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--sb-item-hover, rgba(120, 120, 120, 0.1))',
+                      color: folderRenameInputVal.startsWith('00_') ? '#ffffff' : 'var(--main-text, inherit)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={folderRenameInputVal.startsWith('00_') ? '先頭の「00_」を取り除く' : '先頭に「00_」をワンクリックで付与'}
+                  >
+                    {folderRenameInputVal.startsWith('00_') ? '✓ 先頭に 00_ 付き (解除)' : '＋「00_」を付ける'}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder={lang === 'en' ? 'Enter new folder name...' : '新しいフォルダー名を入力...'}
+                  value={folderRenameInputVal}
+                  onChange={e => setFolderRenameInputVal(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '13px',
+                    borderRadius: '0px',
+                    border: '1px solid var(--card-border, rgba(120, 120, 120, 0.35))',
+                    background: 'var(--card-bg, #ffffff)',
+                    color: 'var(--main-text, #1e293b)',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsRenameFolderModalOpen(false)}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '0px',
+                    border: '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                    background: 'transparent',
+                    color: 'var(--main-text, inherit)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {lang === 'en' ? 'Cancel' : 'キャンセル'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!folderRenameInputVal.trim() || folderRenameInputVal.trim() === folderRenameTarget.shortName}
+                  style={{
+                    padding: '6px 16px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '0px',
+                    border: '1px solid var(--sb-accent, #3b82f6)',
+                    background: 'var(--sb-accent, #3b82f6)',
+                    color: '#ffffff',
+                    cursor: (!folderRenameInputVal.trim() || folderRenameInputVal.trim() === folderRenameTarget.shortName) ? 'not-allowed' : 'pointer',
+                    opacity: (!folderRenameInputVal.trim() || folderRenameInputVal.trim() === folderRenameTarget.shortName) ? 0.5 : 1,
+                  }}
+                >
+                  ✏️ {lang === 'en' ? 'Save Changes' : '変更する'}
                 </button>
               </div>
             </form>

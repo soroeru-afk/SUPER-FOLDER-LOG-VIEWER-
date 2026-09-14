@@ -70,7 +70,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                 }}
               >
                 <thead>
-                  <tr style={{ background: 'var(--sb-item-hover)' }}>
+                  <tr style={{ background: 'var(--table-header-bg, var(--sb-item-hover))' }}>
                     {block.headers.map((header, hIdx) => {
                       const align = block.alignments[hIdx] || 'left';
                       return (
@@ -97,7 +97,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                     <tr
                       key={rIdx}
                       style={{
-                        background: rIdx % 2 === 1 ? 'var(--sb-item-hover)' : 'transparent',
+                        background: rIdx % 2 === 1 ? 'var(--table-row-alt, var(--sb-item-hover))' : 'transparent',
                         transition: 'background 0.15s'
                       }}
                     >
@@ -157,8 +157,6 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
               e.stopPropagation();
               onPlayFromLine?.(lineIdx);
             },
-            onMouseEnter: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.background = 'var(--sb-item-hover)'),
-            onMouseLeave: (e: React.MouseEvent<HTMLElement>) => (e.currentTarget.style.background = 'transparent'),
             title: tooltipText,
             dangerouslySetInnerHTML: {
               __html: formatInlineMarkdown(block.text, searchQueries)
@@ -204,8 +202,6 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                       e.stopPropagation();
                       onPlayFromLine?.(itemLine);
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--sb-item-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     title={tooltipText}
                     dangerouslySetInnerHTML={{
                       __html: formatInlineMarkdown(item.text, searchQueries)
@@ -246,7 +242,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                 padding: isVertical ? '8px 12px 8px 4px' : '6px 14px',
                 borderLeft: isVertical ? 'none' : '3px solid var(--sb-accent)',
                 borderTop: isVertical ? '3px solid var(--sb-accent)' : 'none',
-                background: 'var(--sb-item-hover)',
+                background: 'var(--quote-bg, var(--sb-item-hover))',
                 borderRadius: '0px',
                 color: 'var(--main-text)',
                 opacity: 0.9,
@@ -304,8 +300,6 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
               lineHeight: 'var(--text-line-height, 1.8)',
               fontSize: 'var(--text-font-size, 15px)'
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--sb-item-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             title={tooltipText}
             dangerouslySetInnerHTML={{
               __html: formatInlineMarkdown(line, searchQueries)

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
 import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename } from './utils';
-import { getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme } from './theme';
+import { getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from './theme';
+import { applySettingsToDOM } from './settingsSync';
 
 export interface AppState {
   dirHandle: any | null;
@@ -65,7 +66,7 @@ export interface AppState {
   bulkDeleteFiles: () => Promise<void>;
   deleteCurrentFile: () => Promise<void>;
   renameCurrentFile: (newName: string) => Promise<void>;
-  renameFolder: (oldName: string, folderHandle: any, explicitNewName?: string) => Promise<void>;
+  renameFolder: (oldName: string, folderHandle?: any, explicitNewName?: string) => Promise<boolean>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
   createNewFolder: (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string) => Promise<boolean>;
   createNewFile: (folderHandle: any) => Promise<void>;
@@ -77,6 +78,7 @@ export interface AppState {
   setSpeakerMode: (val: boolean) => void;
   ttsSettings: TTSSettings;
   updateTtsSettings: (updates: Partial<TTSSettings>) => void;
+  voiceRates: { ichiro: number; haruka: number };
   voices: SpeechSynthesisVoice[];
   writingMode: 'horizontal' | 'vertical';
   setWritingMode: (mode: 'horizontal' | 'vertical') => void;
@@ -86,6 +88,9 @@ export interface AppState {
   setPaperMode: (val: boolean) => void;
   togglePaperMode: () => void;
   loadPaperForTheme: (themeKey: string) => void;
+  mainBgWhite: boolean;
+  setMainBgWhite: (val: boolean) => void;
+  toggleMainBgWhite: () => void;
   fileMarks: Record<string, string>;
   setFileMark: (filename: string, mark: string) => void;
   setBulkFileMarks: (filenames: string[], mark: string) => void;
@@ -314,16 +319,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setPaperColorState(ps.color);
   };
 
-  // テーマ切り替え時に、そのテーマ専用のペーパー設定（ON/OFF、カラー）へ自動切り替え
+  const [mainBgWhite, setMainBgWhiteState] = useState<boolean>(() => {
+    const theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
+    return getMainBgWhiteForTheme(theme);
+  });
+
+  const setMainBgWhite = (val: boolean) => {
+    setMainBgWhiteState(val);
+    const theme = getActiveThemeKey();
+    setMainBgWhiteForTheme(theme, val);
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
+  const toggleMainBgWhite = () => {
+    const theme = getActiveThemeKey();
+    const next = !getMainBgWhiteForTheme(theme);
+    setMainBgWhiteState(next);
+    setMainBgWhiteForTheme(theme, next);
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
+  // テーマ切り替え時に、そのテーマ専用の設定（ペーパー設定、メイン白背景）へ自動切り替え
   useEffect(() => {
-    const syncThemePaper = () => {
+    const syncThemeSettings = () => {
       const theme = getActiveThemeKey();
       const ps = getPaperSettingsForTheme(theme);
       setPaperModeState(ps.mode);
       setPaperColorState(ps.color);
+      setMainBgWhiteState(getMainBgWhiteForTheme(theme));
     };
-    window.addEventListener('settingsChanged', syncThemePaper);
-    return () => window.removeEventListener('settingsChanged', syncThemePaper);
+    window.addEventListener('settingsChanged', syncThemeSettings);
+    return () => window.removeEventListener('settingsChanged', syncThemeSettings);
   }, []);
 
   useEffect(() => {
@@ -385,12 +413,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('lv_sortDirection', dir);
   };
   
-  const [ttsSettings, setTtsSettings] = useState<TTSSettings>(() => {
+  const detectVoiceKey = (nameOrUri: string): 'ichiro' | 'haruka' => {
+    const lower = (nameOrUri || '').toLowerCase();
+    if (lower.includes('haruka') || lower.includes('遥') || lower.includes('はるか')) {
+      return 'haruka';
+    }
+    return 'ichiro';
+  };
+
+  const [voiceRates, setVoiceRates] = useState<{ ichiro: number; haruka: number }>(() => {
+    const savedIchiro = localStorage.getItem('lv_ttsRate_ichiro');
+    const savedHaruka = localStorage.getItem('lv_ttsRate_haruka');
+    const legacyRate = localStorage.getItem('lv_ttsRate');
+    const defaultRate = legacyRate ? parseFloat(legacyRate) : 1.0;
     return {
-      rate: parseFloat(localStorage.getItem('lv_ttsRate') || '1.0'),
+      ichiro: savedIchiro ? parseFloat(savedIchiro) : defaultRate,
+      haruka: savedHaruka ? parseFloat(savedHaruka) : defaultRate
+    };
+  });
+
+  const [ttsSettings, setTtsSettings] = useState<TTSSettings>(() => {
+    const savedVoiceURI = localStorage.getItem('lv_ttsVoiceURI') || '';
+    const vKey = detectVoiceKey(savedVoiceURI);
+    const savedIchiro = localStorage.getItem('lv_ttsRate_ichiro');
+    const savedHaruka = localStorage.getItem('lv_ttsRate_haruka');
+    const legacyRate = localStorage.getItem('lv_ttsRate');
+    const defaultRate = legacyRate ? parseFloat(legacyRate) : 1.0;
+    const initialRate = vKey === 'haruka'
+      ? (savedHaruka ? parseFloat(savedHaruka) : defaultRate)
+      : (savedIchiro ? parseFloat(savedIchiro) : defaultRate);
+
+    return {
+      rate: initialRate,
       volume: parseFloat(localStorage.getItem('lv_ttsVolume') || '1.0'),
       pitch: parseFloat(localStorage.getItem('lv_ttsPitch') || '1.0'),
-      voiceURI: localStorage.getItem('lv_ttsVoiceURI') || ''
+      voiceURI: savedVoiceURI
     };
   });
 
@@ -401,38 +458,99 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Google の音声は除外
         const nonGoogle = v.filter(voice => !voice.name.toLowerCase().includes('google'));
         
-        // Microsoft の 4 音声（一郎・あゆみ・さやか・はるか）を優先抽出
-        const msKeywords = ['ichiro', 'ayumi', 'sayaka', 'haruka', '一郎', 'あゆみ', 'さやか', 'はるか'];
-        const msVoices = nonGoogle.filter(voice => 
-          msKeywords.some(kw => voice.name.toLowerCase().includes(kw))
+        // 「一郎」と「遥」のみを優先抽出（あゆみ・さやかは除外）
+        const ichiroVoices = nonGoogle.filter(voice => 
+          voice.name.toLowerCase().includes('ichiro') || voice.name.includes('一郎')
         );
-        
-        const finalVoices = msVoices.length > 0 
-          ? msVoices 
-          : nonGoogle.filter(voice => voice.lang.toLowerCase().startsWith('ja'));
+        const harukaVoices = nonGoogle.filter(voice => 
+          voice.name.toLowerCase().includes('haruka') || voice.name.includes('遥') || voice.name.includes('はるか')
+        );
 
-        const listToSet = finalVoices.length > 0 ? finalVoices : nonGoogle;
-        setVoices(listToSet);
+        let finalVoices: SpeechSynthesisVoice[] = [];
+        if (ichiroVoices.length > 0 || harukaVoices.length > 0) {
+          if (ichiroVoices[0]) finalVoices.push(ichiroVoices[0]);
+          if (harukaVoices[0]) finalVoices.push(harukaVoices[0]);
+        } else {
+          // もしシステムに一郎・遥が存在しない環境（Mac等）のためのフォールバック（最大2音声）
+          const jaVoices = nonGoogle.filter(voice => voice.lang.toLowerCase().startsWith('ja'));
+          finalVoices = jaVoices.length > 0 ? jaVoices.slice(0, 2) : nonGoogle.slice(0, 2);
+        }
 
-        if (!localStorage.getItem('lv_ttsVoiceURI')) {
-          const defaultVoice = listToSet.find(voice => 
+        setVoices(finalVoices);
+
+        const currentSavedURI = localStorage.getItem('lv_ttsVoiceURI') || '';
+        const currentSelected = finalVoices.find(voice => voice.voiceURI === currentSavedURI);
+
+        if (currentSelected) {
+          const vKey = detectVoiceKey(currentSelected.name + ' ' + currentSelected.voiceURI);
+          const activeRate = vKey === 'haruka' ? voiceRates.haruka : voiceRates.ichiro;
+          setTtsSettings(prev => ({
+            ...prev,
+            voiceURI: currentSelected.voiceURI,
+            rate: activeRate
+          }));
+        } else {
+          // 以前のあゆみ・さやか等や未設定の場合：一郎を優先選択
+          const defaultVoice = finalVoices.find(voice => 
             voice.name.toLowerCase().includes('ichiro') || voice.name.includes('一郎')
-          ) || listToSet[0];
+          ) || finalVoices[0];
 
           if (defaultVoice) {
-            setTtsSettings(prev => ({ ...prev, voiceURI: defaultVoice.voiceURI }));
+            const vKey = detectVoiceKey(defaultVoice.name + ' ' + defaultVoice.voiceURI);
+            const activeRate = vKey === 'haruka' ? voiceRates.haruka : voiceRates.ichiro;
+            setTtsSettings(prev => ({
+              ...prev,
+              voiceURI: defaultVoice.voiceURI,
+              rate: activeRate
+            }));
             localStorage.setItem('lv_ttsVoiceURI', defaultVoice.voiceURI);
+            localStorage.setItem('lv_ttsRate', activeRate.toString());
           }
         }
       }
     };
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices;
-  }, []);
+  }, [voiceRates.ichiro, voiceRates.haruka]);
 
   const updateTtsSettings = (updates: Partial<TTSSettings>) => {
     setTtsSettings(prev => {
-      const next = { ...prev, ...updates };
+      let nextVoiceURI = updates.voiceURI !== undefined ? updates.voiceURI : prev.voiceURI;
+      let nextRate = updates.rate !== undefined ? updates.rate : prev.rate;
+
+      // ボイスが切り替えられた場合：そのボイス（一郎 or 遥）に保持されている個別速度へ自動切り替え
+      if (updates.voiceURI !== undefined && updates.voiceURI !== prev.voiceURI) {
+        const targetVoice = voices.find(v => v.voiceURI === updates.voiceURI);
+        const vKey = detectVoiceKey((targetVoice ? targetVoice.name : '') + ' ' + updates.voiceURI);
+        nextRate = vKey === 'haruka' ? voiceRates.haruka : voiceRates.ichiro;
+      }
+
+      // 速度が変更された場合：現在選択されているボイス専用の速度として保存
+      if (updates.rate !== undefined) {
+        const currentVoice = voices.find(v => v.voiceURI === nextVoiceURI);
+        const vKey = detectVoiceKey((currentVoice ? currentVoice.name : '') + ' ' + nextVoiceURI);
+        if (vKey === 'haruka') {
+          setVoiceRates(vr => {
+            const nextVr = { ...vr, haruka: updates.rate! };
+            localStorage.setItem('lv_ttsRate_haruka', updates.rate!.toString());
+            return nextVr;
+          });
+        } else {
+          setVoiceRates(vr => {
+            const nextVr = { ...vr, ichiro: updates.rate! };
+            localStorage.setItem('lv_ttsRate_ichiro', updates.rate!.toString());
+            return nextVr;
+          });
+        }
+      }
+
+      const next = {
+        ...prev,
+        ...updates,
+        rate: nextRate,
+        voiceURI: nextVoiceURI
+      };
+
       localStorage.setItem('lv_ttsRate', next.rate.toString());
       localStorage.setItem('lv_ttsVolume', next.volume.toString());
       localStorage.setItem('lv_ttsPitch', next.pitch.toString());
@@ -1073,32 +1191,111 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     } catch(e:any) { alert(e.message); }
   };
 
-  const renameFolder = async (oldName: string, folderHandle: any, explicitNewName?: string) => {
-    const newName = explicitNewName !== undefined 
+  const renameFolder = async (oldCategoryPath: string, folderHandle?: any, explicitNewName?: string): Promise<boolean> => {
+    const oldParts = oldCategoryPath.split('/');
+    const oldShortName = oldParts[oldParts.length - 1];
+    const parentPath = oldParts.length > 1 ? oldParts.slice(0, -1).join('/') : null;
+
+    const newShortNameRaw = explicitNewName !== undefined 
       ? explicitNewName 
-      : prompt(`${t.main.renameFolderPrompt} ${oldName}\n\n${t.main.renamePrompt}`, oldName);
-    if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
-    const trimmed = newName.trim();
+      : prompt(`${t.main.renameFolderPrompt || 'フォルダー名を変更:'} ${oldShortName}\n\n${t.main.renamePrompt || '新しい名前を入力してください:'}`, oldShortName);
+    if (!newShortNameRaw || newShortNameRaw.trim() === '' || newShortNameRaw.trim() === oldShortName) return false;
+    const newShortName = newShortNameRaw.trim();
+    const newCategoryPath = parentPath ? `${parentPath}/${newShortName}` : newShortName;
+
+    // フォールバックモードの場合
+    if (isFallbackMode) {
+      const updatedFiles = allFiles.map(f => {
+        if (!f.category) return f;
+        if (f.category === oldCategoryPath) {
+          return { ...f, category: newCategoryPath };
+        } else if (f.category.startsWith(oldCategoryPath + '/')) {
+          const suffix = f.category.slice(oldCategoryPath.length);
+          return { ...f, category: newCategoryPath + suffix };
+        }
+        return f;
+      });
+      const updatedFolders = physicalFolders.map(p => {
+        if (p.name === oldCategoryPath) {
+          return { ...p, name: newCategoryPath };
+        } else if (p.name.startsWith(oldCategoryPath + '/')) {
+          const suffix = p.name.slice(oldCategoryPath.length);
+          return { ...p, name: newCategoryPath + suffix };
+        }
+        return p;
+      });
+      setAllFiles(updatedFiles);
+      setPhysicalFolders(updatedFolders);
+      updateFilter(updatedFiles, updatedFolders, searchQueries);
+      await saveFallbackData({
+        rootFolderName: dirHandle?.name || 'Local Logs',
+        pFolders: updatedFolders,
+        fileObjs: updatedFiles
+      });
+      if (explorerCategory === oldCategoryPath) {
+        setExplorerCategory(newCategoryPath);
+      } else if (explorerCategory && explorerCategory.startsWith(oldCategoryPath + '/')) {
+        setExplorerCategory(newCategoryPath + explorerCategory.slice(oldCategoryPath.length));
+      }
+      return true;
+    }
+
+    // 通常の File System Access API モード
     try {
-      const newFolderHandle = await dirHandle.getDirectoryHandle(trimmed, { create: true });
-      for await (const item of folderHandle.values()) {
-        if (item.kind === 'file') {
-          const file = await item.getFile(); const text = await file.text();
-          const newFileHandle = await newFolderHandle.getFileHandle(item.name, { create: true });
-          const writable = await newFileHandle.createWritable(); await writable.write(text); await writable.close();
-        }
-      }
-      await dirHandle.removeEntry(oldName, { recursive: true });
+      // 1. 親フォルダーのハンドルを取得
+      const parentHandle = parentPath ? await getDirectoryHandleByPath(dirHandle, parentPath, false) : dirHandle;
       
-      if (currentFileObj && currentFileObj.category === oldName) {
-        const newHandle = await newFolderHandle.getFileHandle(currentFileObj.filename, { create: false }).catch(() => null);
-        if (newHandle) {
-          setCurrentFileObj({ ...currentFileObj, category: trimmed, folderHandle: newFolderHandle, handle: newHandle });
-        }
+      // 2. 元のフォルダーハンドルを取得
+      let srcHandle = folderHandle;
+      if (!srcHandle) {
+        srcHandle = await getDirectoryHandleByPath(dirHandle, oldCategoryPath, false);
       }
+
+      // 3. 親フォルダー内に新しい名前でフォルダーを作成
+      const newDirHandle = await parentHandle.getDirectoryHandle(newShortName, { create: true });
+
+      // 4. 再帰的に中身（ファイルおよびサブフォルダー）をコピー
+      const copyRecursively = async (src: any, dest: any) => {
+        if (!src || !src.values) return;
+        for await (const entry of src.values()) {
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            const text = await file.text();
+            const newFileHandle = await dest.getFileHandle(entry.name, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(text);
+            await writable.close();
+          } else if (entry.kind === 'directory') {
+            const newSubDir = await dest.getDirectoryHandle(entry.name, { create: true });
+            await copyRecursively(entry, newSubDir);
+          }
+        }
+      };
+      await copyRecursively(srcHandle, newDirHandle);
+
+      // 5. 元のフォルダーを親フォルダーから再帰削除
+      await parentHandle.removeEntry(oldShortName, { recursive: true });
+
+      // 6. 現在開いているファイルやエクスプローラーの表示位置を更新
+      if (currentFileObj && (currentFileObj.category === oldCategoryPath || currentFileObj.category?.startsWith(oldCategoryPath + '/'))) {
+        const newCat = currentFileObj.category === oldCategoryPath 
+          ? newCategoryPath 
+          : newCategoryPath + currentFileObj.category.slice(oldCategoryPath.length);
+        setCurrentFileObj({ ...currentFileObj, category: newCat });
+      }
+      if (explorerCategory === oldCategoryPath) {
+        setExplorerCategory(newCategoryPath);
+      } else if (explorerCategory && explorerCategory.startsWith(oldCategoryPath + '/')) {
+        setExplorerCategory(newCategoryPath + explorerCategory.slice(oldCategoryPath.length));
+      }
+
       closeMovePanels();
       await loadFiles(dirHandle);
-    } catch(e:any){ alert(e.message); }
+      return true;
+    } catch (e: any) {
+      alert(`フォルダー名変更に失敗しました: ${e.message}`);
+      return false;
+    }
   };
 
   const deleteFolder = async (name: string, folderHandle: any) => {
@@ -1106,13 +1303,25 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       alert(t.main.fallbackDeleteError);
       return;
     }
+    const parts = name.split('/');
+    const shortName = parts[parts.length - 1];
+    const parentPath = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+
     let count = 0;
-    for await (const item of folderHandle.values()) { if (item.kind === 'file') count++; }
-    const msg = count > 0 ? `「${name}」\n⚠️ ${count} ${t.main.confirmDeleteFolder}` : `「${name}」\n${t.main.confirmDeleteFolder}`;
+    try {
+      for await (const item of folderHandle.values()) { if (item.kind === 'file') count++; }
+    } catch(e) {}
+    const msg = count > 0 ? `「${shortName}」\n⚠️ ${count} ${t.main.confirmDeleteFolder}` : `「${shortName}」\n${t.main.confirmDeleteFolder}`;
     if (!confirm(msg)) return;
     try {
-      await dirHandle.removeEntry(name, { recursive: true });
-      if (currentFileObj && currentFileObj.category === name) setCurrentFileObj(null);
+      const parentHandle = parentPath ? await getDirectoryHandleByPath(dirHandle, parentPath, false) : dirHandle;
+      await parentHandle.removeEntry(shortName, { recursive: true });
+      if (currentFileObj && (currentFileObj.category === name || currentFileObj.category?.startsWith(name + '/'))) {
+        setCurrentFileObj(null);
+      }
+      if (explorerCategory === name || explorerCategory?.startsWith(name + '/')) {
+        setExplorerCategory(parentPath);
+      }
       closeMovePanels();
       await loadFiles(dirHandle);
     } catch(e:any){ alert(e.message); }
@@ -1120,7 +1329,6 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
   const createNewFolder = async (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string): Promise<boolean> => {
     if (isFallbackMode) return false;
-    const targetParent = parentFolderHandle || dirHandle;
     let folderName = explicitFolderName;
     if (!folderName) {
       const promptMsg = parentPath 
@@ -1129,8 +1337,20 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       folderName = prompt(promptMsg) || undefined;
     }
     if (!folderName || !folderName.trim()) return false;
+    const trimmed = folderName.trim();
+
     try {
-      await getDirectoryHandleByPath(targetParent, folderName.trim(), true);
+      if (parentFolderHandle && parentFolderHandle !== dirHandle) {
+        // 親フォルダーのDirectoryHandleが直接渡されている場合
+        await parentFolderHandle.getDirectoryHandle(trimmed, { create: true });
+      } else if (parentPath && parentPath.trim()) {
+        // 親パスが指定されている場合（ルートから辿って確実に作成）
+        const fullPath = `${parentPath.trim()}/${trimmed}`;
+        await getDirectoryHandleByPath(dirHandle, fullPath, true);
+      } else {
+        // 最上位（ルート）に作成
+        await dirHandle.getDirectoryHandle(trimmed, { create: true });
+      }
       await loadFiles(dirHandle);
       return true;
     } catch (e: any) {
@@ -1242,8 +1462,10 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
-      ttsSettings, updateTtsSettings, voices, writingMode, setWritingMode,
-      paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, loadPaperForTheme, fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
+      ttsSettings, updateTtsSettings, voiceRates, voices, writingMode, setWritingMode,
+      paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, loadPaperForTheme,
+      mainBgWhite, setMainBgWhite, toggleMainBgWhite,
+      fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
       isResuming, pendingResumeHandle, resumeSavedFolder
     }}>
       {children}

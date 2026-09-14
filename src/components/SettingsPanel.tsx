@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderColorForTheme, getPaperSettingsForTheme } from '../theme';
+import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderColorForTheme, getPaperSettingsForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from '../theme';
 import { applySettingsToDOM } from '../settingsSync';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voices, paperMode, setPaperMode, paperColor, setPaperColor, loadPaperForTheme } = useAppContext();
+  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voiceRates, voices, paperMode, setPaperMode, paperColor, setPaperColor, loadPaperForTheme } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -13,11 +13,13 @@ export const SettingsPanel = () => {
     sbTitleSize: '13', sbCatSize: '10', headingSize: '48', sbWidth: '280', contentWidth: '900', vertCardHeight: '600',
     cardPadding: '24', cardRadius: '0', msgGap: '16', pagePad: '56',
     cardDigestSize: '13',
-    theme: 'mono', font: 'meiryo', folderColor: '#FBBF24'
+    theme: 'mono', font: 'meiryo', folderColor: '#FBBF24',
+    mainBgWhite: false
   });
 
   useEffect(() => {
     const loadSettings = () => {
+      const currentTheme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
       setVals({
         fontSize: localStorage.getItem('lv_fontSize') || '15',
         fontWeight: localStorage.getItem('lv_fontWeight') || '400',
@@ -34,9 +36,10 @@ export const SettingsPanel = () => {
         msgGap: localStorage.getItem('lv_msgGap') || '16',
         pagePad: localStorage.getItem('lv_pagePad') || '56',
         cardDigestSize: localStorage.getItem('lv_cardDigestSize') || '13',
-        theme: (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono',
+        theme: currentTheme,
         font: localStorage.getItem('lv_font') || 'meiryo',
-        folderColor: getFolderColorForTheme((localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono')
+        folderColor: getFolderColorForTheme(currentTheme),
+        mainBgWhite: getMainBgWhiteForTheme(currentTheme)
       });
     };
     loadSettings();
@@ -48,7 +51,8 @@ export const SettingsPanel = () => {
     if (key === 'theme') {
       localStorage.setItem('lv_theme', val);
       const themeColor = getFolderColorForTheme(val);
-      setVals(prev => ({ ...prev, theme: val, folderColor: themeColor }));
+      const isWhite = getMainBgWhiteForTheme(val);
+      setVals(prev => ({ ...prev, theme: val, folderColor: themeColor, mainBgWhite: isWhite }));
       applySettingsToDOM();
       loadPaperForTheme(val);
       window.dispatchEvent(new Event('settingsChanged'));
@@ -63,6 +67,13 @@ export const SettingsPanel = () => {
     }
     localStorage.setItem(`lv_${key}`, val);
     setVals(prev => ({ ...prev, [key]: val }));
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
+  const updateMainBgWhite = (val: boolean) => {
+    setMainBgWhiteForTheme(vals.theme, val);
+    setVals(prev => ({ ...prev, mainBgWhite: val }));
     applySettingsToDOM();
     window.dispatchEvent(new Event('settingsChanged'));
   };
@@ -294,17 +305,74 @@ export const SettingsPanel = () => {
                   <button key={key} className={`theme-btn ${vals.theme === key ? 'active' : ''}`} onClick={() => updateSetting('theme', key)}>
                     <div className="theme-preview">
                       <div className="theme-preview-sb" style={{background: t.sbBg}}></div>
-                      <div className="theme-preview-main" style={{background: t.mainBg}}></div>
+                      <div className="theme-preview-main" style={{background: (vals.theme === key ? vals.mainBgWhite : getMainBgWhiteForTheme(key)) ? '#FFFFFF' : t.mainBg}}></div>
                     </div>
                     <div className="theme-preview-label">{t.label}</div>
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* メイン画面背景色（右カラム）のホワイト固定切り替え */}
+            <div className="setting-row" style={{marginTop: '20px', paddingBottom: '4px'}}>
+              <div className="setting-label" style={{marginBottom: '8px', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <span>{lang === 'en' ? 'Main Area Background (Right Column)' : 'メイン画面背景色（右カラム）'}</span>
+                <span style={{ fontSize: '10px', opacity: 0.8, textTransform: 'none', fontWeight: 'normal' }}>
+                  {vals.mainBgWhite ? (lang === 'en' ? '⚪ White (#FFFFFF)' : '⚪ 白（#FFFFFF）') : (lang === 'en' ? 'Theme Default' : 'テーマ標準色')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    borderRadius: '0px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--panel-item-border)',
+                    background: 'var(--panel-item-bg)',
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  <button
+                    onClick={() => updateMainBgWhite(false)}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: !vals.mainBgWhite ? 'var(--panel-tab-active)' : 'transparent',
+                      color: !vals.mainBgWhite ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                  >
+                    {lang === 'en' ? 'Theme Default' : 'テーマ標準色'}
+                  </button>
+                  <button
+                    onClick={() => updateMainBgWhite(true)}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: vals.mainBgWhite ? 'var(--panel-tab-active)' : 'transparent',
+                      color: vals.mainBgWhite ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                  >
+                    {lang === 'en' ? '⚪ White (Pure)' : '⚪ 白（ホワイト）'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="setting-row" style={{marginTop: '20px'}}>
               <div className="setting-label">{lang === 'en' ? 'Folder Icon Color' : 'フォルダーアイコン色'}</div>
               <div style={{display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center'}}>
-                {['#E2E8F0', '#FBBF24', '#60A5FA', '#34D399', '#F87171', '#A78BFA', '#9CA3AF', '#FFF'].map(col => (
+                {['#E2E8F0', '#8FAFCF', '#FBBF24', '#60A5FA', '#34D399', '#F87171', '#A78BFA', '#9CA3AF', '#FFF'].map(col => (
                   <button 
                     key={col} 
                     onClick={() => updateSetting('folderColor', col)}
@@ -439,16 +507,20 @@ export const SettingsPanel = () => {
                 style={{ flex: 1, justifyContent: 'center', background: 'rgba(59,130,246,0.1)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.3)' }}
                 onClick={() => {
                   window.speechSynthesis.cancel();
-                  const u = new SpeechSynthesisUtterance("音声機能のテストです。");
-                  const v = voices.find(v => v.voiceURI === ttsSettings.voiceURI);
-                  if (v) u.voice = v;
+                  const currentVoice = voices.find(v => v.voiceURI === ttsSettings.voiceURI);
+                  const isHaruka = currentVoice
+                    ? (currentVoice.name.toLowerCase().includes('haruka') || currentVoice.name.includes('遥') || currentVoice.name.includes('はるか'))
+                    : false;
+                  const testText = isHaruka ? "遥の音声テストです。設定速度で読み上げています。" : "一郎の音声テストです。設定速度で読み上げています。";
+                  const u = new SpeechSynthesisUtterance(testText);
+                  if (currentVoice) u.voice = currentVoice;
                   u.rate = ttsSettings.rate;
                   u.volume = ttsSettings.volume;
                   u.pitch = ttsSettings.pitch;
                   window.speechSynthesis.speak(u);
                 }}
               >
-                ▶ 再生
+                ▶ 再生テスト
               </button>
               <button
                 className="tool-btn"
@@ -458,10 +530,111 @@ export const SettingsPanel = () => {
                 ■ 停止
               </button>
             </div>
+
+            {/* ボイス選択（一郎 / 遥） */}
+            <div className="setting-row">
+              <div className="setting-label">ボイス (VOICE)</div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                {voices.map(v => {
+                  const isSelected = v.voiceURI === ttsSettings.voiceURI;
+                  const isHaruka = v.name.toLowerCase().includes('haruka') || v.name.includes('遥') || v.name.includes('はるか');
+                  const label = isHaruka ? '遥 (Haruka)' : '一郎 (Ichiro)';
+                  const savedRate = isHaruka ? voiceRates.haruka : voiceRates.ichiro;
+                  return (
+                    <button
+                      key={v.voiceURI}
+                      type="button"
+                      onClick={() => updateTtsSettings({ voiceURI: v.voiceURI })}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        border: isSelected ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                        background: isSelected ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                        color: isSelected ? 'var(--panel-bg)' : 'var(--panel-text)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s',
+                        borderRadius: '0px'
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        {isHaruka ? '👩 遥' : '👨 一郎'}
+                        {isSelected && <span style={{ fontSize: '9.5px', opacity: 0.85 }}>[選択中]</span>}
+                      </span>
+                      <span style={{ fontSize: '10px', opacity: 0.8, fontWeight: 'normal' }}>
+                        速度設定: {savedRate.toFixed(1)}x
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* セレクトボックスも設置（一郎と遥のみ表示） */}
+              <select
+                style={{
+                  width: '100%',
+                  marginTop: '8px',
+                  background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'black' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)',
+                  color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'black' ? '#FFF' : 'var(--panel-text)',
+                  border: '1px solid var(--panel-item-border)',
+                  borderRadius: '0px',
+                  padding: '7px 8px',
+                  fontSize: '11px',
+                  outline: 'none'
+                }}
+                value={ttsSettings.voiceURI}
+                onChange={e => updateTtsSettings({ voiceURI: e.target.value })}
+              >
+                {voices.map(v => {
+                  const isHaruka = v.name.toLowerCase().includes('haruka') || v.name.includes('遥') || v.name.includes('はるか');
+                  const label = isHaruka ? '遥 (Haruka)' : '一郎 (Ichiro)';
+                  const savedRate = isHaruka ? voiceRates.haruka : voiceRates.ichiro;
+                  return (
+                    <option
+                      key={v.voiceURI}
+                      value={v.voiceURI}
+                      style={{
+                        background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : vals.theme === 'black' ? '#0B0C0D' : '#FFF',
+                        color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'black' ? '#FFF' : '#000'
+                      }}
+                    >
+                      {label} — 速度: {savedRate.toFixed(1)}x ({v.name})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
             
             <div className="setting-row">
-              <div className="setting-label">速度 (SPEED) <span>{ttsSettings.rate.toFixed(1)}x</span></div>
-              <input className="setting-slider" type="range" min="0.5" max="3.0" step="0.1" value={ttsSettings.rate} onChange={e => updateTtsSettings({ rate: parseFloat(e.target.value) })} />
+              {(() => {
+                const currentVoice = voices.find(v => v.voiceURI === ttsSettings.voiceURI);
+                const isHaruka = currentVoice
+                  ? (currentVoice.name.toLowerCase().includes('haruka') || currentVoice.name.includes('遥') || currentVoice.name.includes('はるか'))
+                  : false;
+                const currentName = isHaruka ? '遥' : '一郎';
+                return (
+                  <>
+                    <div className="setting-label">
+                      <span>速度 (SPEED) — <strong>{currentName}専用</strong></span>
+                      <span>{ttsSettings.rate.toFixed(1)}x</span>
+                    </div>
+                    <input
+                      className="setting-slider"
+                      type="range"
+                      min="0.5"
+                      max="3.0"
+                      step="0.1"
+                      value={ttsSettings.rate}
+                      onChange={e => updateTtsSettings({ rate: parseFloat(e.target.value) })}
+                    />
+                  </>
+                );
+              })()}
             </div>
             <div className="setting-row">
               <div className="setting-label">音量 (VOL) <span>{Math.round(ttsSettings.volume * 100)}%</span></div>
@@ -470,20 +643,6 @@ export const SettingsPanel = () => {
             <div className="setting-row">
               <div className="setting-label">音程 (PITCH) <span>{ttsSettings.pitch.toFixed(1)}</span></div>
               <input className="setting-slider" type="range" min="0" max="2" step="0.1" value={ttsSettings.pitch} onChange={e => updateTtsSettings({ pitch: parseFloat(e.target.value) })} />
-            </div>
-            <div className="setting-row">
-              <div className="setting-label">ボイス (VOICE)</div>
-              <select
-                style={{ width: '100%', background: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'rose' || vals.theme === 'black' ? 'rgba(0,0,0,0.2)' : 'var(--panel-item-bg)', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'black' ? '#FFF' : 'var(--panel-text)', border: '1px solid var(--panel-item-border)', borderRadius: '0px', padding: '8px', fontSize: '11px', outline: 'none' }}
-                value={ttsSettings.voiceURI}
-                onChange={e => updateTtsSettings({ voiceURI: e.target.value })}
-              >
-                {voices
-                  .filter(v => !v.name.toLowerCase().includes('google'))
-                  .map(v => (
-                    <option key={v.voiceURI} value={v.voiceURI} style={{ background: vals.theme === 'midnight' ? '#0f172a' : vals.theme === 'obsidian' ? '#0A0A0A' : vals.theme === 'black' ? '#0B0C0D' : '#FFF', color: vals.theme === 'midnight' || vals.theme === 'obsidian' || vals.theme === 'black' ? '#FFF' : '#000' }}>{v.name} ({v.lang})</option>
-                ))}
-              </select>
             </div>
             <div style={{ textAlign: 'center', fontSize: '10px', opacity: 0.5, marginTop: '20px', lineHeight: '1.5' }}>
               ※段落をクリックで<br/>その箇所から読み上げ

@@ -1596,17 +1596,23 @@ body.select-mode .file-item.selected .file-title { color: var(--sb-accent); }
 
 .md-inline-code {
   font-family: monospace;
-  background: var(--sb-item-hover);
-  border: 1px solid var(--card-border);
+  background: var(--code-bg, var(--sb-item-hover));
+  border: 1px solid var(--code-border, var(--card-border));
   border-radius: 0px;
   padding: 1px 5px;
   font-size: 0.9em;
-  color: var(--sb-accent);
+  color: var(--code-color, var(--sb-accent));
 }
 
 .markdown-heading {
   font-family: var(--font-body);
-  transition: background 0.2s, font-size 0.15s;
+  transition: background 0.15s, font-size 0.15s;
+}
+
+.markdown-heading:hover,
+.markdown-line:hover,
+.markdown-list-item:hover {
+  background: var(--line-hover-bg, rgba(120, 120, 120, 0.08));
 }
 
 .markdown-list {
@@ -2296,7 +2302,7 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
 /* サブディレクトリカード グリッド */
 .explorer-folders-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
 }
 
@@ -2311,7 +2317,7 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   transition: all 0.18s ease;
   user-select: none;
   gap: 10px;
-  min-height: 80px;
+  min-height: 88px;
   box-sizing: border-box;
 }
 
@@ -2324,14 +2330,14 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
 
 .folder-card-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   width: 100%;
 }
 
 .folder-card-icon-wrap {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 0px;
   display: flex;
   align-items: center;
@@ -2356,11 +2362,12 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
 
 .folder-card-name {
   flex: 1;
-  font-size: 14px;
+  min-width: 0;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--main-text, #1e293b);
   word-break: break-word;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .folder-card-count {
@@ -2379,15 +2386,83 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  opacity: 0.75;
+  opacity: 0.85;
   color: var(--main-text, #64748b);
   margin-top: auto;
-  padding-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--card-border, rgba(120, 120, 120, 0.12));
+  gap: 8px;
+}
+
+.folder-card-subinfo {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.folder-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.folder-card-rename-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 0px;
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  background: transparent;
+  color: var(--main-text, #475569);
+  opacity: 0.75;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.folder-card-prefix-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 0px;
+  border: 1px solid var(--card-border, rgba(120, 120, 120, 0.25));
+  background: transparent;
+  color: var(--main-text, #475569);
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  font-weight: 700;
+  opacity: 0.8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.folder-card-prefix-btn:hover {
+  opacity: 1;
+  background: var(--sb-item-hover, rgba(59, 130, 246, 0.15));
+  border-color: var(--sb-accent, #3b82f6);
+  color: var(--sb-accent, #3b82f6);
+}
+
+.folder-card-rename-btn:hover {
+  opacity: 1;
+  background: var(--sb-item-hover, rgba(59, 130, 246, 0.15));
+  border-color: var(--sb-accent, #3b82f6);
+  color: var(--sb-accent, #3b82f6);
 }
 
 .folder-card-open-arrow {
   color: var(--sb-accent, #3b82f6);
   font-weight: 600;
+  font-size: 11px;
 }
 
 /* 記事ダイジェストカード グリッド */
@@ -3136,6 +3211,474 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
 .move-folder-btn.is-subfolder {
   font-size: 12px;
 }
+
+/* ==========================================================================
+   メイン画面（右カラム）ホワイト背景モード [data-main-white="true"]
+   サイドバーのテーマ色を維持したまま、メイン領域の背景色を完全な白（#FFFFFF）にし、
+   すべての文字色・カード・リスト・ツールバー・入力欄の視認性とコントラストを最適化
+   ========================================================================== */
+[data-main-white="true"] #main {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] #sidebar {
+  border-right: 1px solid var(--sb-border, rgba(0, 0, 0, 0.12));
+}
+
+/* リーダー表示・見出し・テキスト */
+[data-main-white="true"] #file-heading {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] #file-meta {
+  color: #64748B !important;
+}
+
+[data-main-white="true"] #bg-date {
+  color: #0F172A !important;
+  opacity: 0.04 !important;
+}
+
+[data-main-white="true"] #plain-text {
+  color: #1E293B !important;
+}
+
+/* ── リンク：真っ黒やグレーにならず、視認性の高いクッキリとしたブルー ── */
+[data-main-white="true"] .md-link,
+[data-main-white="true"] #main a:not(.tool-btn):not(.explorer-btn):not(.explorer-crumb) {
+  color: #2563EB !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  text-decoration-color: rgba(37, 99, 235, 0.45) !important;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+[data-main-white="true"] .md-link:hover,
+[data-main-white="true"] #main a:not(.tool-btn):not(.explorer-btn):not(.explorer-crumb):hover {
+  color: #1D4ED8 !important;
+  text-decoration-color: #1D4ED8 !important;
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  border-radius: 2px !important;
+}
+
+/* ── インラインコード：黒地×グレー文字を解消し、清潔感のあるライトグレー背景×濃色文字 ── */
+[data-main-white="true"] .md-inline-code,
+[data-main-white="true"] #plain-text code,
+[data-main-white="true"] #content-area code {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+/* ── ノードタグバッジ ── */
+[data-main-white="true"] .md-node-tag {
+  background-color: #EFF6FF !important;
+  color: #1D4ED8 !important;
+  border: 1px solid #BFDBFE !important;
+}
+
+/* ── 本文行・見出し・リスト項目のマウスホバー：黒く反転せず、淡く上品なハイライト ── */
+[data-main-white="true"] .markdown-heading:hover,
+[data-main-white="true"] .markdown-line:hover,
+[data-main-white="true"] .markdown-list-item:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* ── 引用ブロック ── */
+[data-main-white="true"] .markdown-quote {
+  background-color: #F8FAFC !important;
+  color: #334155 !important;
+  border-left-color: #3B82F6 !important;
+  border-top-color: #3B82F6 !important;
+}
+
+/* ── テーブル ── */
+[data-main-white="true"] table th {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+  border-color: #E2E8F0 !important;
+}
+
+[data-main-white="true"] table td {
+  border-color: #E2E8F0 !important;
+  color: #1E293B !important;
+}
+
+[data-main-white="true"] table tbody tr:nth-child(even) {
+  background-color: #F8FAFC !important;
+}
+
+[data-main-white="true"] .msg-body {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #E2E8F0 !important;
+}
+
+[data-main-white="true"] .horizontal-card {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #E2E8F0 !important;
+}
+
+[data-main-white="true"] .card-author {
+  color: #64748B !important;
+}
+
+/* 要約ボックス */
+[data-main-white="true"] #summary-box {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+  border-color: #E2E8F0 !important;
+}
+
+[data-main-white="true"] #summary-box .summary-title {
+  color: #0F172A !important;
+}
+
+/* ツールバー */
+[data-main-white="true"] #toolbar {
+  border-bottom-color: #E2E8F0 !important;
+}
+
+[data-main-white="true"] #toolbar .tool-btn {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #1E293B !important;
+}
+
+[data-main-white="true"] #toolbar .tool-btn:hover {
+  background: #F1F5F9 !important;
+  color: #0F172A !important;
+  border-color: #94A3B8 !important;
+}
+
+[data-main-white="true"] #toolbar .tool-btn.primary {
+  background: #0F172A !important;
+  border-color: #0F172A !important;
+  color: #FFFFFF !important;
+}
+
+[data-main-white="true"] #toolbar .tool-btn.primary:hover {
+  background: #1E293B !important;
+}
+
+[data-main-white="true"] .toolbar-stepper {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #1E293B !important;
+}
+
+[data-main-white="true"] .stepper-btn {
+  color: #1E293B !important;
+}
+
+[data-main-white="true"] .stepper-btn:hover {
+  background: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .stepper-value {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .stepper-label {
+  color: #64748B !important;
+}
+
+[data-main-white="true"] .paper-mode-control {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* パンくずリスト */
+[data-main-white="true"] .content-breadcrumb-crumb {
+  color: #2563EB !important;
+}
+
+[data-main-white="true"] .content-breadcrumb-crumb:hover {
+  background: #EFF6FF !important;
+}
+
+[data-main-white="true"] .content-breadcrumb-sep {
+  color: #94A3B8 !important;
+}
+
+[data-main-white="true"] .content-breadcrumb-current {
+  color: #0F172A !important;
+  font-weight: 700 !important;
+}
+
+/* マークパレット */
+[data-main-white="true"] .mark-palette {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* フォルダーエクスプローラー（ヘッダー＆ツールバー） */
+[data-main-white="true"] .folder-explorer {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .explorer-header {
+  background: #FFFFFF !important;
+  border-bottom-color: #E2E8F0 !important;
+}
+
+[data-main-white="true"] .explorer-crumb {
+  color: #2563EB !important;
+}
+
+[data-main-white="true"] .explorer-crumb:hover {
+  background: #EFF6FF !important;
+}
+
+[data-main-white="true"] .explorer-crumb.active {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .explorer-crumb-sep {
+  color: #94A3B8 !important;
+}
+
+[data-main-white="true"] .explorer-btn {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #1E293B !important;
+}
+
+[data-main-white="true"] .explorer-btn:hover {
+  background: #F1F5F9 !important;
+  color: #0F172A !important;
+  border-color: #94A3B8 !important;
+}
+
+[data-main-white="true"] .explorer-btn.primary {
+  background: #0F172A !important;
+  border-color: #0F172A !important;
+  color: #FFFFFF !important;
+}
+
+[data-main-white="true"] .explorer-search-box {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+}
+
+[data-main-white="true"] .explorer-search-input {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .explorer-search-input::placeholder {
+  color: #94A3B8 !important;
+}
+
+[data-main-white="true"] .explorer-stat-badge {
+  color: #475569 !important;
+}
+
+[data-main-white="true"] .explorer-sort-btn {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #475569 !important;
+}
+
+[data-main-white="true"] .explorer-sort-btn:hover {
+  background: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .explorer-sort-btn.active {
+  background: #EFF6FF !important;
+  border-color: #2563EB !important;
+  color: #2563EB !important;
+}
+
+[data-main-white="true"] .explorer-layout-group {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+}
+
+[data-main-white="true"] .explorer-layout-btn {
+  color: #475569 !important;
+  border-right-color: #CBD5E1 !important;
+}
+
+[data-main-white="true"] .explorer-layout-btn:hover:not(.active) {
+  background: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .explorer-layout-btn.active {
+  background: #0F172A !important;
+  color: #FFFFFF !important;
+}
+
+[data-main-white="true"] .explorer-section-title {
+  color: #0F172A !important;
+  border-bottom-color: #E2E8F0 !important;
+}
+
+/* フォルダーカード */
+[data-main-white="true"] .folder-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-main-white="true"] .folder-card:hover {
+  border-color: #94A3B8 !important;
+  background: #F8FAFC !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07) !important;
+}
+
+[data-main-white="true"] .folder-card-name {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .folder-card-count {
+  background: #F1F5F9 !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #475569 !important;
+}
+
+[data-main-white="true"] .folder-card-icon-wrap {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
+[data-main-white="true"] .folder-card-substats {
+  border-top-color: #F1F5F9 !important;
+  color: #64748B !important;
+}
+
+[data-main-white="true"] .folder-card-subinfo {
+  color: #64748B !important;
+}
+
+[data-main-white="true"] .folder-card-prefix-btn,
+[data-main-white="true"] .folder-card-rename-btn {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #475569 !important;
+}
+
+[data-main-white="true"] .folder-card-prefix-btn:hover,
+[data-main-white="true"] .folder-card-rename-btn:hover {
+  background: #F1F5F9 !important;
+  color: #0F172A !important;
+  border-color: #94A3B8 !important;
+}
+
+/* 記事カード（カードビュー） */
+[data-main-white="true"] .article-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-main-white="true"] .article-card:hover {
+  border-color: #94A3B8 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07) !important;
+}
+
+[data-main-white="true"] .article-card-title {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .article-card:hover .article-card-title {
+  color: #2563EB !important;
+}
+
+[data-main-white="true"] .article-card-filename {
+  color: #64748B !important;
+}
+
+[data-main-white="true"] .article-date-badge {
+  background: #F1F5F9 !important;
+  color: #475569 !important;
+}
+
+[data-main-white="true"] .article-card-digest {
+  color: #334155 !important;
+}
+
+[data-main-white="true"] .article-card-footer {
+  border-top-color: #F1F5F9 !important;
+}
+
+[data-main-white="true"] .article-char-count {
+  color: #64748B !important;
+}
+
+/* 記事リスト（リストビュー） */
+[data-main-white="true"] .article-list-row {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+[data-main-white="true"] .article-list-row:hover {
+  background: #F8FAFC !important;
+  border-color: #94A3B8 !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-main-white="true"] .article-list-title {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .article-list-row:hover .article-list-title {
+  color: #2563EB !important;
+}
+
+[data-main-white="true"] .article-list-meta {
+  color: #64748B !important;
+}
+
+[data-main-white="true"] .article-list-icon-box {
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+  color: #475569 !important;
+}
+
+/* チェックボックス */
+[data-main-white="true"] .article-card-checkbox,
+[data-main-white="true"] .article-list-checkbox {
+  border-color: #94A3B8 !important;
+  background: #FFFFFF !important;
+}
+
+/* 空状態・ウェルカム画面 */
+[data-main-white="true"] #welcome {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] #welcome-big {
+  color: #0F172A !important;
+  opacity: 0.05 !important;
+}
+
+[data-main-white="true"] .explorer-empty-box {
+  border-color: #CBD5E1 !important;
+  color: #64748B !important;
+}
+
+/* スクロールバー */
+[data-main-white="true"] #main::-webkit-scrollbar-thumb,
+[data-main-white="true"] .explorer-scroll-area::-webkit-scrollbar-thumb,
+[data-main-white="true"] #content-area::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.20) !important;
+}
+
+[data-main-white="true"] #main::-webkit-scrollbar-thumb:hover,
+[data-main-white="true"] .explorer-scroll-area::-webkit-scrollbar-thumb:hover,
+[data-main-white="true"] #content-area::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.38) !important;
+}
+
 
 
 

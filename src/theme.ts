@@ -2,32 +2,32 @@ export const THEMES: Record<string, any> = {
   midnight: { 
     label: 'Navy', 
     sbBg: '#101A2B', 
-    sbMain: '#8FAFCF', 
+    sbMain: '#E2E8F0', 
     mainBg: '#090F1A', 
     mainCard: '#101A2B', 
-    mainText: '#8FAFCF', 
-    cardBorder: '#1E3557', 
+    mainText: '#E2E8F0', 
+    cardBorder: '#1B2E4B', 
     sbAccent: '#8FAFCF', 
     dateAccent: '#8FAFCF', 
     footerBg: 'rgba(16,26,43,0.95)', 
-    footerBorder: '#1E3557', 
+    footerBorder: '#1B2E4B', 
     scrollbar: 'rgba(143,175,207,0.25)', 
     summaryBg: '#132238', 
-    summaryBorder: '#1E3557', 
+    summaryBorder: '#1B2E4B', 
     summaryText: '#8FAFCF', 
     summaryLabel: '#8FAFCF', 
-    btnBg: '#152238', 
-    btnText: '#8FAFCF', 
-    btnBorder: '#1E3557', 
-    btnHover: '#1C3050', 
+    btnBg: '#132035', 
+    btnText: '#E2E8F0', 
+    btnBorder: '#1B2E4B', 
+    btnHover: '#182944', 
     panelBg: '#101A2B', 
-    panelBorder: '#1E3557', 
-    panelText: '#8FAFCF', 
+    panelBorder: '#1B2E4B', 
+    panelText: '#E2E8F0', 
     panelMuted: '#8FAFCF', 
     panelTabActive: '#FFFFFF', 
-    panelTabBorder: '#1E3557', 
-    panelItemBg: '#152238', 
-    panelItemBorder: '#1E3557', 
+    panelTabBorder: '#1B2E4B', 
+    panelItemBg: '#132035', 
+    panelItemBorder: '#1B2E4B', 
     panelSliderBg: 'rgba(143,175,207,0.20)', 
     panelScrollbar: 'rgba(143,175,207,0.20)', 
     sbItemOpacity: '0.92', 
@@ -141,6 +141,11 @@ export function getFolderColorForTheme(themeKey: string): string {
     localStorage.setItem('lv_folderColor_black', '#E2E8F0');
     return '#E2E8F0';
   }
+  // midnightテーマの場合、以前の黄色(#FBBF24)が残っていればリンクマネージャーのアイスブルー(#8FAFCF)に移行
+  if (themeKey === 'midnight' && (!saved || saved === '#FBBF24')) {
+    localStorage.setItem('lv_folderColor_midnight', '#8FAFCF');
+    return '#8FAFCF';
+  }
   if (saved) return saved;
   const t = THEMES[themeKey] || THEMES.mono;
   return t?.defaultFolderColor || localStorage.getItem('lv_folderColor') || (themeKey === 'black' ? '#E2E8F0' : '#FBBF24');
@@ -150,6 +155,21 @@ export function setFolderColorForTheme(themeKey: string, color: string) {
   if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
   localStorage.setItem(`lv_folderColor_${themeKey}`, color);
   localStorage.setItem('lv_folderColor', color);
+}
+
+export function getMainBgWhiteForTheme(themeKey: string): boolean {
+  if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  const saved = localStorage.getItem(`lv_mainBgWhite_${themeKey}`);
+  if (saved !== null) return saved === '1';
+  // Whiteテーマは元々メイン背景が白
+  if (themeKey === 'white') return true;
+  return false;
+}
+
+export function setMainBgWhiteForTheme(themeKey: string, val: boolean) {
+  if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  localStorage.setItem(`lv_mainBgWhite_${themeKey}`, val ? '1' : '0');
+  localStorage.setItem('lv_mainBgWhite', val ? '1' : '0');
 }
 
 export function getPaperSettingsForTheme(themeKey: string): { mode: boolean; color: 'beige' | 'white' } {
@@ -183,7 +203,7 @@ export function setPaperSettingsForTheme(themeKey: string, mode: boolean, color?
   }
 }
 
-export function applyThemeStyle(key: string) {
+export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {
   if (key === 'ocean' || key === 'dark') key = 'black';
   const t = THEMES[key] || THEMES.mono;
   if (!t) return;
@@ -239,15 +259,78 @@ export function applyThemeStyle(key: string) {
     r.setProperty('--input-border', t.cardBorder || hexToRgba(t.sbMain, 0.15));
     r.setProperty('--input-placeholder', hexToRgba(t.sbMain, 0.45));
   }
-  r.setProperty('--main-bg', t.mainBg); r.setProperty('--main-text', t.mainText); r.setProperty('--main-muted', hexToRgba(t.mainText, 0.35));
-  r.setProperty('--card-bg', t.mainCard); r.setProperty('--card-border', t.cardBorder); r.setProperty('--footer-bg', t.footerBg); r.setProperty('--footer-border', t.footerBorder);
-  r.setProperty('--scrollbar-thumb', t.scrollbar);
-  r.setProperty('--scrollbar-track', isDark ? 'rgba(0,0,0,0.2)' : 'transparent');
-  r.setProperty('--scrollbar-thumb-hover', isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)');
-  r.setProperty('--heading-color', t.mainText); r.setProperty('--speaker-color', hexToRgba(t.mainText, 0.4));
-  r.setProperty('--date-accent', t.dateAccent); r.setProperty('--summary-bg', t.summaryBg); r.setProperty('--summary-border', t.summaryBorder);
-  r.setProperty('--summary-text', t.summaryText); r.setProperty('--summary-label', t.summaryLabel); r.setProperty('--btn-bg', t.btnBg);
-  r.setProperty('--btn-text', t.btnText); r.setProperty('--btn-border', t.btnBorder); r.setProperty('--btn-hover', t.btnHover);
+
+  const isMainWhite = isWhiteOverride !== undefined ? isWhiteOverride : getMainBgWhiteForTheme(key);
+  document.documentElement.setAttribute('data-main-white', isMainWhite ? 'true' : 'false');
+
+  if (isMainWhite) {
+    r.setProperty('--main-bg', '#FFFFFF');
+    r.setProperty('--main-text', '#0F172A');
+    r.setProperty('--main-muted', '#64748B');
+    r.setProperty('--card-bg', '#FFFFFF');
+    r.setProperty('--card-border', '#E2E8F0');
+    r.setProperty('--footer-bg', 'rgba(255, 255, 255, 0.95)');
+    r.setProperty('--footer-border', '#E2E8F0');
+    r.setProperty('--scrollbar-thumb', 'rgba(0, 0, 0, 0.22)');
+    r.setProperty('--scrollbar-track', 'transparent');
+    r.setProperty('--scrollbar-thumb-hover', 'rgba(0, 0, 0, 0.40)');
+    r.setProperty('--heading-color', '#0F172A');
+    r.setProperty('--speaker-color', '#64748B');
+    r.setProperty('--date-accent', isDark ? (key === 'red' ? '#DC2626' : key === 'midnight' ? '#2563EB' : '#475569') : t.dateAccent);
+    r.setProperty('--summary-bg', '#F8FAFC');
+    r.setProperty('--summary-border', isDark ? (key === 'red' ? '#DC2626' : key === 'midnight' ? '#2563EB' : '#CBD5E1') : t.summaryBorder);
+    r.setProperty('--summary-text', '#0F172A');
+    r.setProperty('--summary-label', isDark ? (key === 'red' ? '#B91C1C' : key === 'midnight' ? '#1D4ED8' : '#334155') : t.summaryLabel);
+    r.setProperty('--btn-bg', '#FFFFFF');
+    r.setProperty('--btn-text', '#0F172A');
+    r.setProperty('--btn-border', '#CBD5E1');
+    r.setProperty('--btn-hover', '#F1F5F9');
+    r.setProperty('--input-bg', '#FFFFFF');
+    r.setProperty('--input-border', '#CBD5E1');
+    r.setProperty('--input-placeholder', '#94A3B8');
+    r.setProperty('--line-hover-bg', 'rgba(0, 0, 0, 0.04)');
+    r.setProperty('--table-header-bg', '#F1F5F9');
+    r.setProperty('--table-row-alt', '#F8FAFC');
+    r.setProperty('--quote-bg', '#F8FAFC');
+    r.setProperty('--link-color', '#2563EB');
+    r.setProperty('--code-bg', '#F1F5F9');
+    r.setProperty('--code-border', '#E2E8F0');
+    r.setProperty('--code-color', '#0F172A');
+  } else {
+    r.setProperty('--main-bg', t.mainBg);
+    r.setProperty('--main-text', t.mainText);
+    r.setProperty('--main-muted', hexToRgba(t.mainText, 0.35));
+    r.setProperty('--card-bg', t.mainCard);
+    r.setProperty('--card-border', t.cardBorder);
+    r.setProperty('--footer-bg', t.footerBg);
+    r.setProperty('--footer-border', t.footerBorder);
+    r.setProperty('--scrollbar-thumb', t.scrollbar);
+    r.setProperty('--scrollbar-track', isDark ? 'rgba(0,0,0,0.2)' : 'transparent');
+    r.setProperty('--scrollbar-thumb-hover', isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)');
+    r.setProperty('--heading-color', t.mainText);
+    r.setProperty('--speaker-color', hexToRgba(t.mainText, 0.4));
+    r.setProperty('--date-accent', t.dateAccent);
+    r.setProperty('--summary-bg', t.summaryBg);
+    r.setProperty('--summary-border', t.summaryBorder);
+    r.setProperty('--summary-text', t.summaryText);
+    r.setProperty('--summary-label', t.summaryLabel);
+    r.setProperty('--btn-bg', t.btnBg);
+    r.setProperty('--btn-text', t.btnText);
+    r.setProperty('--btn-border', t.btnBorder);
+    r.setProperty('--btn-hover', t.btnHover);
+    r.setProperty('--input-bg', t.mainCard || (isDark ? 'rgba(0,0,0,0.2)' : '#ffffff'));
+    r.setProperty('--input-border', t.cardBorder || hexToRgba(t.sbMain, 0.15));
+    r.setProperty('--input-placeholder', hexToRgba(t.sbMain, 0.45));
+    r.setProperty('--line-hover-bg', isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)');
+    r.setProperty('--table-header-bg', isDark ? 'rgba(255, 255, 255, 0.08)' : '#F1F5F9');
+    r.setProperty('--table-row-alt', isDark ? 'rgba(255, 255, 255, 0.04)' : '#F8FAFC');
+    r.setProperty('--quote-bg', isDark ? 'rgba(255, 255, 255, 0.05)' : '#F8FAFC');
+    r.setProperty('--link-color', t.sbAccent || '#3B82F6');
+    r.setProperty('--code-bg', isDark ? 'rgba(255, 255, 255, 0.08)' : '#F1F5F9');
+    r.setProperty('--code-border', t.cardBorder || 'transparent');
+    r.setProperty('--code-color', t.sbAccent || 'inherit');
+  }
+
   r.setProperty('--panel-bg', t.panelBg); r.setProperty('--panel-border', t.panelBorder);
   r.setProperty('--panel-text', t.panelText || 'rgba(255,255,255,0.85)');
   r.setProperty('--panel-muted', t.panelMuted || 'rgba(255,255,255,0.35)');
@@ -261,12 +344,9 @@ export function applyThemeStyle(key: string) {
   r.setProperty('--sb-category-opacity', t.sbCategoryOpacity || '0.85');
   r.setProperty('--sb-category-color', t.sbMutedOverride || t.sbMain || '');
 
-  // PWA/ブラウザのヘッダー色（theme-color）の設定
-  // Whiteテーマ時のみ白（#FFFFFF）、それ以外のテーマはすべて黒（#000000）に固定
+  // PWA/ブラウザのメタテーマカラーおよびヘッダー背景色の動的リアルタイム同期
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
-    const headerColor = key === 'white' ? '#FFFFFF' : '#000000';
-    metaThemeColor.setAttribute('content', headerColor);
+    metaThemeColor.setAttribute('content', t.mainBg || t.sbBg || '#0F172A');
   }
 }
-
