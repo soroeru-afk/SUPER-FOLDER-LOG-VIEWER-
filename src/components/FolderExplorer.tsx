@@ -1084,14 +1084,14 @@ export const FolderExplorer: React.FC = () => {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '4px',
-                      padding: '2px 8px',
+                      padding: '3px 8px',
                       fontSize: '11px',
                       fontWeight: 700,
                       fontFamily: 'var(--font-mono, monospace)',
                       borderRadius: '0px',
-                      border: newFolderName.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120, 120, 120, 0.35))',
-                      background: newFolderName.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--sb-item-hover, rgba(120, 120, 120, 0.1))',
-                      color: newFolderName.startsWith('00_') ? '#ffffff' : 'var(--main-text, inherit)',
+                      border: newFolderName.startsWith('00_') ? '1px solid #3b82f6' : '1px solid var(--card-border, #CBD5E1)',
+                      background: newFolderName.startsWith('00_') ? '#3b82f6' : 'var(--btn-bg, #F1F5F9)',
+                      color: newFolderName.startsWith('00_') ? '#ffffff' : 'var(--main-text, #0F172A)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
@@ -1183,15 +1183,15 @@ export const FolderExplorer: React.FC = () => {
             style={{
               width: '100%',
               maxWidth: '480px',
-              background: 'var(--panel-bg, #101A2B)',
-              border: '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+              background: 'var(--card-bg, #ffffff)',
+              border: '1.5px solid var(--card-border, rgba(120, 120, 120, 0.4))',
               borderRadius: '0px',
               boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
               padding: '20px',
               display: 'flex',
               flexDirection: 'column',
               gap: '16px',
-              color: 'var(--main-text, #E2E8F0)'
+              color: 'var(--main-text, #1e293b)'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1251,14 +1251,14 @@ export const FolderExplorer: React.FC = () => {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '4px',
-                      padding: '2px 8px',
+                      padding: '3px 8px',
                       fontSize: '11px',
                       fontWeight: 700,
                       fontFamily: 'var(--font-mono, monospace)',
                       borderRadius: '0px',
-                      border: folderRenameInputVal.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120, 120, 120, 0.35))',
-                      background: folderRenameInputVal.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--sb-item-hover, rgba(120, 120, 120, 0.1))',
-                      color: folderRenameInputVal.startsWith('00_') ? '#ffffff' : 'var(--main-text, inherit)',
+                      border: folderRenameInputVal.startsWith('00_') ? '1px solid #3b82f6' : '1px solid var(--card-border, #CBD5E1)',
+                      background: folderRenameInputVal.startsWith('00_') ? '#3b82f6' : 'var(--btn-bg, #F1F5F9)',
+                      color: folderRenameInputVal.startsWith('00_') ? '#ffffff' : 'var(--main-text, #0F172A)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
