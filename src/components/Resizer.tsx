@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAppContext } from '../AppContext';
 
 export const Resizer = () => {
+  const { sidebarPosition } = useAppContext();
   const [isResizing, setIsResizing] = useState(false);
   const resizerRef = useRef<HTMLDivElement>(null);
 
@@ -8,9 +10,12 @@ export const Resizer = () => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
       
-      let newWidth = e.clientX;
+      let newWidth = sidebarPosition === 'right' 
+        ? window.innerWidth - e.clientX 
+        : e.clientX;
+
       if (newWidth < 180) newWidth = 180;
-      if (newWidth > 800) newWidth = 800; // Increased max width
+      if (newWidth > 800) newWidth = 800;
       
       document.documentElement.style.setProperty('--sb-width', `${newWidth}px`);
     };
@@ -20,7 +25,10 @@ export const Resizer = () => {
       document.body.style.cursor = 'default';
       document.body.style.userSelect = 'auto';
       
-      let finalWidth = e.clientX;
+      let finalWidth = sidebarPosition === 'right' 
+        ? window.innerWidth - e.clientX 
+        : e.clientX;
+
       if (finalWidth < 180) finalWidth = 180;
       if (finalWidth > 800) finalWidth = 800;
       localStorage.setItem('lv_sbWidth', finalWidth.toString());
@@ -31,14 +39,14 @@ export const Resizer = () => {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none'; // Prevent text selection while resizing
+      document.body.style.userSelect = 'none';
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing]);
+  }, [isResizing, sidebarPosition]);
 
   return (
     <div

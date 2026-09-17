@@ -87,8 +87,8 @@ export const THEMES: Record<string, any> = {
     mainCard: '#FFFFFF', 
     mainText: '#111827', 
     cardBorder: '#D1D5DB', 
-    sbAccent: '#2563EB', 
-    dateAccent: '#374151', 
+    sbAccent: '#64748B', 
+    dateAccent: '#475569', 
     footerBg: 'rgba(255,255,255,0.95)', 
     footerBorder: '#D1D5DB', 
     scrollbar: 'rgba(0,0,0,0.35)', 
@@ -111,10 +111,10 @@ export const THEMES: Record<string, any> = {
     panelSliderBg: 'rgba(0,0,0,0.20)', 
     panelScrollbar: 'rgba(0,0,0,0.20)', 
     sbItemOpacity: '1', 
-    sbMutedOverride: '#1F2937', 
+    sbMutedOverride: '#4B5563', 
     sbCategoryOpacity: '1',
     isDark: false,
-    defaultFolderColor: '#2563EB'
+    defaultFolderColor: '#64748B'
   },
 };
 
@@ -211,6 +211,7 @@ export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {
   const isDark = Boolean(t.isDark);
   r.colorScheme = isDark ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme-dark', isDark ? 'true' : 'false');
+  document.documentElement.setAttribute('data-theme-key', key);
 
   const folderColor = getFolderColorForTheme(key);
   r.setProperty('--sb-folder-color', folderColor);

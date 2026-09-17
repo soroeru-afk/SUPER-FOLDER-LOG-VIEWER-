@@ -1,10 +1,36 @@
 import React, { useEffect } from 'react';
-import { AppProvider } from './AppContext';
+import { AppProvider, useAppContext } from './AppContext';
 import { Sidebar } from './components/Sidebar';
 import { MainContent } from './components/MainContent';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Resizer } from './components/Resizer';
 import { applySettingsToDOM } from './settingsSync';
+
+function MainLayout() {
+  const { sidebarPosition } = useAppContext();
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-sidebar-pos', sidebarPosition);
+  }, [sidebarPosition]);
+
+  return (
+    <div 
+      id="app-layout-root" 
+      style={{
+        display: 'flex',
+        flexDirection: sidebarPosition === 'right' ? 'row-reverse' : 'row',
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden'
+      }}
+    >
+      <Sidebar />
+      <Resizer />
+      <SettingsPanel />
+      <MainContent />
+    </div>
+  );
+}
 
 export default function App() {
   useEffect(() => {
@@ -21,10 +47,8 @@ export default function App() {
 
   return (
     <AppProvider>
-      <Sidebar />
-      <Resizer />
-      <SettingsPanel />
-      <MainContent />
+      <MainLayout />
     </AppProvider>
   );
 }
+

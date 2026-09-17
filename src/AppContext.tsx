@@ -91,6 +91,9 @@ export interface AppState {
   mainBgWhite: boolean;
   setMainBgWhite: (val: boolean) => void;
   toggleMainBgWhite: () => void;
+  sidebarPosition: 'left' | 'right';
+  setSidebarPosition: (pos: 'left' | 'right') => void;
+  toggleSidebarPosition: () => void;
   fileMarks: Record<string, string>;
   setFileMark: (filename: string, mark: string) => void;
   setBulkFileMarks: (filenames: string[], mark: string) => void;
@@ -567,6 +570,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const t = translations[lang];
+
+  const [sidebarPosition, setSidebarPositionState] = useState<'left' | 'right'>(() => {
+    return (localStorage.getItem('lv_sidebarPosition') as 'left' | 'right') || 'left';
+  });
+
+  const setSidebarPosition = (pos: 'left' | 'right') => {
+    setSidebarPositionState(pos);
+    localStorage.setItem('lv_sidebarPosition', pos);
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
+  const toggleSidebarPosition = () => {
+    setSidebarPosition(sidebarPosition === 'left' ? 'right' : 'left');
+  };
 
   const [categoryOpenState, setCategoryOpenState] = useState<Record<string, boolean>>({});
   
@@ -1465,6 +1482,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       ttsSettings, updateTtsSettings, voiceRates, voices, writingMode, setWritingMode,
       paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, loadPaperForTheme,
       mainBgWhite, setMainBgWhite, toggleMainBgWhite,
+      sidebarPosition, setSidebarPosition, toggleSidebarPosition,
       fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
       isResuming, pendingResumeHandle, resumeSavedFolder
     }}>

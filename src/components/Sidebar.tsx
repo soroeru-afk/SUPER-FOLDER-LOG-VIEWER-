@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { SearchIcon, FolderIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon } from './Icons';
+import { SearchIcon, FolderIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon, SolidSeriesIcon, SideChangeIcon } from './Icons';
 import { FileObj } from '../types';
 import { highlightText, escHtml } from '../utils';
 
@@ -18,7 +18,8 @@ export const Sidebar = () => {
     sortMode, sortDirection, setSortMode, setSortDirection,
     fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder,
     openExplorer, viewMode, setViewMode,
-    canGoBack, canGoForward, goBack, goForward
+    canGoBack, canGoForward, goBack, goForward,
+    sidebarPosition, toggleSidebarPosition
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -406,29 +407,44 @@ export const Sidebar = () => {
 
   return (
     <div id="sidebar" onClick={() => { if (settingsOpen) toggleSettings(); closeMovePanels(); }}>
-      <div id="app-brand" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '8px', paddingBottom: '16px'}}>
-        <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end'}}>
-          <div id="app-name">SUPER FOLDER<br/><span>LOG VIEWER</span></div>
-          {isInIframe && (
-            <button 
-              title={t.app.fallbackReopen}
-              onClick={(e) => { e.stopPropagation(); window.open(window.location.href, '_blank'); }}
-              style={{ background: 'var(--sb-item-hover)', border: '1px solid var(--sb-border)', color: 'var(--sb-accent)', borderRadius: '0px', padding: '5px 8px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 'bold' }}
-            >
-              <ExternalLinkIcon />
-              {t.app.fallbackReopen}
-            </button>
-          )}
+      <div id="app-brand" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '10px', paddingBottom: '16px'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: '10px', width: '100%'}}>
+          <SolidSeriesIcon size={32} />
+          <div id="app-name" style={{flex: 1}}>SUPER FOLDER<br/><span>LOG VIEWER</span></div>
         </div>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
           <div id="app-version">React Edition v3.1.2</div>
-          <div 
-            className="lang-toggle-container"
-            onClick={(e) => { e.stopPropagation(); setLang(lang === 'ja' ? 'en' : 'ja'); }} 
-            title={lang === 'ja' ? 'Switch to English' : '日本語に切り替え'}
-          >
-            <div className={`lang-toggle-btn ${lang === 'en' ? 'active' : 'inactive'}`}>EN</div>
-            <div className={`lang-toggle-btn ${lang === 'ja' ? 'active' : 'inactive'}`}>JP</div>
+          <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+            <button 
+              id="side-change-btn"
+              className="side-change-btn"
+              onClick={(e) => { e.stopPropagation(); toggleSidebarPosition(); }}
+              title={lang === 'en' ? (sidebarPosition === 'left' ? 'Switch sidebar to right side' : 'Switch sidebar to left side') : (sidebarPosition === 'left' ? 'サイドバーを右側に移動' : 'サイドバーを左側に移動')}
+              aria-label="Toggle Sidebar Position"
+            >
+              <SideChangeIcon size={13} />
+            </button>
+
+            <div 
+              className="lang-toggle-container"
+              onClick={(e) => { e.stopPropagation(); setLang(lang === 'ja' ? 'en' : 'ja'); }} 
+              title={lang === 'ja' ? 'Switch to English' : '日本語に切り替え'}
+            >
+              <div className={`lang-toggle-btn ${lang === 'en' ? 'active' : 'inactive'}`}>EN</div>
+              <div className={`lang-toggle-btn ${lang === 'ja' ? 'active' : 'inactive'}`}>JP</div>
+            </div>
+
+            {isInIframe && (
+              <button 
+                id="external-link-btn"
+                className="side-change-btn"
+                title={t.app.fallbackReopen}
+                onClick={(e) => { e.stopPropagation(); window.open(window.location.href, '_blank'); }}
+                aria-label="Open in new window"
+              >
+                <ExternalLinkIcon size={11} />
+              </button>
+            )}
           </div>
         </div>
       </div>

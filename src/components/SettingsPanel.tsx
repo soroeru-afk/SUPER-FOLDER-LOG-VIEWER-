@@ -4,7 +4,7 @@ import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderCol
 import { applySettingsToDOM } from '../settingsSync';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voiceRates, voices, paperMode, setPaperMode, paperColor, setPaperColor, loadPaperForTheme } = useAppContext();
+  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voiceRates, voices, paperMode, setPaperMode, paperColor, setPaperColor, loadPaperForTheme, sidebarPosition, setSidebarPosition } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -221,6 +221,45 @@ export const SettingsPanel = () => {
                 >
                   OFF
                 </button>
+              </div>
+            </div>
+            <div className="setting-row">
+              <div className="setting-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{lang === 'en' ? 'Sidebar Position' : 'サイドバー配置'}</span>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSidebarPosition('left')}
+                    style={{
+                      padding: '2px 10px',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      border: '1px solid var(--panel-item-border)',
+                      background: sidebarPosition === 'left' ? 'var(--sb-accent)' : 'var(--panel-item-bg)',
+                      color: sidebarPosition === 'left' ? '#ffffff' : 'var(--panel-text)',
+                      cursor: 'pointer',
+                      borderRadius: '0px',
+                    }}
+                  >
+                    {lang === 'en' ? '◀ Left' : '◀ 左側'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSidebarPosition('right')}
+                    style={{
+                      padding: '2px 10px',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      border: '1px solid var(--panel-item-border)',
+                      background: sidebarPosition === 'right' ? 'var(--sb-accent)' : 'var(--panel-item-bg)',
+                      color: sidebarPosition === 'right' ? '#ffffff' : 'var(--panel-text)',
+                      cursor: 'pointer',
+                      borderRadius: '0px',
+                    }}
+                  >
+                    {lang === 'en' ? 'Right ▶' : '右側 ▶'}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="setting-row">
