@@ -1,7 +1,20 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { FileObj } from '../types';
-import { FolderIcon, MoveIcon, DeleteIcon, EditIcon } from './Icons';
+import { FolderIcon, FoldersStackIcon, MoveIcon, DeleteIcon, EditIcon, ImageIcon, SunOutlineIcon, ShuffleIcon, UploadIcon } from './Icons';
+import { 
+  loadFolderVisualSettings, 
+  saveFolderVisualSettings, 
+  getFolderCoverData, 
+  FolderVisualSettings, 
+  FolderCoverPosition,
+  getCategoryTheme, 
+  shuffleFolderCover, 
+  setFolderCoverPosition,
+  migrateFolderVisualSettings,
+  readFileAsDataUrl 
+} from '../folderVisuals';
+import { ThemeQuickToggle } from './ThemeQuickToggle';
 
 export const FolderExplorer: React.FC = () => {
   const {
@@ -55,6 +68,20 @@ export const FolderExplorer: React.FC = () => {
   const [isRenameFolderModalOpen, setIsRenameFolderModalOpen] = useState(false);
   const [folderRenameTarget, setFolderRenameTarget] = useState<{ name: string; shortName: string; handle?: any } | null>(null);
   const [folderRenameInputVal, setFolderRenameInputVal] = useState('');
+
+  const [visualSettings, setVisualSettings] = useState<FolderVisualSettings>(loadFolderVisualSettings);
+  const [coverModalTarget, setCoverModalTarget] = useState<{ path: string; name: string } | null>(null);
+  const [coverInputUrl, setCoverInputUrl] = useState('');
+  const [isDraggingModalFile, setIsDraggingModalFile] = useState(false);
+  const [draggingCardPath, setDraggingCardPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleVisualChanged = () => {
+      setVisualSettings(loadFolderVisualSettings());
+    };
+    window.addEventListener('folderVisualSettingsChanged', handleVisualChanged);
+    return () => window.removeEventListener('folderVisualSettingsChanged', handleVisualChanged);
+  }, []);
 
   const [bulkMarkOpen, setBulkMarkOpen] = useState(false);
   const bulkMarkRef = useRef<HTMLDivElement>(null);
@@ -403,9 +430,11 @@ export const FolderExplorer: React.FC = () => {
             <button 
               className={`explorer-crumb ${!explorerCategory ? 'active' : ''}`}
               onClick={() => openExplorer(null)}
-              title="ルートディレクトリ"
+              title="ルートディレクトリ（ALL DATA）"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
             >
-              📁 [ ALL DATA ]
+              <FoldersStackIcon size={14} />
+              <span>ALL DATA</span>
             </button>
             {breadcrumbs.map((crumb, idx) => {
               const fullPath = breadcrumbs.slice(0, idx + 1).join('/');
@@ -477,7 +506,7 @@ export const FolderExplorer: React.FC = () => {
                   onClick={() => importExistingFiles(currentFolderHandle || dirHandle, explorerCategory)}
                   title={lang === 'en' ? 'Select and import existing text files (.txt, .md, .log, etc.)' : '既存のテキストファイル（.txt, .md, チャットログ等）を選んで追加'}
                 >
-                  📥 {lang === 'en' ? 'Add Text File' : 'テキストファイル追加'}
+                  📥 {lang === 'en' ? 'Add File' : 'ファイル追加'}
                 </button>
                 <button 
                   className="explorer-btn" 
@@ -489,6 +518,9 @@ export const FolderExplorer: React.FC = () => {
                 </button>
               </div>
             )}
+
+            {/* テーマQuick切り替えボタン */}
+            <ThemeQuickToggle />
           </div>
         </div>
 
@@ -547,9 +579,29 @@ export const FolderExplorer: React.FC = () => {
                   ? (lang === 'en' ? 'Main Background: White (Click for theme default)' : 'メイン画面背景: 白（クリックでテーマ標準色に戻す）') 
                   : (lang === 'en' ? 'Main Background: Theme Default (Click for white)' : 'メイン画面背景: テーマ標準（クリックで白背景にする）')
               }
-              style={{ fontWeight: 600 }}
+              style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
             >
-              {mainBgWhite ? '⚪ 白背景 ON' : '⚪ 白背景'}
+              <SunOutlineIcon size={13} />
+              <span>{mainBgWhite ? '白背景 ON' : '白背景'}</span>
+            </button>
+
+            {/* フォルダーカバー表示切り替えボタン */}
+            <button 
+              className={`explorer-sort-btn ${visualSettings.enabled ? 'active' : ''}`}
+              onClick={() => {
+                const next = { ...visualSettings, enabled: !visualSettings.enabled };
+                setVisualSettings(next);
+                saveFolderVisualSettings(next);
+              }}
+              title={
+                visualSettings.enabled 
+                  ? (lang === 'en' ? 'Folder Covers: Enabled (Click to hide)' : 'フォルダーカバー表示中（クリックで通常表示に戻す）') 
+                  : (lang === 'en' ? 'Folder Covers: Disabled (Click to show)' : 'フォルダーカバー表示（クリックで図絵・画像カバーを表示）')
+              }
+              style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            >
+              <ImageIcon size={13} />
+              <span>{visualSettings.enabled ? 'カバー ON' : 'カバー'}</span>
             </button>
           </div>
         </div>
@@ -564,67 +616,195 @@ export const FolderExplorer: React.FC = () => {
               <span>SUB-DIRECTORIES ({subCategories.length})</span>
             </div>
             <div className="explorer-folders-grid">
-              {subCategories.map(cat => (
-                <div 
-                  key={cat.name}
-                  className="folder-card"
-                  onClick={() => openExplorer(cat.name)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter') openExplorer(cat.name); }}
-                >
-                  <div className="folder-card-top">
-                    <div className="folder-card-icon-wrap">
-                      <FolderIcon size={20} />
-                    </div>
-                    <div className="folder-card-name" title={cat.shortName}>
-                      {cat.shortName}
-                    </div>
-                    <div className="folder-card-count" title={`${cat.totalCount} files`}>
-                      {cat.totalCount}
-                    </div>
-                  </div>
+              {subCategories.map(cat => {
+                const isCoverOn = visualSettings.enabled;
+                const isBanner = isCoverOn && visualSettings.layout === 'banner';
+                const isCardBg = isCoverOn && visualSettings.layout === 'card-bg';
+                const coverData = isCoverOn ? getFolderCoverData(cat.shortName, cat.name, visualSettings) : null;
+                const isCardDragging = draggingCardPath === cat.name;
 
-                  <div className="folder-card-substats">
-                    <span className="folder-card-subinfo">
-                      {cat.childFolderCount > 0 
-                        ? (lang === 'en' ? `📁 ${cat.childFolderCount} sub-folders` : `📁 ${cat.childFolderCount} サブフォルダ`) 
-                        : (lang === 'en' ? '📁 Direct' : '📁 単一階層')}
-                    </span>
-                    <div className="folder-card-actions">
-                      <button
-                        type="button"
-                        className="folder-card-prefix-btn"
-                        title={
-                          cat.shortName.startsWith('00_')
-                            ? (lang === 'en' ? 'Remove "00_" prefix' : '「00_」を解除')
-                            : (lang === 'en' ? 'Add "00_" prefix' : '「00_」を先頭に付与')
+                return (
+                  <div 
+                    key={cat.name}
+                    className={`folder-card ${isBanner ? 'with-cover-banner' : ''} ${isCardBg ? 'with-cover-bg' : ''}`}
+                    onClick={() => openExplorer(cat.name)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter') openExplorer(cat.name); }}
+                    onDragOver={(e) => {
+                      if (e.dataTransfer.types.includes('Files')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDraggingCardPath(cat.name);
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      if (e.dataTransfer.types.includes('Files')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDraggingCardPath(cat.name);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDraggingCardPath(null);
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDraggingCardPath(null);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        try {
+                          const dataUri = await readFileAsDataUrl(file);
+                          const nextCovers = { ...(visualSettings.customCovers || {}) };
+                          nextCovers[cat.name] = dataUri;
+                          nextCovers[cat.shortName] = dataUri;
+                          const nextVariations = { ...(visualSettings.variations || {}) };
+                          nextVariations[cat.name] = 0;
+                          nextVariations[cat.shortName] = 0;
+                          const nextSettings = { ...visualSettings, customCovers: nextCovers, variations: nextVariations };
+                          setVisualSettings(nextSettings);
+                          saveFolderVisualSettings(nextSettings);
+                        } catch (err) {
+                          console.error('Folder card drop failed:', err);
                         }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTogglePrefix00(cat.name, cat.handle);
+                      }
+                    }}
+                    style={isCardDragging ? { outline: '2.5px dashed var(--sb-accent, #3b82f6)', outlineOffset: '-2px', transform: 'scale(1.02)' } : undefined}
+                  >
+                    {/* カード全面背景レイヤー */}
+                    {isCardBg && coverData && (
+                      <div 
+                        className="folder-card-full-bg-layer"
+                        style={{
+                          backgroundColor: coverData.gradient ? coverData.gradient[0] : '#0f172a',
+                          backgroundImage: `url("${coverData.backgroundUrl}"), url("${coverData.fallbackSvgDataUri}")`,
+                          backgroundPosition: coverData.backgroundPosition || 'center center',
+                          opacity: (visualSettings.opacity ?? 1.0) * 0.28
                         }}
-                      >
-                        {cat.shortName.startsWith('00_') ? '00_✓' : '+00_'}
-                      </button>
-                      <button
-                        type="button"
-                        className="folder-card-rename-btn"
-                        title={lang === 'en' ? 'Rename this folder' : 'フォルダー名を変更'}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenRenameFolderModal(cat.name, cat.handle);
-                        }}
-                      >
-                        <EditIcon />
-                      </button>
-                      <span className="folder-card-open-arrow">
-                        {lang === 'en' ? 'Open ➔' : '開く ➔'}
-                      </span>
+                      />
+                    )}
+
+                    {/* 上部ヘッダーバナー */}
+                    {isBanner && coverData && (
+                      <div className="folder-cover-banner">
+                        <div 
+                          className="folder-cover-bg-image"
+                          style={{
+                            backgroundColor: coverData.gradient ? coverData.gradient[0] : '#0f172a',
+                            backgroundImage: `url("${coverData.backgroundUrl}"), url("${coverData.fallbackSvgDataUri}")`,
+                            backgroundPosition: coverData.backgroundPosition || 'center center',
+                            opacity: visualSettings.opacity ?? 1.0,
+                            filter: `brightness(${visualSettings.brightness ?? 1.05}) contrast(1.02)`
+                          }}
+                        />
+                        <div className="folder-cover-overlay" />
+                        
+                        <span className="folder-cover-badge">
+                          {coverData.badge}
+                        </span>
+
+                        <div className="folder-cover-actions">
+                          <button
+                            type="button"
+                            className="folder-cover-btn-icon"
+                            title={lang === 'en' ? 'Next cover candidate in rotation (includes custom image)' : 'カバー画像を順送り（独自登録画像も候補に含まれます）'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const next = shuffleFolderCover(cat.name, cat.shortName, visualSettings);
+                              setVisualSettings(next);
+                            }}
+                          >
+                            <ShuffleIcon size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="folder-cover-btn-icon"
+                            title={lang === 'en' ? 'Select custom cover from folder / upload' : 'フォルダーから画像を選択・独自設定'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCoverModalTarget({ path: cat.name, name: cat.shortName });
+                              setCoverInputUrl(visualSettings.customCovers?.[cat.name] || visualSettings.customCovers?.[cat.shortName] || '');
+                            }}
+                          >
+                            <UploadIcon size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={isBanner ? 'folder-card-body-wrap' : ''} style={isBanner ? { display: 'flex', flexDirection: 'column', flex: 1, gap: '8px', padding: '10px 14px 12px 14px' } : undefined}>
+                      <div className="folder-card-top">
+                        <div className="folder-card-icon-wrap">
+                          <FolderIcon size={20} />
+                        </div>
+                        <div className="folder-card-name" title={cat.shortName}>
+                          {cat.shortName}
+                        </div>
+                        <div className="folder-card-count" title={`${cat.totalCount} files`}>
+                          {cat.totalCount}
+                        </div>
+                      </div>
+
+                      <div className="folder-card-substats">
+                        <span className="folder-card-subinfo">
+                          {cat.childFolderCount > 0 
+                            ? (lang === 'en' ? `📁 ${cat.childFolderCount} sub-folders` : `📁 ${cat.childFolderCount} サブフォルダ`) 
+                            : (lang === 'en' ? '📁 Direct' : '📁 単一階層')}
+                        </span>
+                        <div className="folder-card-actions">
+                          {isCardBg && (
+                            <button
+                              type="button"
+                              className="folder-card-rename-btn"
+                              title={lang === 'en' ? 'Customize cover' : 'カバー画像・図絵を設定'}
+                              style={{ width: 'auto', padding: '0 5px', fontSize: '10px' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCoverModalTarget({ path: cat.name, name: cat.shortName });
+                                setCoverInputUrl(visualSettings.customCovers?.[cat.name] || visualSettings.customCovers?.[cat.shortName] || '');
+                              }}
+                            >
+                              🖼️
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="folder-card-prefix-btn"
+                            title={
+                              cat.shortName.startsWith('00_')
+                                ? (lang === 'en' ? 'Remove "00_" prefix' : '「00_」を解除')
+                                : (lang === 'en' ? 'Add "00_" prefix' : '「00_」を先頭に付与')
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTogglePrefix00(cat.name, cat.handle);
+                            }}
+                          >
+                            {cat.shortName.startsWith('00_') ? '00_✓' : '+00_'}
+                          </button>
+                          <button
+                            type="button"
+                            className="folder-card-rename-btn"
+                            title={lang === 'en' ? 'Rename this folder' : 'フォルダー名を変更'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenRenameFolderModal(cat.name, cat.handle);
+                            }}
+                          >
+                            <EditIcon />
+                          </button>
+                          <span className="folder-card-open-arrow">
+                            {lang === 'en' ? 'Open ➔' : '開く ➔'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
@@ -649,8 +829,8 @@ export const FolderExplorer: React.FC = () => {
                   onClick={handleToggleExplorerSelect}
                   title={isExplorerSelectMode ? (lang === 'en' ? 'Exit selection mode' : '選択モードを終了') : (lang === 'en' ? 'Enter selection mode' : '選択モードを開始')}
                 >
-                  <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{isExplorerSelectMode ? '✓' : '☑'}</span>
-                  <span>{isExplorerSelectMode ? (lang === 'en' ? 'Done' : '完了') : (lang === 'en' ? 'Select' : '選択')}</span>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{isExplorerSelectMode ? '✕' : '☑'}</span>
+                  <span>{isExplorerSelectMode ? (lang === 'en' ? 'Exit' : '終了') : (lang === 'en' ? 'Select' : '選択')}</span>
                 </button>
 
                 {/* 全選択 / 全解除 */}
@@ -1323,6 +1503,463 @@ export const FolderExplorer: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 07. フォルダーカバー画像・カスタム設定モーダル */}
+      {coverModalTarget && (
+        <div 
+          className="folder-rename-modal-backdrop"
+          onClick={() => setCoverModalTarget(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <div 
+            className="folder-rename-modal-card"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '90%',
+              maxWidth: '440px',
+              background: 'var(--card-bg, #ffffff)',
+              border: '1.5px solid var(--sb-accent, #3b82f6)',
+              borderRadius: '0px',
+              padding: '20px 22px',
+              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--card-border, rgba(120,120,120,0.2))', paddingBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: 'var(--main-text, inherit)' }}>
+                <span>🖼️</span>
+                <span>{lang === 'en' ? 'Folder Cover Settings' : 'フォルダーカバー設定'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCoverModalTarget(null)}
+                style={{ background: 'transparent', border: 'none', fontSize: '15px', color: 'var(--main-text, inherit)', cursor: 'pointer', opacity: 0.7 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--main-text, inherit)', marginBottom: '4px' }}>
+                {lang === 'en' ? 'Target Folder:' : '対象フォルダー:'}
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--sb-accent, #3b82f6)' }}>
+                📁 {coverModalTarget.name}
+              </div>
+            </div>
+
+            {/* 現在のプレビュー */}
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, opacity: 0.7, marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{lang === 'en' ? 'Cover Preview:' : '現在のカバー表示:'}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = shuffleFolderCover(coverModalTarget.path, coverModalTarget.name, visualSettings);
+                    setVisualSettings(next);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    background: 'transparent',
+                    border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                    color: 'var(--main-text, inherit)',
+                    cursor: 'pointer'
+                  }}
+                  title={lang === 'en' ? 'Next cover in rotation (includes custom image)' : '別の候補に順送り（独自画像も候補に含まれます）'}
+                >
+                  <ShuffleIcon size={11} />
+                  <span>{lang === 'en' ? 'Next in Rotation' : '候補を順送り'}</span>
+                </button>
+              </div>
+              {(() => {
+                const modalCoverData = getFolderCoverData(coverModalTarget.name, coverModalTarget.path, visualSettings);
+                const hasStaged = !!coverInputUrl.trim();
+                const currentBg = hasStaged ? coverInputUrl.trim() : modalCoverData.backgroundUrl;
+                const fallbackBg = modalCoverData.fallbackSvgDataUri;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div 
+                      style={{
+                        width: '100%',
+                        height: '84px',
+                        borderRadius: '0px',
+                        border: '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                        backgroundColor: modalCoverData.gradient ? modalCoverData.gradient[0] : '#0f172a',
+                        backgroundImage: currentBg !== fallbackBg ? `url("${currentBg}"), url("${fallbackBg}")` : `url("${currentBg}")`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: modalCoverData.backgroundPosition || 'center center',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        boxSizing: 'border-box',
+                        filter: `brightness(${visualSettings.brightness ?? 1.05})`,
+                        transition: 'background-position 0.2s ease'
+                      }}
+                    >
+                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.2) 100%)' }} />
+                      <span style={{ position: 'relative', zIndex: 2, fontSize: '10px', fontWeight: 800, padding: '2px 8px', background: 'rgba(0,0,0,0.85)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.5)', textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>
+                        {hasStaged ? '✨ 独自画像 (適用中)' : `${modalCoverData.badge} (${modalCoverData.currentIndex}/${modalCoverData.totalCandidates})`}
+                      </span>
+                      <span style={{ position: 'relative', zIndex: 2, fontSize: '10px', fontWeight: 700, padding: '2px 6px', background: 'rgba(0,0,0,0.7)', color: '#93c5fd', border: '1px solid rgba(147,197,253,0.4)' }}>
+                        位置: {modalCoverData.position === 'top' ? '⬆ 上' : modalCoverData.position === 'bottom' ? '⬇ 下' : '⏺ 中央'}
+                      </span>
+                    </div>
+
+                    {/* 画像の表示位置（上 / 中央 / 下 ＆ スライダー微調整） */}
+                    <div style={{ background: 'var(--card-bg, rgba(255,255,255,0.03))', border: '1px solid var(--card-border, rgba(120,120,120,0.25))', padding: '10px 12px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, opacity: 0.9, marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>🖼️ {lang === 'en' ? 'Image Vertical Position (Crop Alignment):' : '画像の位置・微調整（トリミング位置）:'}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--sb-accent, #3b82f6)', background: 'rgba(59,130,246,0.1)', padding: '1px 6px', border: '1px solid rgba(59,130,246,0.3)' }}>
+                          {modalCoverData.positionPercent}% {modalCoverData.positionPercent === 0 ? '(上端)' : modalCoverData.positionPercent === 50 ? '(中央)' : modalCoverData.positionPercent === 100 ? '(下端)' : ''}
+                        </span>
+                      </div>
+
+                      {/* クイックプリセットボタン */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+                        {[
+                          { val: 0, label: lang === 'en' ? '⬆ Top (0%)' : '⬆ 上部 (0%)', desc: '上側を重視' },
+                          { val: 50, label: lang === 'en' ? '⏺ Center (50%)' : '⏺ 中央 (50%)', desc: '真ん中' },
+                          { val: 100, label: lang === 'en' ? '⬇ Bottom (100%)' : '⬇ 下部 (100%)', desc: '下側を重視' },
+                        ].map(posOpt => {
+                          const isSelected = modalCoverData.positionPercent === posOpt.val;
+                          return (
+                            <button
+                              key={posOpt.val}
+                              type="button"
+                              onClick={() => {
+                                const next = setFolderCoverPosition(coverModalTarget.path, coverModalTarget.name, posOpt.val, visualSettings);
+                                setVisualSettings(next);
+                              }}
+                              title={posOpt.desc}
+                              style={{
+                                padding: '5px 6px',
+                                fontSize: '11px',
+                                fontWeight: isSelected ? 800 : 600,
+                                border: isSelected ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                                background: isSelected ? 'var(--sb-accent, #3b82f6)' : 'transparent',
+                                color: isSelected ? '#ffffff' : 'var(--main-text, inherit)',
+                                cursor: 'pointer',
+                                borderRadius: '0px',
+                                transition: 'all 0.15s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              {posOpt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* スライダーと ±5% 微調整ボタン */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newPercent = Math.max(0, modalCoverData.positionPercent - 5);
+                            const next = setFolderCoverPosition(coverModalTarget.path, coverModalTarget.name, newPercent, visualSettings);
+                            setVisualSettings(next);
+                          }}
+                          style={{
+                            padding: '3px 7px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                            background: 'transparent',
+                            color: 'var(--main-text, inherit)',
+                            cursor: 'pointer',
+                            borderRadius: '0px'
+                          }}
+                          title="上へ5%移動"
+                        >
+                          ▲ -5%
+                        </button>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={modalCoverData.positionPercent}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            const next = setFolderCoverPosition(coverModalTarget.path, coverModalTarget.name, val, visualSettings);
+                            setVisualSettings(next);
+                          }}
+                          style={{
+                            flex: 1,
+                            accentColor: 'var(--sb-accent, #3b82f6)',
+                            cursor: 'pointer'
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newPercent = Math.min(100, modalCoverData.positionPercent + 5);
+                            const next = setFolderCoverPosition(coverModalTarget.path, coverModalTarget.name, newPercent, visualSettings);
+                            setVisualSettings(next);
+                          }}
+                          style={{
+                            padding: '3px 7px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                            background: 'transparent',
+                            color: 'var(--main-text, inherit)',
+                            cursor: 'pointer',
+                            borderRadius: '0px'
+                          }}
+                          title="下へ5%移動"
+                        >
+                          ▼ +5%
+                        </button>
+                      </div>
+                      <div style={{ fontSize: '10px', opacity: 0.65, marginTop: '5px', textAlign: 'center' }}>
+                        {lang === 'en' ? 'Drag slider to adjust crop focus for vertical/panoramic images' : '💡 縦長の画像でも、スライダーを動かして好きな位置にぴったり合わせられます'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* 01. フォルダー・ローカル画像ファイルから選択 */}
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, opacity: 0.85, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <UploadIcon size={13} />
+                <span>{lang === 'en' ? 'Select Image from Folder / PC:' : '自分の画像フォルダー・PCから選ぶ:'}</span>
+              </div>
+              <label 
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingModalFile(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingModalFile(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingModalFile(false);
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingModalFile(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) {
+                    try {
+                      const dataUri = await readFileAsDataUrl(file);
+                      setCoverInputUrl(dataUri);
+                      const nextCovers = { ...(visualSettings.customCovers || {}) };
+                      nextCovers[coverModalTarget.path] = dataUri;
+                      nextCovers[coverModalTarget.name] = dataUri;
+                      const nextVariations = { ...(visualSettings.variations || {}) };
+                      nextVariations[coverModalTarget.path] = 0;
+                      nextVariations[coverModalTarget.name] = 0;
+                      const nextSettings = { ...visualSettings, customCovers: nextCovers, variations: nextVariations };
+                      setVisualSettings(nextSettings);
+                      saveFolderVisualSettings(nextSettings);
+                    } catch (err) {
+                      console.error('File drop failed:', err);
+                    }
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '16px 10px',
+                  border: isDraggingModalFile ? '2px dashed #2563eb' : '1.5px dashed var(--sb-accent, #3b82f6)',
+                  background: isDraggingModalFile ? 'rgba(37, 99, 235, 0.15)' : 'rgba(59, 130, 246, 0.05)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.15s ease',
+                  transform: isDraggingModalFile ? 'scale(1.02)' : 'none'
+                }}
+              >
+                <UploadIcon size={24} style={{ color: isDraggingModalFile ? '#2563eb' : 'var(--sb-accent, #3b82f6)' }} />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--main-text, inherit)' }}>
+                  {isDraggingModalFile 
+                    ? (lang === 'en' ? 'Drop image here now!' : 'ここに画像をドロップ！') 
+                    : (lang === 'en' ? 'Click or drop your image here (JPEG / PNG / WEBP)' : 'クリックして画像ファイルを選択（またはドラッグ＆ドロップ）')}
+                </span>
+                <span style={{ fontSize: '10px', opacity: 0.7 }}>
+                  JPG, PNG, WEBP, GIF, SVG に対応（ドロップで即座に保存・反映）
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.svg"
+                  style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        const dataUri = await readFileAsDataUrl(file);
+                        setCoverInputUrl(dataUri);
+                        const nextCovers = { ...(visualSettings.customCovers || {}) };
+                        nextCovers[coverModalTarget.path] = dataUri;
+                        nextCovers[coverModalTarget.name] = dataUri;
+                        const nextVariations = { ...(visualSettings.variations || {}) };
+                        nextVariations[coverModalTarget.path] = 0;
+                        nextVariations[coverModalTarget.name] = 0;
+                        const nextSettings = { ...visualSettings, customCovers: nextCovers, variations: nextVariations };
+                        setVisualSettings(nextSettings);
+                        saveFolderVisualSettings(nextSettings);
+                      } catch (err) {
+                        console.error('File reading failed:', err);
+                      }
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* 02. カスタム画像URL入力（任意） */}
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, opacity: 0.8, marginBottom: '4px' }}>
+                {lang === 'en' ? 'Or paste Image URL (optional):' : 'または画像URLを直接指定（任意）:'}
+              </div>
+              <input
+                type="text"
+                placeholder={lang === 'en' ? 'https://...' : 'https://...'}
+                value={coverInputUrl.startsWith('data:') ? '(ローカル画像ファイル選択中)' : coverInputUrl}
+                onChange={e => setCoverInputUrl(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '7px 10px',
+                  fontSize: '12px',
+                  borderRadius: '0px',
+                  border: '1px solid var(--card-border, rgba(120, 120, 120, 0.35))',
+                  background: 'var(--card-bg, #ffffff)',
+                  color: 'var(--main-text, #1e293b)',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {/* ボタンアクション群 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', gap: '8px' }}>
+              {(() => {
+                const hasCustomCover = !!(visualSettings.customCovers?.[coverModalTarget.path] || visualSettings.customCovers?.[coverModalTarget.name] || coverInputUrl.trim());
+                return (
+                  <button
+                    type="button"
+                    disabled={!hasCustomCover}
+                    onClick={() => {
+                      const nextCovers = { ...(visualSettings.customCovers || {}) };
+                      delete nextCovers[coverModalTarget.path];
+                      delete nextCovers[coverModalTarget.name];
+                      const nextVariations = { ...(visualSettings.variations || {}) };
+                      nextVariations[coverModalTarget.path] = 0;
+                      nextVariations[coverModalTarget.name] = 0;
+                      const nextSettings = { ...visualSettings, customCovers: nextCovers, variations: nextVariations };
+                      setVisualSettings(nextSettings);
+                      saveFolderVisualSettings(nextSettings);
+                      setCoverInputUrl('');
+                      // モーダルは閉じずに、解除されて自動テーマに戻った状態をプレビューで確認可能にします
+                    }}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      borderRadius: '0px',
+                      border: '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                      background: hasCustomCover ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                      color: hasCustomCover ? 'var(--sb-danger, #ef4444)' : 'var(--main-text, inherit)',
+                      cursor: hasCustomCover ? 'pointer' : 'default',
+                      opacity: hasCustomCover ? 1 : 0.4
+                    }}
+                    title={hasCustomCover ? '独自画像を解除して自動テーマ（イラスト/写真）に戻します' : '独自画像は設定されていません'}
+                  >
+                    🔄 {lang === 'en' ? 'Reset to Auto Theme' : '独自画像を解除（自動テーマに戻す）'}
+                  </button>
+                );
+              })()}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setCoverModalTarget(null)}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '0px',
+                    border: '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                    background: 'transparent',
+                    color: 'var(--main-text, inherit)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {lang === 'en' ? 'Close' : '閉じる'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = coverInputUrl.trim();
+                    const nextCovers = { ...(visualSettings.customCovers || {}) };
+                    const nextVariations = { ...(visualSettings.variations || {}) };
+                    if (trimmed && !trimmed.includes('(ローカル画像ファイル選択中)')) {
+                      nextCovers[coverModalTarget.path] = trimmed;
+                      nextCovers[coverModalTarget.name] = trimmed;
+                      nextVariations[coverModalTarget.path] = 0;
+                      nextVariations[coverModalTarget.name] = 0;
+                    } else if (!trimmed && !visualSettings.customCovers?.[coverModalTarget.path]) {
+                      delete nextCovers[coverModalTarget.path];
+                      delete nextCovers[coverModalTarget.name];
+                    }
+                    const nextSettings = { ...visualSettings, customCovers: nextCovers, variations: nextVariations };
+                    setVisualSettings(nextSettings);
+                    saveFolderVisualSettings(nextSettings);
+                    setCoverModalTarget(null);
+                  }}
+                  style={{
+                    padding: '6px 16px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '0px',
+                    border: '1px solid var(--sb-accent, #3b82f6)',
+                    background: 'var(--sb-accent, #3b82f6)',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✓ {lang === 'en' ? 'Done' : '完了'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

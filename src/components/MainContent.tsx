@@ -6,6 +6,7 @@ import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, es
 import { applySettingsToDOM } from '../settingsSync';
 import { MarkdownView } from './MarkdownView';
 import { FolderExplorer } from './FolderExplorer';
+import { ThemeQuickToggle } from './ThemeQuickToggle';
 
 export const MainContent = () => {
   const {
@@ -18,7 +19,8 @@ export const MainContent = () => {
     paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
     mainBgWhite, toggleMainBgWhite,
     isResuming, pendingResumeHandle, resumeSavedFolder, loading,
-    viewMode, openExplorer
+    viewMode, openExplorer,
+    sidebarPosition
   } = useAppContext();
 
   const [markPaletteOpen, setMarkPaletteOpen] = useState(false);
@@ -742,6 +744,8 @@ export const MainContent = () => {
                       {mainBgWhite ? '⚪ 白背景 ON' : '⚪ 白背景'}
                     </button>
 
+                    <ThemeQuickToggle />
+
                     <button
                       className={`tool-btn ${!hasPrevFile ? 'disabled-nav' : ''}`}
                       onClick={goToPrevFile}
@@ -922,31 +926,67 @@ export const MainContent = () => {
       )}
 
       {/* Panels rendering conditionally based on movePanelState */}
-      {movePanelState && movePanelState.isOpen && (
-        <div 
-          className="open-panel"
-          style={{
-            position: 'fixed', zIndex: 200, 
-            background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', 
-            borderRadius: '0px', padding: 0, boxShadow: '0 12px 48px rgba(0,0,0,0.55)', 
-            width: movePanelState.type === 'bulk' && (!movePanelState.triggerRect || movePanelState.triggerRect.left < 280) ? 'calc(var(--sb-width) - 20px)' : '360px',
+      {movePanelState && movePanelState.isOpen && (() => {
+        const rect = movePanelState.triggerRect;
+        const isFromSidebar = rect 
+          ? (sidebarPosition === 'left' ? rect.left < 340 : rect.left > window.innerWidth - 340)
+          : (movePanelState.type === 'bulk');
+        const isBulkFromSidebar = movePanelState.type === 'bulk' && isFromSidebar;
+
+        let panelStyle: React.CSSProperties = {
+          position: 'fixed',
+          zIndex: 200,
+          background: 'var(--panel-bg)',
+          border: '1px solid var(--panel-border)',
+          borderRadius: '0px',
+          padding: 0,
+          boxShadow: '0 12px 48px rgba(0,0,0,0.55)',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        };
+
+        if (isBulkFromSidebar) {
+          const bottomPos = rect ? Math.max(16, window.innerHeight - rect.top + 6) : 64;
+          panelStyle = {
+            ...panelStyle,
+            bottom: `${bottomPos}px`,
+            top: 'auto',
+            left: sidebarPosition === 'left' ? '12px' : 'auto',
+            right: sidebarPosition === 'right' ? '12px' : 'auto',
+            width: 'calc(var(--sb-width, 270px) - 24px)',
+            maxWidth: '340px',
+            maxHeight: `calc(100vh - ${bottomPos + 24}px)`,
+          };
+        } else {
+          let top = rect ? rect.bottom + 6 : 60;
+          if (top + 420 > window.innerHeight) {
+            top = Math.max(16, window.innerHeight - 440);
+          }
+          let left = rect ? Math.max(16, Math.min(rect.left, window.innerWidth - 380)) : 16;
+          panelStyle = {
+            ...panelStyle,
+            top: `${top}px`,
+            bottom: 'auto',
+            left: `${left}px`,
+            right: 'auto',
+            width: '360px',
             maxWidth: 'calc(100vw - 32px)',
-            boxSizing: 'border-box',
-            overflow: 'hidden',
-            top: movePanelState.triggerRect && (movePanelState.type !== 'bulk' || movePanelState.triggerRect.left >= 280)
-              ? Math.max(10, Math.min(movePanelState.triggerRect.bottom + 6, window.innerHeight - 360)) + 'px'
-              : (movePanelState.type === 'bulk' ? 'auto' : Math.max(10, Math.min((movePanelState.triggerRect?.bottom || 0) + 5, window.innerHeight - 340)) + 'px'),
-            bottom: movePanelState.type === 'bulk' && (!movePanelState.triggerRect || movePanelState.triggerRect.left < 280) ? '70px' : 'auto',
-            left: movePanelState.triggerRect && (movePanelState.type !== 'bulk' || movePanelState.triggerRect.left >= 280)
-              ? Math.max(16, Math.min(movePanelState.triggerRect.left, window.innerWidth - 376)) + 'px'
-              : '10px'
-          }}
-          onClick={e => e.stopPropagation()}
-        >
+            maxHeight: `calc(100vh - ${top + 20}px)`,
+          };
+        }
+
+        return (
+          <div 
+            className="open-panel"
+            style={panelStyle}
+            onClick={e => e.stopPropagation()}
+          >
           {movePanelState.type === 'single' || movePanelState.type === 'bulk' ? (
             <>
               <div className="move-panel-title">{t.main.moveBulkAction}</div>
-              <div style={{ maxHeight: '40vh', overflowY: 'auto' }} className="move-panel-scroll">
+              <div className="move-panel-scroll">
                 <button className="move-folder-btn" style={{color: 'var(--panel-text)', fontSize: '13px', opacity: 1}} onClick={async (e) => { e.stopPropagation(); const isBulk = movePanelState.type === 'bulk'; await execBulkMove(isBulk ? Array.from(selectedFileMap.values()) : [currentFileObj!], null, null); closeMovePanels(); }}>
                   <FolderIcon /> {t.main.moveToRoot}
                 </button>
@@ -1043,7 +1083,7 @@ export const MainContent = () => {
           ) : (
             <>
               <div className="move-panel-title">{t.main.folderEditTitle}</div>
-              <div style={{ maxHeight: '40vh', overflowY: 'auto' }} className="move-panel-scroll">
+              <div className="move-panel-scroll">
                 {physicalFolders.length === 0 ? (
                   <div className="folder-edit-empty">{t.main.noFolders}</div>
                 ) : (
@@ -1105,7 +1145,8 @@ export const MainContent = () => {
             </>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ファイル名前変更モーダル */}
       {isRenameModalOpen && currentFileObj && (

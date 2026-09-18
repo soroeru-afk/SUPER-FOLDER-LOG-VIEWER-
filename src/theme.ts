@@ -1,6 +1,6 @@
 export const THEMES: Record<string, any> = {
   midnight: { 
-    label: 'Navy', 
+    label: 'NAVY', 
     sbBg: '#101A2B', 
     sbMain: '#E2E8F0', 
     mainBg: '#090F1A', 
@@ -36,12 +36,12 @@ export const THEMES: Record<string, any> = {
     isDark: true, 
     defaultFolderColor: '#8FAFCF' 
   },
-  light: { label: 'Light', sbBg: '#0F172A', sbMain: '#F8FAFC', mainBg: '#F8FAFC', mainCard: '#FFFFFF', mainText: '#1E293B', cardBorder: '#E2E8F0', sbAccent: '#3B82F6', dateAccent: '#60A5FA', footerBg: 'rgba(255,255,255,0.7)', footerBorder: '#E2E8F0', scrollbar: 'rgba(0,0,0,0.22)', summaryBg: '#EFF6FF', summaryBorder: '#3B82F6', summaryText: '#1E3A8A', summaryLabel: '#1D4ED8', btnBg: '#FFFFFF', btnText: '#1E293B', btnBorder: 'rgba(0,0,0,0.12)', btnHover: '#F1F5F9', panelBg: '#FFFFFF', panelBorder: 'rgba(0,0,0,0.10)', panelText: 'rgba(30,41,59,0.85)', panelMuted: 'rgba(30,41,59,0.4)', panelTabActive: '#1E293B', panelTabBorder: 'rgba(0,0,0,0.07)', panelItemBg: 'rgba(0,0,0,0.04)', panelItemBorder: 'rgba(0,0,0,0.09)', panelSliderBg: 'rgba(0,0,0,0.10)', panelScrollbar: 'rgba(0,0,0,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#94A3B8', isDark: false, defaultFolderColor: '#3B82F6' },
-  sepia: { label: 'Sepia', sbBg: '#29170B', sbMain: '#F5ECD7', mainBg: '#FBF5E6', mainCard: '#FFF8EC', mainText: '#311B0D', cardBorder: '#DFD0B5', sbAccent: '#C0853A', dateAccent: '#C0853A', footerBg: 'rgba(251,245,230,0.8)', footerBorder: '#DFD0B5', scrollbar: 'rgba(49,27,13,0.22)', summaryBg: '#F4E8D0', summaryBorder: '#C0853A', summaryText: '#5C3D18', summaryLabel: '#8B5A2B', btnBg: '#FFF8EC', btnText: '#311B0D', btnBorder: '#DFD0B5', btnHover: '#F4E8D0', panelBg: '#FFF8EC', panelBorder: 'rgba(49,27,13,0.15)', panelText: 'rgba(49,27,13,0.85)', panelMuted: 'rgba(49,27,13,0.4)', panelTabActive: '#311B0D', panelTabBorder: 'rgba(49,27,13,0.10)', panelItemBg: 'rgba(49,27,13,0.05)', panelItemBorder: 'rgba(49,27,13,0.10)', panelSliderBg: 'rgba(49,27,13,0.12)', panelScrollbar: 'rgba(49,27,13,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#C4A882', isDark: false, defaultFolderColor: '#C0853A' },
-  red: { label: 'Red', sbBg: '#0A0101', sbMain: '#FFFFFF', mainBg: '#140202', mainCard: '#210404', mainText: '#CCCCCC', cardBorder: '#380A0A', sbAccent: '#EF4444', dateAccent: '#FCA5A5', footerBg: 'rgba(20,2,2,0.9)', footerBorder: '#380A0A', scrollbar: 'rgba(255,255,255,0.22)', summaryBg: '#210404', summaryBorder: '#5C1010', summaryText: '#FCA5A5', summaryLabel: '#EF4444', btnBg: '#210404', btnText: '#FFFFFF', btnBorder: '#380A0A', btnHover: '#2D0606', panelBg: '#0A0101', panelBorder: 'rgba(255,255,255,0.1)', panelText: 'rgba(255,255,255,0.9)', panelMuted: 'rgba(255,255,255,0.45)', panelTabActive: '#FFFFFF', panelTabBorder: 'rgba(255,255,255,0.1)', panelItemBg: 'rgba(255,255,255,0.05)', panelItemBorder: 'rgba(255,255,255,0.1)', panelSliderBg: 'rgba(255,255,255,0.15)', panelScrollbar: 'rgba(255,255,255,0.15)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#FCA5A5', isDark: true, defaultFolderColor: '#EF4444' },
-  mono: { label: 'Mono', sbBg: '#0A0A0A', sbMain: '#CCCCCC', mainBg: '#F3F4F6', mainCard: '#FFFFFF', mainText: '#111827', cardBorder: '#E5E7EB', sbAccent: '#888888', dateAccent: '#6B7280', footerBg: 'rgba(243,244,246,0.8)', footerBorder: '#E5E7EB', scrollbar: 'rgba(0,0,0,0.22)', summaryBg: '#F9FAFB', summaryBorder: '#E5E7EB', summaryText: '#111827', summaryLabel: '#4B5563', btnBg: '#FFFFFF', btnText: '#111827', btnBorder: '#E5E7EB', btnHover: '#F3F4F6', panelBg: '#FFFFFF', panelBorder: 'rgba(0,0,0,0.10)', panelText: 'rgba(17,24,39,0.85)', panelMuted: 'rgba(17,24,39,0.4)', panelTabActive: '#111827', panelTabBorder: 'rgba(0,0,0,0.07)', panelItemBg: 'rgba(0,0,0,0.04)', panelItemBorder: 'rgba(0,0,0,0.09)', panelSliderBg: 'rgba(0,0,0,0.10)', panelScrollbar: 'rgba(0,0,0,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#999999', isDark: false, defaultFolderColor: '#9CA3AF' },
-  rose: { label: 'Rose', sbBg: '#1A0A10', sbMain: '#FFE4EE', mainBg: '#FFF1F5', mainCard: '#FFFFFF', mainText: '#3D0017', cardBorder: '#FBCFE8', sbAccent: '#F43F5E', dateAccent: '#FB7185', footerBg: 'rgba(255,241,245,0.8)', footerBorder: '#FBCFE8', scrollbar: 'rgba(61,0,23,0.20)', summaryBg: '#FFE4EE', summaryBorder: '#F43F5E', summaryText: '#881337', summaryLabel: '#BE123C', btnBg: '#FFFFFF', btnText: '#3D0017', btnBorder: '#FBCFE8', btnHover: '#FFE4EE', panelBg: '#FFF1F5', panelBorder: 'rgba(244,63,94,0.15)', panelText: 'rgba(61,0,23,0.85)', panelMuted: 'rgba(61,0,23,0.4)', panelTabActive: '#3D0017', panelTabBorder: 'rgba(61,0,23,0.08)', panelItemBg: 'rgba(61,0,23,0.04)', panelItemBorder: 'rgba(61,0,23,0.09)', panelSliderBg: 'rgba(61,0,23,0.10)', panelScrollbar: 'rgba(61,0,23,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#F4A7BC', isDark: false, defaultFolderColor: '#F43F5E' },
-  obsidian: { label: 'Obsidian', sbBg: '#0A0A0A', sbMain: '#CCCCCC', mainBg: '#111111', mainCard: '#1A1A1A', mainText: '#CCCCCC', cardBorder: '#2A2A2A', sbAccent: '#888888', dateAccent: '#888888', footerBg: 'rgba(17,17,17,0.9)', footerBorder: '#2A2A2A', scrollbar: 'rgba(255,255,255,0.20)', summaryBg: '#1A1A2A', summaryBorder: '#555', summaryText: '#AAAACC', summaryLabel: '#888', btnBg: '#1A1A1A', btnText: '#CCCCCC', btnBorder: '#2A2A2A', btnHover: '#222222', panelBg: '#0A0A0A', panelBorder: 'rgba(255,255,255,0.08)', panelText: 'rgba(204,204,204,0.85)', panelMuted: 'rgba(204,204,204,0.35)', panelTabActive: '#CCC', panelTabBorder: 'rgba(255,255,255,0.08)', panelItemBg: 'rgba(255,255,255,0.04)', panelItemBorder: 'rgba(255,255,255,0.08)', panelSliderBg: 'rgba(255,255,255,0.10)', panelScrollbar: 'rgba(255,255,255,0.08)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#999999', isDark: true, defaultFolderColor: '#A3A3A3' },
+  light: { label: 'LIGHT', sbBg: '#0F172A', sbMain: '#F8FAFC', mainBg: '#F8FAFC', mainCard: '#FFFFFF', mainText: '#1E293B', cardBorder: '#E2E8F0', sbAccent: '#3B82F6', dateAccent: '#60A5FA', footerBg: 'rgba(255,255,255,0.7)', footerBorder: '#E2E8F0', scrollbar: 'rgba(0,0,0,0.22)', summaryBg: '#EFF6FF', summaryBorder: '#3B82F6', summaryText: '#1E3A8A', summaryLabel: '#1D4ED8', btnBg: '#FFFFFF', btnText: '#1E293B', btnBorder: 'rgba(0,0,0,0.12)', btnHover: '#F1F5F9', panelBg: '#FFFFFF', panelBorder: 'rgba(0,0,0,0.10)', panelText: 'rgba(30,41,59,0.85)', panelMuted: 'rgba(30,41,59,0.4)', panelTabActive: '#1E293B', panelTabBorder: 'rgba(0,0,0,0.07)', panelItemBg: 'rgba(0,0,0,0.04)', panelItemBorder: 'rgba(0,0,0,0.09)', panelSliderBg: 'rgba(0,0,0,0.10)', panelScrollbar: 'rgba(0,0,0,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#94A3B8', isDark: false, defaultFolderColor: '#3B82F6' },
+  sepia: { label: 'SEPIA', sbBg: '#29170B', sbMain: '#F5ECD7', mainBg: '#FBF5E6', mainCard: '#FFF8EC', mainText: '#311B0D', cardBorder: '#DFD0B5', sbAccent: '#C0853A', dateAccent: '#C0853A', footerBg: 'rgba(251,245,230,0.8)', footerBorder: '#DFD0B5', scrollbar: 'rgba(49,27,13,0.22)', summaryBg: '#F4E8D0', summaryBorder: '#C0853A', summaryText: '#5C3D18', summaryLabel: '#8B5A2B', btnBg: '#FFF8EC', btnText: '#311B0D', btnBorder: '#DFD0B5', btnHover: '#F4E8D0', panelBg: '#FFF8EC', panelBorder: 'rgba(49,27,13,0.15)', panelText: 'rgba(49,27,13,0.85)', panelMuted: 'rgba(49,27,13,0.4)', panelTabActive: '#311B0D', panelTabBorder: 'rgba(49,27,13,0.10)', panelItemBg: 'rgba(49,27,13,0.05)', panelItemBorder: 'rgba(49,27,13,0.10)', panelSliderBg: 'rgba(49,27,13,0.12)', panelScrollbar: 'rgba(49,27,13,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#C4A882', isDark: false, defaultFolderColor: '#C0853A' },
+  red: { label: 'RED', sbBg: '#0A0101', sbMain: '#FFFFFF', mainBg: '#140202', mainCard: '#210404', mainText: '#CCCCCC', cardBorder: '#380A0A', sbAccent: '#EF4444', dateAccent: '#FCA5A5', footerBg: 'rgba(20,2,2,0.9)', footerBorder: '#380A0A', scrollbar: 'rgba(255,255,255,0.22)', summaryBg: '#210404', summaryBorder: '#5C1010', summaryText: '#FCA5A5', summaryLabel: '#EF4444', btnBg: '#210404', btnText: '#FFFFFF', btnBorder: '#380A0A', btnHover: '#2D0606', panelBg: '#0A0101', panelBorder: 'rgba(255,255,255,0.1)', panelText: 'rgba(255,255,255,0.9)', panelMuted: 'rgba(255,255,255,0.45)', panelTabActive: '#FFFFFF', panelTabBorder: 'rgba(255,255,255,0.1)', panelItemBg: 'rgba(255,255,255,0.05)', panelItemBorder: 'rgba(255,255,255,0.1)', panelSliderBg: 'rgba(255,255,255,0.15)', panelScrollbar: 'rgba(255,255,255,0.15)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#FCA5A5', isDark: true, defaultFolderColor: '#EF4444' },
+  mono: { label: 'MONO', sbBg: '#0A0A0A', sbMain: '#CCCCCC', mainBg: '#F3F4F6', mainCard: '#FFFFFF', mainText: '#111827', cardBorder: '#E5E7EB', sbAccent: '#888888', dateAccent: '#6B7280', footerBg: 'rgba(243,244,246,0.8)', footerBorder: '#E5E7EB', scrollbar: 'rgba(0,0,0,0.22)', summaryBg: '#F9FAFB', summaryBorder: '#E5E7EB', summaryText: '#111827', summaryLabel: '#4B5563', btnBg: '#FFFFFF', btnText: '#111827', btnBorder: '#E5E7EB', btnHover: '#F3F4F6', panelBg: '#FFFFFF', panelBorder: 'rgba(0,0,0,0.10)', panelText: 'rgba(17,24,39,0.85)', panelMuted: 'rgba(17,24,39,0.4)', panelTabActive: '#111827', panelTabBorder: 'rgba(0,0,0,0.07)', panelItemBg: 'rgba(0,0,0,0.04)', panelItemBorder: 'rgba(0,0,0,0.09)', panelSliderBg: 'rgba(0,0,0,0.10)', panelScrollbar: 'rgba(0,0,0,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#999999', isDark: false, defaultFolderColor: '#9CA3AF' },
+  rose: { label: 'ROSE', sbBg: '#1A0A10', sbMain: '#FFE4EE', mainBg: '#FFF1F5', mainCard: '#FFFFFF', mainText: '#3D0017', cardBorder: '#FBCFE8', sbAccent: '#F43F5E', dateAccent: '#FB7185', footerBg: 'rgba(255,241,245,0.8)', footerBorder: '#FBCFE8', scrollbar: 'rgba(61,0,23,0.20)', summaryBg: '#FFE4EE', summaryBorder: '#F43F5E', summaryText: '#881337', summaryLabel: '#BE123C', btnBg: '#FFFFFF', btnText: '#3D0017', btnBorder: '#FBCFE8', btnHover: '#FFE4EE', panelBg: '#FFF1F5', panelBorder: 'rgba(244,63,94,0.15)', panelText: 'rgba(61,0,23,0.85)', panelMuted: 'rgba(61,0,23,0.4)', panelTabActive: '#3D0017', panelTabBorder: 'rgba(61,0,23,0.08)', panelItemBg: 'rgba(61,0,23,0.04)', panelItemBorder: 'rgba(61,0,23,0.09)', panelSliderBg: 'rgba(61,0,23,0.10)', panelScrollbar: 'rgba(61,0,23,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#F4A7BC', isDark: false, defaultFolderColor: '#F43F5E' },
+  obsidian: { label: 'OBSIDIAN', sbBg: '#0A0A0A', sbMain: '#CCCCCC', mainBg: '#111111', mainCard: '#1A1A1A', mainText: '#CCCCCC', cardBorder: '#2A2A2A', sbAccent: '#888888', dateAccent: '#888888', footerBg: 'rgba(17,17,17,0.9)', footerBorder: '#2A2A2A', scrollbar: 'rgba(255,255,255,0.20)', summaryBg: '#1A1A2A', summaryBorder: '#555', summaryText: '#AAAACC', summaryLabel: '#888', btnBg: '#1A1A1A', btnText: '#CCCCCC', btnBorder: '#2A2A2A', btnHover: '#222222', panelBg: '#0A0A0A', panelBorder: 'rgba(255,255,255,0.08)', panelText: 'rgba(204,204,204,0.85)', panelMuted: 'rgba(204,204,204,0.35)', panelTabActive: '#CCC', panelTabBorder: 'rgba(255,255,255,0.08)', panelItemBg: 'rgba(255,255,255,0.04)', panelItemBorder: 'rgba(255,255,255,0.08)', panelSliderBg: 'rgba(255,255,255,0.10)', panelScrollbar: 'rgba(255,255,255,0.08)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#999999', isDark: true, defaultFolderColor: '#A3A3A3' },
   black: { 
     label: 'BLACK', 
     sbBg: '#14161A', 
@@ -80,7 +80,7 @@ export const THEMES: Record<string, any> = {
     defaultFolderColor: '#E2E8F0' 
   },
   white: { 
-    label: 'White', 
+    label: 'WHITE', 
     sbBg: '#FFFFFF', 
     sbMain: '#111827', 
     mainBg: '#FFFFFF', 
@@ -201,6 +201,41 @@ export function setPaperSettingsForTheme(themeKey: string, mode: boolean, color?
   if (color) {
     setPaperColorForTheme(themeKey, color);
   }
+}
+
+export function resetThemeToDefault(themeKey: string) {
+  if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  const t = THEMES[themeKey] || THEMES.mono;
+  localStorage.removeItem(`lv_mainBgWhite_${themeKey}`);
+  if (themeKey === 'white') {
+    localStorage.setItem(`lv_mainBgWhite_${themeKey}`, '1');
+  } else {
+    localStorage.setItem(`lv_mainBgWhite_${themeKey}`, '0');
+  }
+  const defaultFolder = t?.defaultFolderColor || (themeKey === 'black' ? '#E2E8F0' : themeKey === 'midnight' ? '#8FAFCF' : '#FBBF24');
+  localStorage.setItem(`lv_folderColor_${themeKey}`, defaultFolder);
+  localStorage.setItem('lv_folderColor', defaultFolder);
+  localStorage.removeItem(`lv_paperMode_${themeKey}`);
+  localStorage.removeItem(`lv_paperColor_${themeKey}`);
+  localStorage.setItem(`lv_paperMode_${themeKey}`, '0');
+  localStorage.setItem('lv_paperMode', '0');
+}
+
+export function resetAllThemesToDefault() {
+  Object.keys(THEMES).forEach(key => {
+    resetThemeToDefault(key);
+  });
+}
+
+export function setAllThemesMainBgWhite(isWhite: boolean) {
+  Object.keys(THEMES).forEach(key => {
+    if (key === 'white') {
+      localStorage.setItem(`lv_mainBgWhite_${key}`, '1');
+    } else {
+      localStorage.setItem(`lv_mainBgWhite_${key}`, isWhite ? '1' : '0');
+    }
+  });
+  localStorage.setItem('lv_mainBgWhite', isWhite ? '1' : '0');
 }
 
 export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {

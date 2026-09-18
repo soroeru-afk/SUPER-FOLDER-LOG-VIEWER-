@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderColorForTheme, getPaperSettingsForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from '../theme';
+import { THEMES, FONT_MAP, applyThemeStyle, getFolderColorForTheme, setFolderColorForTheme, getPaperSettingsForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme, resetThemeToDefault, resetAllThemesToDefault, setAllThemesMainBgWhite } from '../theme';
 import { applySettingsToDOM } from '../settingsSync';
+import { loadFolderVisualSettings, saveFolderVisualSettings, FolderVisualSettings, FolderCoverStyle, FolderCoverLayout, FolderCoverPosition, parsePositionPercent, getCategoryTheme } from '../folderVisuals';
 
 export const SettingsPanel = () => {
   const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voiceRates, voices, paperMode, setPaperMode, paperColor, setPaperColor, loadPaperForTheme, sidebarPosition, setSidebarPosition } = useAppContext();
-  const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'audio'>('text');
+  const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'folder' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const [visualSettings, setVisualSettings] = useState<FolderVisualSettings>(loadFolderVisualSettings);
 
   const [vals, setVals] = useState({
     fontSize: '15', fontWeight: '400', lineHeight: '1.8', letterSpacing: '0',
@@ -41,11 +44,22 @@ export const SettingsPanel = () => {
         folderColor: getFolderColorForTheme(currentTheme),
         mainBgWhite: getMainBgWhiteForTheme(currentTheme)
       });
+      setVisualSettings(loadFolderVisualSettings());
     };
     loadSettings();
     window.addEventListener('settingsChanged', loadSettings);
-    return () => window.removeEventListener('settingsChanged', loadSettings);
+    window.addEventListener('folderVisualSettingsChanged', loadSettings);
+    return () => {
+      window.removeEventListener('settingsChanged', loadSettings);
+      window.removeEventListener('folderVisualSettingsChanged', loadSettings);
+    };
   }, [settingsOpen]);
+
+  const updateVisualSettings = (updates: Partial<FolderVisualSettings>) => {
+    const next = { ...visualSettings, ...updates };
+    setVisualSettings(next);
+    saveFolderVisualSettings(next);
+  };
 
   const updateSetting = (key: string, val: string) => {
     if (key === 'theme') {
@@ -78,6 +92,33 @@ export const SettingsPanel = () => {
     window.dispatchEvent(new Event('settingsChanged'));
   };
 
+  const handleResetCurrentTheme = () => {
+    resetThemeToDefault(vals.theme);
+    const themeColor = getFolderColorForTheme(vals.theme);
+    const isWhite = getMainBgWhiteForTheme(vals.theme);
+    setVals(prev => ({ ...prev, folderColor: themeColor, mainBgWhite: isWhite }));
+    setPaperMode(false);
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
+  const handleResetAllThemes = () => {
+    resetAllThemesToDefault();
+    const themeColor = getFolderColorForTheme(vals.theme);
+    const isWhite = getMainBgWhiteForTheme(vals.theme);
+    setVals(prev => ({ ...prev, folderColor: themeColor, mainBgWhite: isWhite }));
+    setPaperMode(false);
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
+  const handleSetAllWhite = () => {
+    setAllThemesMainBgWhite(true);
+    setVals(prev => ({ ...prev, mainBgWhite: true }));
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
   if (!settingsOpen) return null;
 
   return (
@@ -86,6 +127,7 @@ export const SettingsPanel = () => {
         <button className={`panel-tab ${tab === 'text' ? 'active' : ''}`} onClick={() => setTab('text')}>{t.settings.textOpen}</button>
         <button className={`panel-tab ${tab === 'layout' ? 'active' : ''}`} onClick={() => setTab('layout')}>{t.settings.layoutOpen}</button>
         <button className={`panel-tab ${tab === 'theme' ? 'active' : ''}`} onClick={() => setTab('theme')}>{t.settings.themeOpen}</button>
+        <button className={`panel-tab ${tab === 'folder' ? 'active' : ''}`} onClick={() => setTab('folder')}>{t.settings.folderOpen}</button>
         <button className={`panel-tab ${tab === 'audio' ? 'active' : ''}`} onClick={() => setTab('audio')}>{t.settings.audioOpen}</button>
         <button
           className="panel-close-btn"
@@ -337,8 +379,9 @@ export const SettingsPanel = () => {
 
         {tab === 'theme' && (
           <div className="tab-section active">
+            {/* 1. テーマ選択グリッド（最上部） */}
             <div className="setting-row">
-              <div className="setting-label" style={{marginBottom:'14px'}}>{t.settings.theme}</div>
+              <div className="setting-label" style={{marginBottom:'12px'}}>{t.settings.theme}</div>
               <div className="theme-grid">
                 {Object.entries(THEMES).map(([key, t]) => (
                   <button key={key} className={`theme-btn ${vals.theme === key ? 'active' : ''}`} onClick={() => updateSetting('theme', key)}>
@@ -352,15 +395,15 @@ export const SettingsPanel = () => {
               </div>
             </div>
 
-            {/* メイン画面背景色（右カラム）のホワイト固定切り替え */}
-            <div className="setting-row" style={{marginTop: '20px', paddingBottom: '4px'}}>
+            {/* 2. メイン画面背景色（右カラム）の切り替え */}
+            <div className="setting-row" style={{marginTop: '16px', paddingBottom: '4px'}}>
               <div className="setting-label" style={{marginBottom: '8px', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <span>{lang === 'en' ? 'Main Area Background (Right Column)' : 'メイン画面背景色（右カラム）'}</span>
                 <span style={{ fontSize: '10px', opacity: 0.8, textTransform: 'none', fontWeight: 'normal' }}>
                   {vals.mainBgWhite ? (lang === 'en' ? '⚪ White (#FFFFFF)' : '⚪ 白（#FFFFFF）') : (lang === 'en' ? 'Theme Default' : 'テーマ標準色')}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div
                   style={{
                     display: 'inline-flex',
@@ -373,12 +416,13 @@ export const SettingsPanel = () => {
                   }}
                 >
                   <button
+                    type="button"
                     onClick={() => updateMainBgWhite(false)}
                     style={{
-                      padding: '5px 14px',
+                      padding: '4px 12px',
                       fontSize: '11px',
                       fontWeight: 700,
-                      letterSpacing: '0.5px',
+                      letterSpacing: '0.3px',
                       border: 'none',
                       cursor: 'pointer',
                       transition: 'all 0.15s',
@@ -389,12 +433,13 @@ export const SettingsPanel = () => {
                     {lang === 'en' ? 'Theme Default' : 'テーマ標準色'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => updateMainBgWhite(true)}
                     style={{
-                      padding: '5px 14px',
+                      padding: '4px 12px',
                       fontSize: '11px',
                       fontWeight: 700,
-                      letterSpacing: '0.5px',
+                      letterSpacing: '0.3px',
                       border: 'none',
                       cursor: 'pointer',
                       transition: 'all 0.15s',
@@ -402,9 +447,81 @@ export const SettingsPanel = () => {
                       color: vals.mainBgWhite ? 'var(--panel-bg)' : 'var(--panel-muted)',
                     }}
                   >
-                    {lang === 'en' ? '⚪ White (Pure)' : '⚪ 白（ホワイト）'}
+                    {lang === 'en' ? '⚪ White' : '⚪ 白背景'}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* 3. コンパクト＆シンプルなリセット・一括バー */}
+            <div className="setting-row" style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--panel-tab-border)' }}>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleResetCurrentTheme}
+                  title={lang === 'en' ? 'Reset current theme to standard default' : '現在選択中のテーマを標準の初期色に戻します'}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: '1px solid var(--panel-item-border)',
+                    background: 'var(--panel-item-bg)',
+                    color: 'var(--panel-text)',
+                    cursor: 'pointer',
+                    borderRadius: '0px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span style={{ fontSize: '11px' }}>↺</span>
+                  <span>{lang === 'en' ? 'Reset Current' : '選択テーマをリセット'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetAllThemes}
+                  title={lang === 'en' ? 'Reset all themes to default standard colors' : '全テーマを標準色・初期設定に戻します'}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: '1px solid var(--panel-item-border)',
+                    background: 'var(--panel-item-bg)',
+                    color: 'var(--panel-text)',
+                    cursor: 'pointer',
+                    borderRadius: '0px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span style={{ fontSize: '11px' }}>↺</span>
+                  <span>{lang === 'en' ? 'Reset All Defaults' : '全テーマ初期化'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSetAllWhite}
+                  title={lang === 'en' ? 'Set main background to white for all themes' : '全テーマのメイン画面背景を白に一括設定します'}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: '1px solid var(--panel-item-border)',
+                    background: 'var(--panel-item-bg)',
+                    color: 'var(--panel-text)',
+                    cursor: 'pointer',
+                    borderRadius: '0px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span style={{ fontSize: '11px' }}>⚪</span>
+                  <span>{lang === 'en' ? 'All White' : '全テーマ白一括'}</span>
+                </button>
               </div>
             </div>
 
@@ -533,6 +650,258 @@ export const SettingsPanel = () => {
                 {lang === 'en'
                   ? 'Paper mode (ON/OFF and color) is saved and remembered individually for each theme.'
                   : '各テーマごとにペーパーのON/OFFおよび用紙色が自動記憶・維持されます。'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'folder' && (
+          <div className="tab-section active">
+            {/* カバー表示 ON/OFF */}
+            <div className="setting-row">
+              <div className="setting-label">
+                {lang === 'en' ? 'FOLDER COVERS (AUTO-GENERATE)' : 'フォルダーカバー画像・図絵の表示'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => updateVisualSettings({ enabled: false })}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: !visualSettings.enabled ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                    background: !visualSettings.enabled ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                    color: !visualSettings.enabled ? 'var(--panel-bg)' : 'var(--panel-text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {lang === 'en' ? 'OFF (Simple Cards)' : 'OFF (通常・シンプル)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateVisualSettings({ enabled: true })}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: visualSettings.enabled ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                    background: visualSettings.enabled ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                    color: visualSettings.enabled ? 'var(--panel-bg)' : 'var(--panel-text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {lang === 'en' ? '🖼️ ON (Show Covers)' : '🖼️ ON (カバー表示)'}
+                </button>
+              </div>
+              <div style={{ fontSize: '10.5px', opacity: 0.7, marginTop: '6px', lineHeight: 1.5 }}>
+                {lang === 'en'
+                  ? 'Automatically generates matching aesthetic illustrations or photo covers for each folder topic (AI, Music, Cinema, Games, Life, etc.).'
+                  : 'フォルダー名（AI、音楽、映画・特撮、ゲーム、生活、投資、自己分析など）に合わせて最適な図絵・カバーを自動表示します。'}
+              </div>
+            </div>
+
+            {/* 絵柄スタイル（イラスト / 写真） */}
+            <div className="setting-row">
+              <div className="setting-label">
+                {lang === 'en' ? 'ARTWORK STYLE' : '絵柄・アートスタイル'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => updateVisualSettings({ style: 'illustration' })}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: visualSettings.style === 'illustration' ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                    background: visualSettings.style === 'illustration' ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                    color: visualSettings.style === 'illustration' ? 'var(--panel-bg)' : 'var(--panel-text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  🎨 {lang === 'en' ? 'Smart Illustration' : 'スマートイラスト'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateVisualSettings({ style: 'photo' })}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: visualSettings.style === 'photo' ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                    background: visualSettings.style === 'photo' ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                    color: visualSettings.style === 'photo' ? 'var(--panel-bg)' : 'var(--panel-text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  📸 {lang === 'en' ? 'HD Photo / Artwork' : '高精細フォト'}
+                </button>
+              </div>
+            </div>
+
+            {/* レイアウト（ヘッダーバナー型 / 全面背景型） */}
+            <div className="setting-row">
+              <div className="setting-label">
+                {lang === 'en' ? 'COVER LAYOUT' : '配置レイアウト'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => updateVisualSettings({ layout: 'banner' })}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: visualSettings.layout === 'banner' ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                    background: visualSettings.layout === 'banner' ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                    color: visualSettings.layout === 'banner' ? 'var(--panel-bg)' : 'var(--panel-text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  🖼️ {lang === 'en' ? 'Header Banner' : '上部バナー型'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateVisualSettings({ layout: 'card-bg' })}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: visualSettings.layout === 'card-bg' ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                    background: visualSettings.layout === 'card-bg' ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                    color: visualSettings.layout === 'card-bg' ? 'var(--panel-bg)' : 'var(--panel-text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  🔲 {lang === 'en' ? 'Full Background' : 'カード全面背景'}
+                </button>
+              </div>
+            </div>
+
+            {/* 画像表示の基準位置（上・中・下 ＆ スライダー微調整） */}
+            <div className="setting-row">
+              <div className="setting-label">
+                {lang === 'en' ? 'DEFAULT IMAGE POSITION' : 'カバー画像の基準位置（上・中・下・微調整）'}
+                <span className="setting-val">{parsePositionPercent(visualSettings.defaultPosition)}%</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                {[
+                  { val: 0, label: lang === 'en' ? '⬆ Top (0%)' : '⬆ 上部 (0%)' },
+                  { val: 50, label: lang === 'en' ? '⏺ Center (50%)' : '⏺ 中央 (50%)' },
+                  { val: 100, label: lang === 'en' ? '⬇ Bottom (100%)' : '⬇ 下部 (100%)' },
+                ].map(p => {
+                  const isCur = parsePositionPercent(visualSettings.defaultPosition) === p.val;
+                  return (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() => updateVisualSettings({ defaultPosition: p.val })}
+                      style={{
+                        padding: '6px 8px',
+                        fontSize: '11px',
+                        fontWeight: isCur ? 800 : 600,
+                        border: isCur ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                        background: isCur ? 'var(--sb-accent, #3b82f6)' : 'transparent',
+                        color: isCur ? '#ffffff' : 'var(--main-text, inherit)',
+                        cursor: 'pointer',
+                        borderRadius: '0px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={parsePositionPercent(visualSettings.defaultPosition)}
+                onChange={e => updateVisualSettings({ defaultPosition: parseInt(e.target.value, 10) })}
+                style={{ width: '100%', cursor: 'pointer' }}
+              />
+            </div>
+
+            {/* 透明度スライダー */}
+            <div className="setting-row">
+              <div className="setting-label">
+                {lang === 'en' ? 'COVER OPACITY' : 'カバー不透明度'}
+                <span className="setting-val">{Math.round((visualSettings.opacity ?? 1.0) * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.2"
+                max="1.0"
+                step="0.05"
+                value={visualSettings.opacity ?? 1.0}
+                onChange={e => updateVisualSettings({ opacity: parseFloat(e.target.value) })}
+                style={{ width: '100%', cursor: 'pointer' }}
+              />
+            </div>
+
+            {/* 明るさ・鮮やかさ（Brightness）スライダー */}
+            <div className="setting-row">
+              <div className="setting-label">
+                {lang === 'en' ? 'COVER BRIGHTNESS' : 'カバーの明るさ（クッキリ度）'}
+                <span className="setting-val">{Math.round((visualSettings.brightness ?? 1.05) * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.7"
+                max="1.4"
+                step="0.05"
+                value={visualSettings.brightness ?? 1.05}
+                onChange={e => updateVisualSettings({ brightness: parseFloat(e.target.value) })}
+                style={{ width: '100%', cursor: 'pointer' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', opacity: 0.6, marginTop: '3px' }}>
+                <span>70% (落ち着いたトーン)</span>
+                <span>100% (標準)</span>
+                <span>140% (明るく鮮明)</span>
+              </div>
+            </div>
+
+            {/* フォルダーアイコン色 */}
+            <div className="setting-row">
+              <div className="setting-label">{lang === 'en' ? 'FOLDER ICON ACCENT' : 'フォルダーアイコン色'}</div>
+              <div className="color-palette-grid">
+                {[
+                  { hex: '#FBBF24', name: 'Amber' },
+                  { hex: '#60A5FA', name: 'Blue' },
+                  { hex: '#34D399', name: 'Emerald' },
+                  { hex: '#F472B6', name: 'Pink' },
+                  { hex: '#A78BFA', name: 'Purple' },
+                  { hex: '#FB923C', name: 'Orange' },
+                  { hex: '#E879F9', name: 'Fuchsia' },
+                  { hex: '#2DD4BF', name: 'Teal' },
+                  { hex: '#94A3B8', name: 'Slate' },
+                  { hex: '#E2E8F0', name: 'Light' }
+                ].map(c => (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    className={`palette-color-btn ${vals.folderColor === c.hex ? 'active' : ''}`}
+                    style={{ backgroundColor: c.hex }}
+                    onClick={() => updateSetting('folderColor', c.hex)}
+                    title={c.name}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={vals.folderColor.startsWith('#') ? vals.folderColor : '#FBBF24'}
+                  onChange={e => updateSetting('folderColor', e.target.value)}
+                  className="palette-custom-color"
+                  title={lang === 'en' ? 'Custom Color' : 'カスタムカラー'}
+                />
               </div>
             </div>
           </div>

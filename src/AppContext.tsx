@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
 import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename } from './utils';
-import { getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from './theme';
+import { THEMES, getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from './theme';
 import { applySettingsToDOM } from './settingsSync';
+import { migrateFolderVisualSettings } from './folderVisuals';
 
 export interface AppState {
   dirHandle: any | null;
@@ -82,6 +83,9 @@ export interface AppState {
   voices: SpeechSynthesisVoice[];
   writingMode: 'horizontal' | 'vertical';
   setWritingMode: (mode: 'horizontal' | 'vertical') => void;
+  currentTheme: string;
+  setTheme: (themeKey: string) => void;
+  cycleTheme: () => void;
   paperMode: boolean;
   paperColor: 'beige' | 'white';
   setPaperColor: (color: 'beige' | 'white') => void;
@@ -344,10 +348,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     window.dispatchEvent(new Event('settingsChanged'));
   };
 
+  const [currentTheme, setCurrentThemeState] = useState<string>(() => getActiveThemeKey());
+
+  const setTheme = (themeKey: string) => {
+    const finalKey = (themeKey === 'ocean' || themeKey === 'dark' ? 'black' : themeKey) || 'mono';
+    localStorage.setItem('lv_theme', finalKey);
+    setCurrentThemeState(finalKey);
+    const ps = getPaperSettingsForTheme(finalKey);
+    setPaperModeState(ps.mode);
+    setPaperColorState(ps.color);
+    setMainBgWhiteState(getMainBgWhiteForTheme(finalKey));
+    applySettingsToDOM();
+    window.dispatchEvent(new Event('settingsChanged'));
+  };
+
+  const cycleTheme = () => {
+    const themeKeys = Object.keys(THEMES);
+    const cur = getActiveThemeKey();
+    const curIdx = themeKeys.indexOf(cur);
+    const nextIdx = curIdx >= 0 ? (curIdx + 1) % themeKeys.length : 0;
+    setTheme(themeKeys[nextIdx]);
+  };
+
   // テーマ切り替え時に、そのテーマ専用の設定（ペーパー設定、メイン白背景）へ自動切り替え
   useEffect(() => {
     const syncThemeSettings = () => {
       const theme = getActiveThemeKey();
+      setCurrentThemeState(theme);
       const ps = getPaperSettingsForTheme(theme);
       setPaperModeState(ps.mode);
       setPaperColorState(ps.color);
@@ -1254,6 +1281,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       } else if (explorerCategory && explorerCategory.startsWith(oldCategoryPath + '/')) {
         setExplorerCategory(newCategoryPath + explorerCategory.slice(oldCategoryPath.length));
       }
+      migrateFolderVisualSettings(oldCategoryPath, newCategoryPath);
       return true;
     }
 
@@ -1306,6 +1334,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         setExplorerCategory(newCategoryPath + explorerCategory.slice(oldCategoryPath.length));
       }
 
+      migrateFolderVisualSettings(oldCategoryPath, newCategoryPath);
       closeMovePanels();
       await loadFiles(dirHandle);
       return true;
@@ -1480,6 +1509,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voiceRates, voices, writingMode, setWritingMode,
+      currentTheme, setTheme, cycleTheme,
       paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, loadPaperForTheme,
       mainBgWhite, setMainBgWhite, toggleMainBgWhite,
       sidebarPosition, setSidebarPosition, toggleSidebarPosition,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { SearchIcon, FolderIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon, SolidSeriesIcon, SideChangeIcon } from './Icons';
+import { SearchIcon, FolderIcon, FoldersStackIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon, SolidSeriesIcon, SideChangeIcon } from './Icons';
 import { FileObj } from '../types';
 import { highlightText, escHtml } from '../utils';
 
@@ -17,7 +17,7 @@ export const Sidebar = () => {
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
     fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder,
-    openExplorer, viewMode, setViewMode,
+    openExplorer, explorerCategory, viewMode, setViewMode,
     canGoBack, canGoForward, goBack, goForward,
     sidebarPosition, toggleSidebarPosition
   } = useAppContext();
@@ -343,6 +343,52 @@ export const Sidebar = () => {
     };
 
     const elements: React.ReactNode[] = [];
+
+    // 最上部（ルート）の ALL DATA ホームボタン
+    const isRootExplorerActive = viewMode === 'explorer' && !explorerCategory;
+    elements.push(
+      <div className="category-group" data-group-key="root:all_data" key="root:all_data" style={{ marginBottom: '4px' }}>
+        <button
+          className={`category-header root-all-data-header ${isRootExplorerActive ? 'open' : ''}`}
+          style={{
+            paddingLeft: '10px',
+            background: isRootExplorerActive ? 'var(--sb-item-active, rgba(255,255,255,0.12))' : 'transparent',
+            color: isRootExplorerActive ? 'var(--sb-accent)' : 'var(--sb-text)',
+            borderLeft: isRootExplorerActive ? '3px solid var(--sb-accent)' : '3px solid transparent',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '7px'
+          }}
+          onClick={() => {
+            openExplorer(null);
+          }}
+          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('drag-over'); }}
+          onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
+          onDrop={async e => {
+            e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+            if (!window.__draggedFiles) return;
+            await execBulkMove(window.__draggedFiles, dirHandle, null);
+          }}
+          title={lang === 'en' ? 'Open Root Directory / All Data (Home)' : '最上位階層（ホーム / ALL DATA）を開く'}
+        >
+          <span className="category-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <FoldersStackIcon size={15} />
+          </span>
+          <span className="category-name" style={{ fontWeight: 700, letterSpacing: '0.4px' }}>
+            ALL DATA
+          </span>
+          <span className="category-count" style={{ marginLeft: 'auto' }}>
+            {allFiles.length}
+          </span>
+        </button>
+      </div>
+    );
+
+    if (allCategories.length > 0) {
+      elements.push(<div key="root-sep" style={{ height: '1px', background: 'var(--sb-border, rgba(255,255,255,0.06))', margin: '4px 8px 6px' }} />);
+    }
+
     treeTop.forEach(node => {
       elements.push(buildCategoryTree(node, 0));
     });
@@ -602,7 +648,7 @@ export const Sidebar = () => {
             >
               ＋ <FolderIcon />
             </button>
-            <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? 'Done' : t.sidebar.selectMode}</button>
+            <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? (lang === 'en' ? 'Done' : '終了') : t.sidebar.selectMode}</button>
             <button 
               id="highlight-toggle-btn" 
               className={isHighlightOff ? 'off' : ''} 

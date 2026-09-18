@@ -864,7 +864,7 @@ body.highlight-off mark {
   position: fixed;
   bottom: 72px;
   left: 16px;
-  width: 310px;
+  width: 365px;
   max-width: calc(100vw - 32px);
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
@@ -877,7 +877,7 @@ body.highlight-off mark {
 #settings-panel.open { display: block; }
 
 .panel-tabs { display: flex; border-bottom: 1px solid var(--panel-tab-border); }
-.panel-tab { flex: 1; padding: 12px 4px; background: none; border: none; color: var(--panel-muted); font-size: 11px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; border-bottom: 2px solid transparent; white-space: nowrap; }
+.panel-tab { flex: 1; padding: 12px 6px; background: none; border: none; color: var(--panel-muted); font-size: 11.5px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; border-bottom: 2px solid transparent; white-space: nowrap; }
 .panel-tab:hover { color: var(--panel-text); }
 .panel-tab.active { color: var(--panel-tab-active); border-bottom-color: var(--sb-accent); }
 .panel-close-btn {
@@ -1007,15 +1007,16 @@ body.highlight-off mark {
 #delete-file-btn:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.6); }
 
 #folder-edit-panel, #move-panel, #bulk-move-panel { display: none; position: fixed; z-index: 200; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 0px; padding: 0; box-shadow: 0 12px 48px rgba(0,0,0,0.55); min-width: 260px; overflow: hidden; }
-.open-panel { display: block !important; }
+.open-panel { display: flex !important; flex-direction: column !important; }
 
-.move-panel-title { font-size: 10px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--panel-muted); padding: 14px 16px 10px; border-bottom: 1px solid var(--panel-tab-border); }
+.move-panel-title { flex-shrink: 0; font-size: 10px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--panel-muted); padding: 14px 16px 10px; border-bottom: 1px solid var(--panel-tab-border); }
+.move-panel-scroll { flex: 1 1 auto; min-height: 80px; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 6px; }
 .move-folder-btn { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; color: var(--panel-text); font-size: 13px; font-weight: bold; padding: 11px 16px; cursor: pointer; text-align: left; transition: background 0.1s; font-family: var(--font-body); }
 .move-folder-btn:hover { background: var(--panel-item-bg); }
 .move-folder-btn svg { flex-shrink: 0; color: var(--sb-folder-color, currentColor); opacity: 0.85; }
-.move-panel-close { width: 100%; background: none; border: none; border-top: 1px solid var(--panel-tab-border); color: var(--panel-muted); font-size: 11px; padding: 10px; cursor: pointer; font-family: var(--font-body); transition: color 0.1s; }
+.move-panel-close { flex-shrink: 0; width: 100%; background: none; border: none; border-top: 1px solid var(--panel-tab-border); color: var(--panel-muted); font-size: 11px; padding: 10px; cursor: pointer; font-family: var(--font-body); transition: color 0.1s; }
 .move-panel-close:hover { color: var(--panel-text); }
-.move-panel-new { display: flex; align-items: center; gap: 8px; padding: 8px 16px 14px; border-top: 1px solid var(--panel-tab-border); }
+.move-panel-new { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 8px 16px 14px; border-top: 1px solid var(--panel-tab-border); }
 .move-panel-new input { flex: 1; background: var(--panel-item-bg); border: 1px solid var(--panel-item-border); border-radius: 0px; color: var(--panel-text); font-size: 12px; padding: 6px 10px; outline: none; font-family: var(--font-body); }
 .move-panel-new button { background: rgba(59,130,246,0.25); border: none; border-radius: 0px; color: #60A5FA; font-size: 11px; font-weight: bold; padding: 6px 12px; cursor: pointer; font-family: var(--font-body); transition: background 0.1s; }
 
@@ -2378,6 +2379,7 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
 }
 
 .folder-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--card-bg, #ffffff);
@@ -2390,6 +2392,7 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   gap: 10px;
   min-height: 88px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .folder-card:hover {
@@ -2397,6 +2400,144 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   background: var(--sb-item-hover, rgba(59, 130, 246, 0.08));
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* カバー（バナー型）付きフォルダーカード */
+.folder-card.with-cover-banner {
+  padding: 0;
+  min-height: 148px;
+}
+
+.folder-cover-banner {
+  position: relative;
+  width: 100%;
+  height: 72px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--card-border, rgba(120, 120, 120, 0.2));
+  overflow: hidden;
+}
+
+.folder-cover-bg-image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.2s ease, transform 0.3s ease, filter 0.2s ease;
+}
+
+.folder-card:hover .folder-cover-bg-image {
+  transform: scale(1.03);
+}
+
+.folder-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.18) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.folder-cover-badge {
+  position: relative;
+  z-index: 2;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 0px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff !important;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  opacity: 1 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.folder-cover-actions {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.folder-cover-btn-icon,
+.folder-cover-shuffle-btn,
+.folder-cover-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 0px;
+  background: #0f172a;
+  color: #ffffff !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  opacity: 1 !important;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+
+.folder-cover-btn-icon:hover,
+.folder-cover-shuffle-btn:hover,
+.folder-cover-edit-btn:hover {
+  background: var(--sb-accent, #2563eb);
+  border-color: #ffffff;
+  color: #ffffff !important;
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+
+.folder-cover-btn-icon:active,
+.folder-cover-shuffle-btn:active,
+.folder-cover-edit-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.folder-card-body-wrap {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 12px 14px;
+  gap: 8px;
+  flex: 1;
+}
+
+/* カバー（全面背景型）付きフォルダーカード */
+.folder-card.with-cover-bg {
+  position: relative;
+}
+
+.folder-card-full-bg-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.folder-card-full-bg-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.folder-card.with-cover-bg > * {
+  position: relative;
+  z-index: 2;
 }
 
 .folder-card-top {
@@ -3209,8 +3350,8 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
    カードビューのチェックボックス & 選択状態
    ========================================================================== */
 .article-card-checkbox {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border-radius: 0px;
   border: 1.5px solid var(--checkbox-border, rgba(140, 150, 160, 0.75));
   background: transparent;
@@ -3230,14 +3371,15 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
 }
 
 .article-card-checkbox.checked {
-  background: var(--sb-accent, #3b82f6);
-  border-color: var(--sb-accent, #3b82f6);
+  background: var(--sb-accent, #2563eb) !important;
+  border-color: var(--sb-accent, #2563eb) !important;
 }
 
 .article-check-svg {
-  width: 10px;
-  height: 10px;
-  stroke: #FFFFFF;
+  width: 11px;
+  height: 11px;
+  stroke: #FFFFFF !important;
+  display: block;
 }
 
 .article-card.selected {
@@ -3250,8 +3392,8 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
    リストビューのチェックボックス & 選択状態
    ========================================================================== */
 .article-list-checkbox {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border-radius: 0px;
   border: 1.5px solid var(--checkbox-border, rgba(140, 150, 160, 0.75));
   background: transparent;
@@ -3271,8 +3413,8 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
 }
 
 .article-list-checkbox.checked {
-  background: var(--sb-accent, #3b82f6);
-  border-color: var(--sb-accent, #3b82f6);
+  background: var(--sb-accent, #2563eb) !important;
+  border-color: var(--sb-accent, #2563eb) !important;
 }
 
 .article-list-row.selected {
@@ -3723,10 +3865,22 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
 }
 
 /* チェックボックス */
-[data-main-white="true"] .article-card-checkbox,
-[data-main-white="true"] .article-list-checkbox {
+[data-main-white="true"] .article-card-checkbox:not(.checked),
+[data-main-white="true"] .article-list-checkbox:not(.checked) {
   border-color: #94A3B8 !important;
   background: #FFFFFF !important;
+}
+
+[data-main-white="true"] .article-card-checkbox.checked,
+[data-main-white="true"] .article-list-checkbox.checked {
+  background: #2563EB !important;
+  border-color: #2563EB !important;
+}
+
+[data-main-white="true"] .article-card-checkbox.checked .article-check-svg,
+[data-main-white="true"] .article-list-checkbox.checked .article-check-svg {
+  stroke: #FFFFFF !important;
+  display: block !important;
 }
 
 /* 空状態・ウェルカム画面 */
