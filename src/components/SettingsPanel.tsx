@@ -122,7 +122,16 @@ export const SettingsPanel = () => {
   if (!settingsOpen) return null;
 
   return (
-    <div id="settings-panel" ref={panelRef} className="open" onClick={e => e.stopPropagation()}>
+    <div 
+      id="settings-panel" 
+      ref={panelRef} 
+      className={`open ${sidebarPosition === 'right' ? 'pos-right' : 'pos-left'}`}
+      style={{
+        left: sidebarPosition === 'right' ? 'auto' : '16px',
+        right: sidebarPosition === 'right' ? '16px' : 'auto',
+      }}
+      onClick={e => e.stopPropagation()}
+    >
       <div className="panel-tabs">
         <button className={`panel-tab ${tab === 'text' ? 'active' : ''}`} onClick={() => setTab('text')}>{t.settings.textOpen}</button>
         <button className={`panel-tab ${tab === 'layout' ? 'active' : ''}`} onClick={() => setTab('layout')}>{t.settings.layoutOpen}</button>

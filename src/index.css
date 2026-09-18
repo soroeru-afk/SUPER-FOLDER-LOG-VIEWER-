@@ -864,6 +864,7 @@ body.highlight-off mark {
   position: fixed;
   bottom: 72px;
   left: 16px;
+  right: auto;
   width: 365px;
   max-width: calc(100vw - 32px);
   background: var(--panel-bg);
@@ -875,6 +876,13 @@ body.highlight-off mark {
   overflow: hidden;
 }
 #settings-panel.open { display: block; }
+
+/* サイドバーが右側の場合は、コントロールパネルも右側（サイドバー側）に表示 */
+html[data-sidebar-pos="right"] #settings-panel,
+#settings-panel.pos-right {
+  left: auto;
+  right: 16px;
+}
 
 .panel-tabs { display: flex; border-bottom: 1px solid var(--panel-tab-border); }
 .panel-tab { flex: 1; padding: 12px 6px; background: none; border: none; color: var(--panel-muted); font-size: 11.5px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; border-bottom: 2px solid transparent; white-space: nowrap; }

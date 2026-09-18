@@ -42,6 +42,9 @@ export function applySettingsToDOM() {
   const searchBox = document.getElementById('search-box');
   if (searchBox) searchBox.style.fontFamily = fontVal;
 
+  const sidebarPos = localStorage.getItem('lv_sidebarPosition') || 'left';
+  document.documentElement.setAttribute('data-sidebar-pos', sidebarPos);
+
   applyThemeStyle(localStorage.getItem('lv_theme') || 'mono');
 }
 
