@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0B0C0D"/>
+    </linearGradient>
+    <linearGradient id="folderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#bgGrad)"/>
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8"/>
+  
+  <!-- Back folder -->
+  <path d="M120 180 L180 180 L210 210 L392 210 A 20 20 0 0 1 412 230 L412 370 A 20 20 0 0 1 392 390 L120 390 A 20 20 0 0 1 100 370 L100 200 A 20 20 0 0 1 120 180 Z" fill="rgba(59, 130, 246, 0.35)"/>
+  
+  <!-- Front folder -->
+  <path d="M100 230 L170 230 L200 260 L400 260 A 20 20 0 0 1 420 280 L420 390 A 24 24 0 0 1 396 414 L124 414 A 24 24 0 0 1 100 390 Z" fill="url(#folderGrad)"/>
+  
+  <!-- Paper / Log lines inside -->
+  <rect x="150" y="140" width="212" height="150" rx="12" fill="#F8FAFC" opacity="0.95"/>
+  <line x1="180" y1="180" x2="330" y2="180" stroke="#334155" stroke-width="12" stroke-linecap="round"/>
+  <line x1="180" y1="210" x2="300" y2="210" stroke="#64748B" stroke-width="10" stroke-linecap="round"/>
+  <line x1="180" y1="240" x2="260" y2="240" stroke="#94A3B8" stroke-width="10" stroke-linecap="round"/>
+  
+  <!-- Sparkle / Accent -->
+  <circle cx="390" cy="150" r="16" fill="url(#accentGrad)"/>
+</svg>
