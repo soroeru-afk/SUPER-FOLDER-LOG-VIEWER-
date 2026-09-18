@@ -696,7 +696,7 @@ export const SettingsPanel = () => {
                   {lang === 'en' ? '🖼️ ON (Show Covers)' : '🖼️ ON (カバー表示)'}
                 </button>
               </div>
-              <div style={{ fontSize: '10.5px', opacity: 0.7, marginTop: '6px', lineHeight: 1.5 }}>
+              <div style={{ fontSize: '11px', color: 'var(--panel-muted)', opacity: 0.9, marginTop: '6px', lineHeight: 1.5 }}>
                 {lang === 'en'
                   ? 'Automatically generates matching aesthetic illustrations or photo covers for each folder topic (AI, Music, Cinema, Games, Life, etc.).'
                   : 'フォルダー名（AI、音楽、映画・特撮、ゲーム、生活、投資、自己分析など）に合わせて最適な図絵・カバーを自動表示します。'}
@@ -804,12 +804,12 @@ export const SettingsPanel = () => {
                       type="button"
                       onClick={() => updateVisualSettings({ defaultPosition: p.val })}
                       style={{
-                        padding: '6px 8px',
+                        padding: '8px 6px',
                         fontSize: '11px',
-                        fontWeight: isCur ? 800 : 600,
-                        border: isCur ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120,120,120,0.3))',
-                        background: isCur ? 'var(--sb-accent, #3b82f6)' : 'transparent',
-                        color: isCur ? '#ffffff' : 'var(--main-text, inherit)',
+                        fontWeight: 700,
+                        border: isCur ? '1.5px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-item-border)',
+                        background: isCur ? 'var(--panel-tab-active)' : 'var(--panel-item-bg)',
+                        color: isCur ? 'var(--panel-bg)' : 'var(--panel-text)',
                         cursor: 'pointer',
                         borderRadius: '0px',
                         transition: 'all 0.15s ease'
@@ -863,7 +863,7 @@ export const SettingsPanel = () => {
                 onChange={e => updateVisualSettings({ brightness: parseFloat(e.target.value) })}
                 style={{ width: '100%', cursor: 'pointer' }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', opacity: 0.6, marginTop: '3px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--panel-muted)', opacity: 0.85, marginTop: '3px' }}>
                 <span>70% (落ち着いたトーン)</span>
                 <span>100% (標準)</span>
                 <span>140% (明るく鮮明)</span>

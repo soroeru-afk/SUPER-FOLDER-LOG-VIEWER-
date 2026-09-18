@@ -22,8 +22,8 @@ export const THEMES: Record<string, any> = {
     btnHover: '#182944', 
     panelBg: '#101A2B', 
     panelBorder: '#1B2E4B', 
-    panelText: '#E2E8F0', 
-    panelMuted: '#8FAFCF', 
+    panelText: '#F8FAFC', 
+    panelMuted: '#A8C5E5', 
     panelTabActive: '#FFFFFF', 
     panelTabBorder: '#1B2E4B', 
     panelItemBg: '#132035', 
@@ -64,15 +64,15 @@ export const THEMES: Record<string, any> = {
     btnBorder: '#282D37', 
     btnHover: '#222630', 
     panelBg: '#14161A', 
-    panelBorder: 'rgba(255,255,255,0.10)', 
-    panelText: 'rgba(255,255,255,0.85)', 
-    panelMuted: 'rgba(255,255,255,0.40)', 
+    panelBorder: 'rgba(255,255,255,0.12)', 
+    panelText: '#F8FAFC', 
+    panelMuted: '#94A3B8', 
     panelTabActive: '#FFFFFF', 
-    panelTabBorder: 'rgba(255,255,255,0.10)', 
+    panelTabBorder: 'rgba(255,255,255,0.12)', 
     panelItemBg: '#191C22', 
-    panelItemBorder: '#23272F', 
-    panelSliderBg: 'rgba(255,255,255,0.15)', 
-    panelScrollbar: 'rgba(255,255,255,0.10)', 
+    panelItemBorder: '#282D37', 
+    panelSliderBg: 'rgba(255,255,255,0.20)', 
+    panelScrollbar: 'rgba(255,255,255,0.15)', 
     sbItemOpacity: '0.9', 
     sbCategoryOpacity: '0.85', 
     sbMutedOverride: '#8C939E', 
@@ -383,6 +383,6 @@ export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {
   // PWA/ブラウザのメタテーマカラーおよびヘッダー背景色の動的リアルタイム同期
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
-    metaThemeColor.setAttribute('content', t.mainBg || t.sbBg || '#0F172A');
+    metaThemeColor.setAttribute('content', t.sbBg || t.mainBg || '#0F172A');
   }
 }
