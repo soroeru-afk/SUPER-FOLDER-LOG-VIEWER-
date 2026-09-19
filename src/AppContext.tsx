@@ -200,6 +200,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const openExplorer = (catName: string | null = null, fromNav = false) => {
     setExplorerCategory(catName);
     setViewMode('explorer');
+    try {
+      localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'explorer', category: catName || null }));
+    } catch (e) {}
     if (!fromNav) {
       pushNav({ type: 'explorer', category: catName });
     }
@@ -209,6 +212,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (item.type === 'explorer') {
       setExplorerCategory(item.category);
       setViewMode('explorer');
+      try {
+        localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'explorer', category: item.category || null }));
+      } catch (e) {}
     } else if (item.type === 'file') {
       const target = item.fileObj || allFiles.find(
         f => f.filename === item.filename && (item.category ? f.category === item.category : true)
@@ -221,9 +227,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (target.category) {
           setExplorerCategory(target.category);
         }
+        try {
+          localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'file', filename: target.filename, category: target.category || null }));
+          localStorage.setItem('lv_lastFile', JSON.stringify({ filename: target.filename, category: target.category || null }));
+        } catch (e) {}
       } else {
         setExplorerCategory(item.category);
         setViewMode('explorer');
+        try {
+          localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'explorer', category: item.category || null }));
+        } catch (e) {}
       }
     }
   };
@@ -251,6 +264,60 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const goBackExplorer = goBack;
   const goForwardExplorer = goForward;
+
+  const restoreLastLocation = (files: FileObj[], pFolders: PhysicalFolder[]) => {
+    try {
+      const lastLocRaw = localStorage.getItem('lv_lastLocation');
+      if (lastLocRaw) {
+        const lastLoc = JSON.parse(lastLocRaw);
+        if (lastLoc.type === 'explorer') {
+          const cat = lastLoc.category;
+          if (!cat) {
+            openExplorer(null, true);
+            return;
+          }
+          const catExists = pFolders.some(pf => pf.name === cat) || files.some(f => f.category === cat);
+          if (catExists) {
+            openExplorer(cat, true);
+            return;
+          } else {
+            openExplorer(null, true);
+            return;
+          }
+        } else if (lastLoc.type === 'file') {
+          const target = files.find(
+            f => f.filename === lastLoc.filename && (lastLoc.category ? f.category === lastLoc.category : true)
+          );
+          if (target) {
+            selectFile(target, true);
+            return;
+          } else if (lastLoc.category) {
+            openExplorer(lastLoc.category, true);
+            return;
+          }
+        }
+      }
+
+      // 従来の lv_lastFile フォールバック
+      const lastFileRaw = localStorage.getItem('lv_lastFile');
+      if (lastFileRaw) {
+        const lastFileInfo = JSON.parse(lastFileRaw);
+        const target = files.find(
+          f => f.filename === lastFileInfo.filename && (lastFileInfo.category ? f.category === lastFileInfo.category : true)
+        );
+        if (target) {
+          selectFile(target, true);
+          return;
+        }
+      }
+
+      // デフォルト: ALL DATA エクスプローラー
+      openExplorer(null, true);
+    } catch (e) {
+      console.warn('Failed to restore last location:', e);
+      openExplorer(null, true);
+    }
+  };
 
   // キーボードショートカット（Alt+←で戻る、Alt+→で進む）
   useEffect(() => {
@@ -612,7 +679,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSidebarPosition(sidebarPosition === 'left' ? 'right' : 'left');
   };
 
-  const [categoryOpenState, setCategoryOpenState] = useState<Record<string, boolean>>({});
+  const [categoryOpenState, setCategoryOpenState] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('lv_categoryOpenState');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lv_categoryOpenState', JSON.stringify(categoryOpenState));
+    } catch (e) {}
+  }, [categoryOpenState]);
   
   const [movePanelState, setMovePanelState] = useState<{isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any} | null>(null);
   
@@ -708,9 +787,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
           setAllFiles(fallbackData.fileObjs);
           setPhysicalFolders(fallbackData.pFolders);
           updateFilter(fallbackData.fileObjs, fallbackData.pFolders, searchQueries);
-          if (fallbackData.fileObjs.length > 0) {
-            selectFile(fallbackData.fileObjs[0]);
-          }
+          restoreLastLocation(fallbackData.fileObjs, fallbackData.pFolders);
         }
       } else {
         const handle = await loadFolderHandle();
@@ -802,19 +879,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setPhysicalFolders(pFolders);
     updateFilter(files, pFolders, searchQueries);
 
-    // レジューム機能: 最後に開いていたファイルがあれば同じ場所を開く
-    try {
-      const lastFileRaw = localStorage.getItem('lv_lastFile');
-      if (lastFileRaw) {
-        const lastFileInfo = JSON.parse(lastFileRaw);
-        const target = files.find(f => f.filename === lastFileInfo.filename && (lastFileInfo.category ? f.category === lastFileInfo.category : true));
-        if (target) {
-          selectFile(target);
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to restore last opened file:', e);
-    }
+    // レジューム機能: 最後に開いていた場所（ファイル／フォルダー／ALL DATA）を復元
+    restoreLastLocation(files, pFolders);
   };
 
   const updateFilter = (files: FileObj[], pFolders: PhysicalFolder[], queries: string[]) => {
@@ -1008,7 +1074,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       setExplorerCategory(f.category);
     }
     try {
-      localStorage.setItem('lv_lastFile', JSON.stringify({ filename: f.filename, category: f.category }));
+      localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'file', filename: f.filename, category: f.category || null }));
+      localStorage.setItem('lv_lastFile', JSON.stringify({ filename: f.filename, category: f.category || null }));
     } catch (e) {}
     if (!fromNav) {
       pushNav({ type: 'file', filename: f.filename, category: f.category || null, fileObj: f });
