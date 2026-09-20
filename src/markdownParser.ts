@@ -19,7 +19,8 @@ export interface HeadingBlock {
 export interface ListBlock {
   type: 'list';
   ordered: boolean;
-  items: { text: string; rawLine: string }[];
+  start?: number;
+  items: { text: string; rawLine: string; number?: number }[];
 }
 
 export interface HrBlock {
@@ -196,14 +197,19 @@ export function parseMarkdown(text: string): MarkdownBlock[] {
     const olMatch = line.match(/^(\d+)[.)]\s+(.+)$/);
     if (ulMatch || olMatch) {
       const isOrdered = Boolean(olMatch);
-      const items: { text: string; rawLine: string }[] = [];
+      const startNumber = olMatch ? parseInt(olMatch[1], 10) : undefined;
+      const items: { text: string; rawLine: string; number?: number }[] = [];
 
       while (i < lines.length) {
         const currentLine = lines[i];
         const mUl = currentLine.match(/^([*\-+]|\u2022)\s+(.+)$/);
         const mOl = currentLine.match(/^(\d+)[.)]\s+(.+)$/);
         if (isOrdered && mOl) {
-          items.push({ text: mOl[2], rawLine: currentLine });
+          items.push({ 
+            text: mOl[2], 
+            rawLine: currentLine,
+            number: parseInt(mOl[1], 10)
+          });
           i++;
         } else if (!isOrdered && mUl) {
           items.push({ text: mUl[2], rawLine: currentLine });
@@ -216,6 +222,7 @@ export function parseMarkdown(text: string): MarkdownBlock[] {
       blocks.push({
         type: 'list',
         ordered: isOrdered,
+        start: startNumber,
         items
       });
       continue;

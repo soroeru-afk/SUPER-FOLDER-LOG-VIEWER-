@@ -169,26 +169,35 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
           currentLineIndex += block.items.length;
 
           const ListTag = block.ordered ? 'ol' : 'ul';
+          const listProps: React.OlHTMLAttributes<HTMLOListElement> & React.HTMLAttributes<HTMLUListElement> = {
+            className: `markdown-list ${block.ordered ? 'ordered' : 'unordered'} ${
+              isVertical ? 'vertical-list' : ''
+            }`,
+            style: {
+              margin: isVertical ? '0 16px' : '10px 0',
+              paddingLeft: isVertical ? '0' : '24px',
+              paddingTop: isVertical ? '12px' : '0',
+              listStyleType: block.ordered ? 'decimal' : 'disc',
+              lineHeight: 'var(--text-line-height, 1.8)',
+              fontSize: 'var(--text-font-size, 15px)'
+            }
+          };
+
+          if (block.ordered && block.start !== undefined) {
+            listProps.start = block.start;
+          }
+
           return (
             <ListTag
               key={blockIndex}
-              className={`markdown-list ${block.ordered ? 'ordered' : 'unordered'} ${
-                isVertical ? 'vertical-list' : ''
-              }`}
-              style={{
-                margin: isVertical ? '0 16px' : '10px 0',
-                paddingLeft: isVertical ? '0' : '24px',
-                paddingTop: isVertical ? '12px' : '0',
-                listStyleType: block.ordered ? 'decimal' : 'disc',
-                lineHeight: 'var(--text-line-height, 1.8)',
-                fontSize: 'var(--text-font-size, 15px)'
-              }}
+              {...listProps}
             >
               {block.items.map((item, idx) => {
                 const itemLine = listStart + idx;
                 return (
                   <li
                     key={idx}
+                    value={item.number}
                     className="markdown-list-item"
                     style={{
                       marginBottom: isVertical ? '0' : '6px',

@@ -220,9 +220,22 @@ export const MainContent = () => {
   };
 
   const [editValue, setEditValue] = useState("");
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     setEditValue(currentContent);
   }, [currentContent, isEditing]);
+
+  // 編集モード時：枠が画面下まで自然に広がり、文章量に合わせて自動で下に伸びる（手動で伸ばす必要をなくす）
+  useEffect(() => {
+    if (isEditing && editTextareaRef.current) {
+      const el = editTextareaRef.current;
+      el.style.height = 'auto';
+      const minViewportH = Math.max(500, window.innerHeight - 280);
+      const calculatedH = Math.max(minViewportH, el.scrollHeight + 32);
+      el.style.height = `${calculatedH}px`;
+    }
+  }, [isEditing, editValue]);
 
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   useEffect(() => {
@@ -298,9 +311,19 @@ export const MainContent = () => {
       return (
         <textarea 
           id="edit-area" 
+          ref={editTextareaRef}
           style={{display: 'block'}}
           value={editValue} 
-          onChange={e => setEditValue(e.target.value)}
+          onChange={e => {
+            setEditValue(e.target.value);
+            if (editTextareaRef.current) {
+              const el = editTextareaRef.current;
+              el.style.height = 'auto';
+              const minViewportH = Math.max(500, window.innerHeight - 280);
+              const calculatedH = Math.max(minViewportH, el.scrollHeight + 32);
+              el.style.height = `${calculatedH}px`;
+            }
+          }}
         />
       );
     }
