@@ -24,7 +24,7 @@ export interface AppState {
   movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any } | null;
   loading: boolean;
   refreshing: boolean;
-  sortMode: 'date' | 'name';
+  sortMode: 'date' | 'name' | 'custom';
   sortDirection: 'asc' | 'desc';
   viewMode: 'reader' | 'explorer';
   setViewMode: (mode: 'reader' | 'explorer') => void;
@@ -38,8 +38,14 @@ export interface AppState {
   goBackExplorer: () => void;
   goForwardExplorer: () => void;
 
-  setSortMode: (mode: 'date' | 'name') => void;
+  setSortMode: (mode: 'date' | 'name' | 'custom') => void;
   setSortDirection: (dir: 'asc' | 'desc') => void;
+  customFileOrders: Record<string, string[]>;
+  saveFolderCustomOrder: (folderKey: string, filenames: string[]) => void;
+  resetFolderCustomOrder: (folderKey: string) => void;
+  customFolderOrders: Record<string, string[]>;
+  saveFolderCustomFolderOrder: (parentKey: string, folderNames: string[]) => void;
+  resetFolderCustomFolderOrder: (parentKey: string) => void;
   openFolder: () => Promise<void>;
   reopenFolder: () => Promise<void>;
   refreshFolder: () => Promise<void>;
@@ -150,12 +156,74 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   
-  const [sortMode, setSortModeState] = useState<'date' | 'name'>(
-    () => (localStorage.getItem('lv_sortMode') as 'date' | 'name') || 'date'
+  const [sortMode, setSortModeState] = useState<'date' | 'name' | 'custom'>(
+    () => (localStorage.getItem('lv_sortMode') as 'date' | 'name' | 'custom') || 'date'
   );
   const [sortDirection, setSortDirectionState] = useState<'asc' | 'desc'>(
     () => (localStorage.getItem('lv_sortDirection') as 'asc' | 'desc') || 'desc'
   );
+
+  const [customFileOrders, setCustomFileOrders] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem('lv_custom_file_orders');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const saveFolderCustomOrder = (folderKey: string, filenames: string[]) => {
+    const key = folderKey || '__root__';
+    setCustomFileOrders(prev => {
+      const next = { ...prev, [key]: filenames };
+      localStorage.setItem('lv_custom_file_orders', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const resetFolderCustomOrder = (folderKey: string) => {
+    const key = folderKey || '__root__';
+    setCustomFileOrders(prev => {
+      const next = { ...prev };
+      delete next[key];
+      localStorage.setItem('lv_custom_file_orders', JSON.stringify(next));
+      return next;
+    });
+    setCustomFolderOrders(prev => {
+      const next = { ...prev };
+      delete next[key];
+      localStorage.setItem('lv_custom_folder_orders', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const [customFolderOrders, setCustomFolderOrders] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem('lv_custom_folder_orders');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const saveFolderCustomFolderOrder = (parentKey: string, folderNames: string[]) => {
+    const key = parentKey || '__root__';
+    setCustomFolderOrders(prev => {
+      const next = { ...prev, [key]: folderNames };
+      localStorage.setItem('lv_custom_folder_orders', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const resetFolderCustomFolderOrder = (parentKey: string) => {
+    const key = parentKey || '__root__';
+    setCustomFolderOrders(prev => {
+      const next = { ...prev };
+      delete next[key];
+      localStorage.setItem('lv_custom_folder_orders', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const [viewMode, setViewMode] = useState<'reader' | 'explorer'>('explorer');
   const [explorerCategory, setExplorerCategory] = useState<string | null>(null);
@@ -500,7 +568,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const setSortMode = (mode: 'date' | 'name') => {
+  const setSortMode = (mode: 'date' | 'name' | 'custom') => {
     setSortModeState(mode);
     localStorage.setItem('lv_sortMode', mode);
   };
@@ -904,11 +972,27 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         const dtA = (a.date || '') + (a.time || '');
         const dtB = (b.date || '') + (b.time || '');
         return sortDirection === 'asc' ? dtA.localeCompare(dtB) : dtB.localeCompare(dtA);
-      } else {
+      } else if (sortMode === 'name') {
         const nameA = getSortableName(a.filename);
         const nameB = getSortableName(b.filename);
         const cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
         return sortDirection === 'asc' ? cmp : -cmp;
+      } else {
+        // sortMode === 'custom'
+        const catKeyA = a.category || '__root__';
+        const catKeyB = b.category || '__root__';
+        if (catKeyA === catKeyB) {
+          const list = customFileOrders[catKeyA] || [];
+          const idxA = list.indexOf(a.filename);
+          const idxB = list.indexOf(b.filename);
+          const posA = idxA >= 0 ? idxA : 999999;
+          const posB = idxB >= 0 ? idxB : 999999;
+          if (posA !== posB) return posA - posB;
+        }
+        // fallback to date desc
+        const dtA = (a.date || '') + (a.time || '');
+        const dtB = (b.date || '') + (b.time || '');
+        return dtB.localeCompare(dtA);
       }
     });
 
@@ -931,7 +1015,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
   useEffect(() => {
     updateFilter(allFiles, physicalFolders, searchQueries);
-  }, [sortMode, sortDirection, allFiles, physicalFolders, searchQueries]);
+  }, [sortMode, sortDirection, allFiles, physicalFolders, searchQueries, customFileOrders]);
 
   const openFolderFallback = () => {
     const input = document.createElement("input");
@@ -1568,6 +1652,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       currentFileObj, currentContent, isEditing, selectedFiles, selectedFileMap, isSelectMode,
       settingsOpen, isHighlightOff, categoryOpenState, movePanelState, loading, refreshing,
       sortMode, sortDirection, setSortMode, setSortDirection,
+      customFileOrders, saveFolderCustomOrder, resetFolderCustomOrder,
+      customFolderOrders, saveFolderCustomFolderOrder, resetFolderCustomFolderOrder,
       viewMode, setViewMode, explorerCategory, setExplorerCategory, openExplorer,
       canGoBack, canGoForward, goBack, goForward, goBackExplorer, goForwardExplorer,
       openFolder, reopenFolder, refreshFolder, setSearchQuery, clearSearch, removeSearchQuery,

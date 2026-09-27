@@ -3233,6 +3233,82 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   opacity: 1;
 }
 
+/* 並び替え移動ボタン群（最上・上へ・下へ・最下）- ゲートエスケーパー連動 */
+.explorer-reorder-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  padding: 1px 2px;
+  height: 26px;
+  box-sizing: border-box;
+  border-radius: 0px;
+}
+
+.explorer-reorder-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 2px 7px;
+  height: 22px;
+  box-sizing: border-box;
+  border-radius: 0px;
+  font-size: 10.5px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--btn-text);
+  transition: all 0.12s ease;
+  user-select: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.explorer-reorder-btn:not(:disabled):hover {
+  background: var(--btn-hover);
+  border-color: var(--sb-accent, #3b82f6);
+  color: var(--sb-accent, #3b82f6);
+}
+
+.explorer-reorder-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* フォルダーのグリップハンドル＆ドラッグ並び替え */
+.folder-grip-handle {
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.folder-grip-handle:hover {
+  opacity: 1 !important;
+  color: var(--sb-accent, #3b82f6) !important;
+}
+
+.folder-card.folder-drag-over {
+  border-color: var(--sb-accent, #3b82f6) !important;
+  box-shadow: 0 0 0 2px var(--sb-accent, #3b82f6), 0 8px 24px rgba(59, 130, 246, 0.25) !important;
+  transform: translateY(-2px);
+}
+
+.folder-card.folder-dragging {
+  opacity: 0.35 !important;
+}
+
+.explorer-sort-btn.reset-btn:hover {
+  border-color: var(--sb-accent, #3b82f6);
+  color: var(--sb-accent, #3b82f6);
+}
+
+.explorer-sort-btn.reset-btn.active-reset {
+  color: var(--sb-accent, #3b82f6);
+}
+
 /* ミニチェックボックス（全選択ボタン内） */
 .explorer-mini-checkbox {
   width: 14px;
@@ -3431,6 +3507,25 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
   border-color: var(--sb-accent, #3b82f6) !important;
   background: rgba(59, 130, 246, 0.08) !important;
   box-shadow: 0 0 0 1px var(--sb-accent, #3b82f6);
+}
+
+/* ホバー時にチェックボックスを自然に出現させるスタイル */
+.article-card-checkbox.hover-reveal,
+.article-list-checkbox.hover-reveal {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.article-card:hover .article-card-checkbox.hover-reveal,
+.article-list-row:hover .article-list-checkbox.hover-reveal {
+  opacity: 0.65;
+}
+
+.article-card:hover .article-card-checkbox.hover-reveal:hover,
+.article-list-row:hover .article-list-checkbox.hover-reveal:hover {
+  opacity: 1;
+  border-color: var(--sb-accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.12);
 }
 
 /* ==========================================================================

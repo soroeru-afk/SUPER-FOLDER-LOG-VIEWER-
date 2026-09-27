@@ -16,6 +16,7 @@ export const Sidebar = () => {
     createNewFolder, createNewFile,
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
+    customFolderOrders,
     fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder,
     openExplorer, explorerCategory, viewMode, setViewMode,
     canGoBack, canGoForward, goBack, goForward,
@@ -292,38 +293,52 @@ export const Sidebar = () => {
     const isArchiveOrAiFolder = (name: string) => /過去ログ|アーカイブ|archive|agent|エージェント|ai/i.test(name);
 
     const sortCategoryNodes = (nodes: CategoryNode[], parentName: string = '') => {
-      const isTarget = isArchiveOrAiFolder(parentName) || nodes.some(n => {
-        const short = n.name.split('/').pop() || n.name;
-        return isYearMonthName(short);
-      });
-
-      if (isTarget) {
-        nodes.sort((a, b) => {
-          const shortA = a.name.split('/').pop() || a.name;
-          const shortB = b.name.split('/').pop() || b.name;
-          const isDateA = isYearMonthName(shortA);
-          const isDateB = isYearMonthName(shortB);
-
-          if (sortMode === 'date') {
-            // 日付順: 降順(desc)なら最新月が上 (例: 2026-08 -> 2026-07 -> 2026-06)
-            if (isDateA && isDateB) {
-              return sortDirection === 'desc'
-                ? shortB.localeCompare(shortA, undefined, { numeric: true })
-                : shortA.localeCompare(shortB, undefined, { numeric: true });
-            }
-            if (isDateA && !isDateB) return sortDirection === 'desc' ? -1 : 1;
-            if (!isDateA && isDateB) return sortDirection === 'desc' ? 1 : -1;
-
-            return sortDirection === 'desc'
-              ? shortB.localeCompare(shortA, 'ja', { numeric: true })
-              : shortA.localeCompare(shortB, 'ja', { numeric: true });
-          } else {
-            // 名前順: 昇順(asc)なら a->b、降順(desc)なら b->a
-            return sortDirection === 'asc'
-              ? shortA.localeCompare(shortB, 'ja', { numeric: true })
-              : shortB.localeCompare(shortA, 'ja', { numeric: true });
-          }
+      if (sortMode === 'custom') {
+        const orderList = customFolderOrders[parentName || '__root__'] || [];
+        if (orderList.length > 0) {
+          nodes.sort((a, b) => {
+            const idxA = orderList.indexOf(a.name);
+            const idxB = orderList.indexOf(b.name);
+            const posA = idxA >= 0 ? idxA : 999999;
+            const posB = idxB >= 0 ? idxB : 999999;
+            if (posA !== posB) return posA - posB;
+            return a.name.localeCompare(b.name, 'ja');
+          });
+        }
+      } else {
+        const isTarget = isArchiveOrAiFolder(parentName) || nodes.some(n => {
+          const short = n.name.split('/').pop() || n.name;
+          return isYearMonthName(short);
         });
+
+        if (isTarget) {
+          nodes.sort((a, b) => {
+            const shortA = a.name.split('/').pop() || a.name;
+            const shortB = b.name.split('/').pop() || b.name;
+            const isDateA = isYearMonthName(shortA);
+            const isDateB = isYearMonthName(shortB);
+
+            if (sortMode === 'date') {
+              // 日付順: 降順(desc)なら最新月が上 (例: 2026-08 -> 2026-07 -> 2026-06)
+              if (isDateA && isDateB) {
+                return sortDirection === 'desc'
+                  ? shortB.localeCompare(shortA, undefined, { numeric: true })
+                  : shortA.localeCompare(shortB, undefined, { numeric: true });
+              }
+              if (isDateA && !isDateB) return sortDirection === 'desc' ? -1 : 1;
+              if (!isDateA && isDateB) return sortDirection === 'desc' ? 1 : -1;
+
+              return sortDirection === 'desc'
+                ? shortB.localeCompare(shortA, 'ja', { numeric: true })
+                : shortA.localeCompare(shortB, 'ja', { numeric: true });
+            } else {
+              // 名前順: 昇順(asc)なら a->b、降順(desc)なら b->a
+              return sortDirection === 'asc'
+                ? shortA.localeCompare(shortB, 'ja', { numeric: true })
+                : shortB.localeCompare(shortA, 'ja', { numeric: true });
+            }
+          });
+        }
       }
 
       // 再帰的に子階層も処理
@@ -630,6 +645,24 @@ export const Sidebar = () => {
               }}
             >
               {t.sidebar.sortName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
+            <button 
+              className={`sort-btn ${sortMode === 'custom' ? 'active' : ''}`}
+              style={{
+                background: sortMode === 'custom' ? 'var(--sb-item-active)' : 'transparent', 
+                border: '1px solid var(--sb-border)', 
+                color: sortMode === 'custom' ? 'var(--sb-accent)' : 'var(--sb-text)', 
+                padding: '3px 7px', fontSize: '10px', borderRadius: '0px', cursor: 'pointer',
+                fontWeight: sortMode === 'custom' ? 'bold' : '600',
+                display: 'flex', alignItems: 'center', gap: '2px'
+              }}
+              onClick={() => {
+                setSortMode('custom');
+              }}
+              title={lang === 'en' ? 'Custom manual order' : 'カスタム順'}
+            >
+              <span>↕</span>
+              <span>{t.sidebar.sortCustom || 'カスタム'}</span>
             </button>
           </div>
 

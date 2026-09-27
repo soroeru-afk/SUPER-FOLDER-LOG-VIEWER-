@@ -27,6 +27,12 @@ export const FolderExplorer: React.FC = () => {
     sortDirection,
     setSortMode,
     setSortDirection,
+    customFileOrders,
+    saveFolderCustomOrder,
+    resetFolderCustomOrder,
+    customFolderOrders,
+    saveFolderCustomFolderOrder,
+    resetFolderCustomFolderOrder,
     fileMarks,
     setBulkFileMarks,
     t,
@@ -251,6 +257,22 @@ export const FolderExplorer: React.FC = () => {
     });
 
     // ソート処理
+    if (sortMode === 'custom') {
+      const parentKey = explorerCategory || '__root__';
+      const orderList = customFolderOrders[parentKey] || [];
+      if (orderList.length > 0) {
+        subsWithCount.sort((a, b) => {
+          const idxA = orderList.indexOf(a.name);
+          const idxB = orderList.indexOf(b.name);
+          const posA = idxA >= 0 ? idxA : 999999;
+          const posB = idxB >= 0 ? idxB : 999999;
+          if (posA !== posB) return posA - posB;
+          return a.shortName.localeCompare(b.shortName, 'ja', { numeric: true });
+        });
+        return subsWithCount;
+      }
+    }
+
     const isYearMonth = (name: string) => /^\d{4}[-_./]\d{2}$/.test(name.trim());
     const isArchive = /過去ログ|アーカイブ|archive|agent|エージェント|ai/i.test(explorerCategory || '');
 
@@ -302,7 +324,7 @@ export const FolderExplorer: React.FC = () => {
     });
 
     return subsWithCount;
-  }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection]);
+  }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFolderOrders]);
 
   // 3. 現在のフォルダの直下にあるファイル群を抽出
   const filesInCurrentFolder = useMemo(() => {
@@ -325,7 +347,18 @@ export const FolderExplorer: React.FC = () => {
 
     // ソート処理
     return [...files].sort((a, b) => {
-      if (sortMode === 'date') {
+      if (sortMode === 'custom') {
+        const catKey = explorerCategory || '__root__';
+        const list = customFileOrders[catKey] || [];
+        const idxA = list.indexOf(a.filename);
+        const idxB = list.indexOf(b.filename);
+        const posA = idxA >= 0 ? idxA : 999999;
+        const posB = idxB >= 0 ? idxB : 999999;
+        if (posA !== posB) return posA - posB;
+        const dA = (a.date || '') + (a.time || '');
+        const dB = (b.date || '') + (b.time || '');
+        return dB.localeCompare(dA);
+      } else if (sortMode === 'date') {
         const dA = a.date || '';
         const dB = b.date || '';
         if (dA !== dB) {
@@ -338,7 +371,7 @@ export const FolderExplorer: React.FC = () => {
           : (b.title || b.filename).localeCompare(a.title || a.filename, 'ja');
       }
     });
-  }, [allFiles, explorerCategory, filterText, sortMode, sortDirection]);
+  }, [allFiles, explorerCategory, filterText, sortMode, sortDirection, customFileOrders]);
 
   // 現在フォルダー内のファイルの選択判定
   const selectedInCurrentFolder = useMemo(() => {
@@ -349,6 +382,136 @@ export const FolderExplorer: React.FC = () => {
   const isSomeFolderSelected = selectedInCurrentFolder.length > 0 && !isAllFolderSelected;
   const totalSelectedCount = selectedFiles.size;
   const isSelecting = isExplorerSelectMode || totalSelectedCount > 0;
+
+  // 複数選択項目の並び順移動処理（最上・上へ・下へ・最下）
+  const handleReorderFiles = (direction: 'top' | 'up' | 'down' | 'bottom') => {
+    if (selectedInCurrentFolder.length === 0) return;
+
+    const currentCatKey = explorerCategory || '__root__';
+
+    // 対象フォルダ内の全ファイルを現在の表示順（sortMode）に合わせて取得
+    const allFolderFiles = explorerCategory 
+      ? allFiles.filter(f => f.category === explorerCategory) 
+      : allFiles.filter(f => !f.category);
+
+    const sortedAll = [...allFolderFiles].sort((a, b) => {
+      if (sortMode === 'custom') {
+        const list = customFileOrders[currentCatKey] || [];
+        const idxA = list.indexOf(a.filename);
+        const idxB = list.indexOf(b.filename);
+        const posA = idxA >= 0 ? idxA : 999999;
+        const posB = idxB >= 0 ? idxB : 999999;
+        if (posA !== posB) return posA - posB;
+        const dA = (a.date || '') + (a.time || '');
+        const dB = (b.date || '') + (b.time || '');
+        return dB.localeCompare(dA);
+      } else if (sortMode === 'date') {
+        const dA = a.date || '';
+        const dB = b.date || '';
+        if (dA !== dB) return sortDirection === 'desc' ? dB.localeCompare(dA) : dA.localeCompare(dB);
+        return sortDirection === 'desc' ? b.filename.localeCompare(a.filename) : a.filename.localeCompare(b.filename);
+      } else {
+        return sortDirection === 'asc'
+          ? (a.title || a.filename).localeCompare(b.title || b.filename, 'ja')
+          : (b.title || b.filename).localeCompare(a.title || a.filename, 'ja');
+      }
+    });
+
+    const selectedFilenames = new Set(selectedInCurrentFolder.map(f => f.filename));
+
+    let reordered: FileObj[] = [];
+
+    if (direction === 'top') {
+      const sel = sortedAll.filter(f => selectedFilenames.has(f.filename));
+      const unsel = sortedAll.filter(f => !selectedFilenames.has(f.filename));
+      reordered = [...sel, ...unsel];
+    } else if (direction === 'bottom') {
+      const sel = sortedAll.filter(f => selectedFilenames.has(f.filename));
+      const unsel = sortedAll.filter(f => !selectedFilenames.has(f.filename));
+      reordered = [...unsel, ...sel];
+    } else if (direction === 'up') {
+      reordered = [...sortedAll];
+      for (let i = 1; i < reordered.length; i++) {
+        if (selectedFilenames.has(reordered[i].filename) && !selectedFilenames.has(reordered[i - 1].filename)) {
+          const temp = reordered[i];
+          reordered[i] = reordered[i - 1];
+          reordered[i - 1] = temp;
+        }
+      }
+    } else if (direction === 'down') {
+      reordered = [...sortedAll];
+      for (let i = reordered.length - 2; i >= 0; i--) {
+        if (selectedFilenames.has(reordered[i].filename) && !selectedFilenames.has(reordered[i + 1].filename)) {
+          const temp = reordered[i];
+          reordered[i] = reordered[i + 1];
+          reordered[i + 1] = temp;
+        }
+      }
+    }
+
+    const newOrder = reordered.map(f => f.filename);
+    saveFolderCustomOrder(currentCatKey, newOrder);
+    if (sortMode !== 'custom') {
+      setSortMode('custom');
+    }
+  };
+
+  // リセット確認モーダルの開閉状態
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+
+  // フォルダーの並び順移動処理（前へ / 次へ）
+  const handleMoveFolder = (folderName: string, direction: 'prev' | 'next') => {
+    const parentKey = explorerCategory || '__root__';
+    const currentList = [...subCategories];
+    const currentIndex = currentList.findIndex(c => c.name === folderName);
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= currentList.length) return;
+
+    const updated = [...currentList];
+    const temp = updated[currentIndex];
+    updated[currentIndex] = updated[targetIndex];
+    updated[targetIndex] = temp;
+
+    const newOrder = updated.map(c => c.name);
+    saveFolderCustomFolderOrder(parentKey, newOrder);
+    if (sortMode !== 'custom') {
+      setSortMode('custom');
+    }
+  };
+
+  // フォルダーのドラッグ＆ドロップ並び替え
+  const [draggedFolder, setDraggedFolder] = useState<string | null>(null);
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+
+  const handleFolderDrop = (targetFolderName: string) => {
+    if (!draggedFolder || draggedFolder === targetFolderName) {
+      setDraggedFolder(null);
+      setDragOverFolder(null);
+      return;
+    }
+
+    const parentKey = explorerCategory || '__root__';
+    const currentList = [...subCategories];
+    const fromIndex = currentList.findIndex(c => c.name === draggedFolder);
+    const toIndex = currentList.findIndex(c => c.name === targetFolderName);
+
+    if (fromIndex >= 0 && toIndex >= 0) {
+      const updated = [...currentList];
+      const [removed] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, removed);
+
+      const newOrder = updated.map(c => c.name);
+      saveFolderCustomFolderOrder(parentKey, newOrder);
+      if (sortMode !== 'custom') {
+        setSortMode('custom');
+      }
+    }
+
+    setDraggedFolder(null);
+    setDragOverFolder(null);
+  };
 
   const handleToggleExplorerSelect = () => {
     if (isExplorerSelectMode) {
@@ -568,6 +731,28 @@ export const FolderExplorer: React.FC = () => {
               >
                 {t.sidebar.sortName} {sortMode === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
               </button>
+              <button 
+                className={`explorer-sort-btn ${sortMode === 'custom' ? 'active' : ''}`}
+                onClick={() => {
+                  setSortMode('custom');
+                }}
+                title={lang === 'en' ? 'Custom manual order (use Top / Up / Down / Bottom to reorder)' : 'カスタム順（最上・上へ・下へ・最下ボタンで自由並び替え）'}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+              >
+                <span>↕</span>
+                <span>{t.sidebar.sortCustom || 'カスタム'}</span>
+              </button>
+
+              <button
+                type="button"
+                className={`explorer-sort-btn reset-btn ${sortMode === 'custom' ? 'active-reset' : ''}`}
+                onClick={() => setIsResetModalOpen(true)}
+                title={lang === 'en' ? 'Reset custom order for this folder and return to Date order' : 'カスタム並び順を初期化し、日付順に戻す'}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+              >
+                <span>↺</span>
+                <span>{lang === 'en' ? 'Reset' : 'リセット'}</span>
+              </button>
             </div>
 
             {/* メイン白背景切り替えボタン */}
@@ -612,8 +797,27 @@ export const FolderExplorer: React.FC = () => {
         {subCategories.length > 0 && (
           <section className="explorer-section">
             <div className="explorer-section-title">
-              <span className="section-icon">📁</span>
-              <span>SUB-DIRECTORIES ({subCategories.length})</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="section-icon">📁</span>
+                <span>SUB-DIRECTORIES ({subCategories.length})</span>
+                {sortMode === 'custom' && (
+                  <span 
+                    style={{ 
+                      fontSize: '9.5px', 
+                      padding: '1px 6px', 
+                      background: 'rgba(59, 130, 246, 0.12)', 
+                      color: 'var(--sb-accent, #3b82f6)', 
+                      border: '1px solid rgba(59, 130, 246, 0.3)', 
+                      borderRadius: '0px', 
+                      fontWeight: 700,
+                      letterSpacing: '0.4px'
+                    }}
+                    title={lang === 'en' ? 'Custom ordering is active' : '手動で設定したカスタム並び順が適用されています'}
+                  >
+                    {lang === 'en' ? 'CUSTOM ORDER' : 'カスタム順'}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="explorer-folders-grid">
               {subCategories.map(cat => {
@@ -622,35 +826,63 @@ export const FolderExplorer: React.FC = () => {
                 const isCardBg = isCoverOn && visualSettings.layout === 'card-bg';
                 const coverData = isCoverOn ? getFolderCoverData(cat.shortName, cat.name, visualSettings) : null;
                 const isCardDragging = draggingCardPath === cat.name;
+                const isFolderDropTarget = dragOverFolder === cat.name;
+                const isBeingDragged = draggedFolder === cat.name;
 
                 return (
                   <div 
-                    key={cat.name}
-                    className={`folder-card ${isBanner ? 'with-cover-banner' : ''} ${isCardBg ? 'with-cover-bg' : ''}`}
+                    key={cat.name} 
+                    className={`folder-card ${isBanner ? 'with-cover-banner' : ''} ${isCardBg ? 'with-cover-bg' : ''} ${isFolderDropTarget ? 'folder-drag-over' : ''} ${isBeingDragged ? 'folder-dragging' : ''}`}
                     onClick={() => openExplorer(cat.name)}
                     role="button"
                     tabIndex={0}
                     onKeyDown={e => { if (e.key === 'Enter') openExplorer(cat.name); }}
+                    draggable={true}
+                    onDragStart={(e) => {
+                      setDraggedFolder(cat.name);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/folder-name', cat.name);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedFolder(null);
+                      setDragOverFolder(null);
+                    }}
                     onDragOver={(e) => {
-                      if (e.dataTransfer.types.includes('Files')) {
+                      if (draggedFolder && draggedFolder !== cat.name) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setDragOverFolder(cat.name);
+                      } else if (e.dataTransfer.types.includes('Files')) {
                         e.preventDefault();
                         e.stopPropagation();
                         setDraggingCardPath(cat.name);
                       }
                     }}
                     onDragEnter={(e) => {
-                      if (e.dataTransfer.types.includes('Files')) {
+                      if (draggedFolder && draggedFolder !== cat.name) {
+                        e.preventDefault();
+                        setDragOverFolder(cat.name);
+                      } else if (e.dataTransfer.types.includes('Files')) {
                         e.preventDefault();
                         e.stopPropagation();
                         setDraggingCardPath(cat.name);
                       }
                     }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setDraggingCardPath(null);
+                    onDragLeave={() => {
+                      if (dragOverFolder === cat.name) {
+                        setDragOverFolder(null);
+                      }
+                      if (draggingCardPath === cat.name) {
+                        setDraggingCardPath(null);
+                      }
                     }}
                     onDrop={async (e) => {
+                      if (draggedFolder) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleFolderDrop(cat.name);
+                        return;
+                      }
                       e.preventDefault();
                       e.stopPropagation();
                       setDraggingCardPath(null);
@@ -737,6 +969,30 @@ export const FolderExplorer: React.FC = () => {
 
                     <div className={isBanner ? 'folder-card-body-wrap' : ''} style={isBanner ? { display: 'flex', flexDirection: 'column', flex: 1, gap: '8px', padding: '10px 14px 12px 14px' } : undefined}>
                       <div className="folder-card-top">
+                        <div 
+                          className="folder-grip-handle" 
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            setDraggedFolder(cat.name);
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/folder-name', cat.name);
+                          }}
+                          title={lang === 'en' ? 'Drag to reorder folder' : 'ドラッグしてフォルダーの並び順を入れ替え'}
+                          style={{
+                            cursor: 'grab',
+                            opacity: 0.65,
+                            padding: '0 3px',
+                            marginRight: '2px',
+                            userSelect: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            fontSize: '13px',
+                            lineHeight: 1
+                          }}
+                        >
+                          ⠿
+                        </div>
                         <div className="folder-card-icon-wrap">
                           <FolderIcon size={20} />
                         </div>
@@ -755,6 +1011,34 @@ export const FolderExplorer: React.FC = () => {
                             : (lang === 'en' ? '📁 Direct' : '📁 単一階層')}
                         </span>
                         <div className="folder-card-actions">
+                          {/* 前後移動ボタン（1クリックで左右・上下の並び替え） */}
+                          <div className="folder-card-reorder-btns" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', marginRight: '3px' }}>
+                            <button
+                              type="button"
+                              className="folder-card-prefix-btn"
+                              title={lang === 'en' ? 'Move folder backward (left/up)' : 'このフォルダーを前へ（左/上へ）移動'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveFolder(cat.name, 'prev');
+                              }}
+                              style={{ padding: '0 5px', fontSize: '9.5px', height: '20px', lineHeight: '18px' }}
+                            >
+                              ◀
+                            </button>
+                            <button
+                              type="button"
+                              className="folder-card-prefix-btn"
+                              title={lang === 'en' ? 'Move folder forward (right/down)' : 'このフォルダーを次へ（右/下へ）移動'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveFolder(cat.name, 'next');
+                              }}
+                              style={{ padding: '0 5px', fontSize: '9.5px', height: '20px', lineHeight: '18px' }}
+                            >
+                              ▶
+                            </button>
+                          </div>
+
                           {isCardBg && (
                             <button
                               type="button"
@@ -816,6 +1100,23 @@ export const FolderExplorer: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span className="section-icon">📄</span>
               <span>LOGS / ARTICLES ({filesInCurrentFolder.length})</span>
+              {sortMode === 'custom' && (
+                <span 
+                  style={{ 
+                    fontSize: '9.5px', 
+                    padding: '1px 6px', 
+                    background: 'rgba(59, 130, 246, 0.12)', 
+                    color: 'var(--sb-accent, #3b82f6)', 
+                    border: '1px solid rgba(59, 130, 246, 0.3)', 
+                    borderRadius: '0px', 
+                    fontWeight: 700,
+                    letterSpacing: '0.4px'
+                  }}
+                  title={lang === 'en' ? 'Custom ordering is active' : '手動で設定したカスタム並び順が適用されています'}
+                >
+                  {lang === 'en' ? 'CUSTOM ORDER' : 'カスタム順'}
+                </span>
+              )}
             </div>
 
             {/* 右側: ツールバー + 表示形式ピルを一番右寄りにまとめて配置 */}
@@ -856,6 +1157,66 @@ export const FolderExplorer: React.FC = () => {
                 <span className={`explorer-bulk-count-badge ${totalSelectedCount > 0 ? 'highlight' : ''}`} title="選択中のファイル数">
                   {totalSelectedCount} {lang === 'en' ? 'selected' : '件選択中'}
                 </span>
+
+                {/* 並び順移動ボタン群（最上・上へ・下へ・最下）- ゲートエスケーパー連動方式 */}
+                <div className="explorer-reorder-group" title={lang === 'en' ? 'Reorder selected items' : '選択した項目の並び順を移動'}>
+                  <button
+                    type="button"
+                    className="explorer-reorder-btn"
+                    disabled={selectedInCurrentFolder.length === 0}
+                    onClick={() => handleReorderFiles('top')}
+                    title={
+                      selectedInCurrentFolder.length > 0
+                        ? (lang === 'en' ? 'Move selected to top' : '選択した項目を一番上（最上部）へ移動')
+                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+                    }
+                  >
+                    <span style={{ fontSize: '12px', lineHeight: 1 }}>⤒</span>
+                    <span>{lang === 'en' ? 'Top' : '最上'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="explorer-reorder-btn"
+                    disabled={selectedInCurrentFolder.length === 0}
+                    onClick={() => handleReorderFiles('up')}
+                    title={
+                      selectedInCurrentFolder.length > 0
+                        ? (lang === 'en' ? 'Move selected up' : '選択した項目を上へ移動')
+                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+                    }
+                  >
+                    <span style={{ fontSize: '12px', lineHeight: 1 }}>↑</span>
+                    <span>{lang === 'en' ? 'Up' : '上へ'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="explorer-reorder-btn"
+                    disabled={selectedInCurrentFolder.length === 0}
+                    onClick={() => handleReorderFiles('down')}
+                    title={
+                      selectedInCurrentFolder.length > 0
+                        ? (lang === 'en' ? 'Move selected down' : '選択した項目を下へ移動')
+                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+                    }
+                  >
+                    <span style={{ fontSize: '12px', lineHeight: 1 }}>↓</span>
+                    <span>{lang === 'en' ? 'Down' : '下へ'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="explorer-reorder-btn"
+                    disabled={selectedInCurrentFolder.length === 0}
+                    onClick={() => handleReorderFiles('bottom')}
+                    title={
+                      selectedInCurrentFolder.length > 0
+                        ? (lang === 'en' ? 'Move selected to bottom' : '選択した項目を一番下（最下部）へ移動')
+                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+                    }
+                  >
+                    <span style={{ fontSize: '12px', lineHeight: 1 }}>⤓</span>
+                    <span>{lang === 'en' ? 'Bottom' : '最下'}</span>
+                  </button>
+                </div>
 
                 {/* ☆ マーク ドロップダウン */}
                 <div style={{ position: 'relative', zIndex: 100 }} ref={bulkMarkRef}>
@@ -1008,7 +1369,7 @@ export const FolderExplorer: React.FC = () => {
                   >
                     {/* カードヘッダー: チェックボックス & ファイル名 & 日付 & マーク */}
                     <div className="article-card-header">
-                      {isSelecting && (
+                      {(isSelecting || isSelected) ? (
                         <div 
                           className={`article-card-checkbox ${isSelected ? 'checked' : ''}`}
                           onClick={(e) => {
@@ -1025,6 +1386,18 @@ export const FolderExplorer: React.FC = () => {
                             </svg>
                           )}
                         </div>
+                      ) : (
+                        <div 
+                          className="article-card-checkbox hover-reveal"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsExplorerSelectMode(true);
+                            toggleFileSelection(f);
+                          }}
+                          role="checkbox"
+                          aria-checked={false}
+                          title={lang === 'en' ? 'Select' : '選択'}
+                        />
                       )}
                       <div className="article-card-filename" title={f.filename}>
                         {f.filename}
@@ -1093,7 +1466,7 @@ export const FolderExplorer: React.FC = () => {
                     }}
                   >
                     <div className="article-list-left">
-                      {isSelecting && (
+                      {(isSelecting || isSelected) ? (
                         <div 
                           className={`article-list-checkbox ${isSelected ? 'checked' : ''}`}
                           onClick={(e) => {
@@ -1110,6 +1483,18 @@ export const FolderExplorer: React.FC = () => {
                             </svg>
                           )}
                         </div>
+                      ) : (
+                        <div 
+                          className="article-list-checkbox hover-reveal"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsExplorerSelectMode(true);
+                            toggleFileSelection(f);
+                          }}
+                          role="checkbox"
+                          aria-checked={false}
+                          title={lang === 'en' ? 'Select' : '選択'}
+                        />
                       )}
                       <div className="article-list-icon-box">
                         <span className="article-list-doc-icon">📄</span>
@@ -1959,6 +2344,120 @@ export const FolderExplorer: React.FC = () => {
                   ✓ {lang === 'en' ? 'Done' : '完了'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 08. 並び順リセット確認モーダル */}
+      {isResetModalOpen && (
+        <div 
+          className="explorer-modal-overlay"
+          onClick={() => setIsResetModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            backdropFilter: 'blur(2px)'
+          }}
+        >
+          <div 
+            className="explorer-modal-card"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '440px',
+              background: 'var(--card-bg, #ffffff)',
+              border: '1.5px solid var(--card-border, rgba(120, 120, 120, 0.4))',
+              borderRadius: '0px',
+              boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
+              padding: '22px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              color: 'var(--main-text, #1e293b)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '15px' }}>
+                <span style={{ fontSize: '16px', color: 'var(--sb-accent, #3b82f6)' }}>↺</span>
+                <span>{lang === 'en' ? 'Reset Sort Order' : '並び順のリセット'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  opacity: 0.6,
+                  fontSize: '16px',
+                  padding: '4px 8px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ fontSize: '13px', lineHeight: 1.6, opacity: 0.9 }}>
+              <p style={{ margin: '0 0 8px 0' }}>
+                {lang === 'en'
+                  ? 'Do you want to reset the custom sequence of this folder to default date order?'
+                  : 'この階層で手動設定したカスタム並び順（ファイルおよびフォルダーの並び順）を初期化し、標準の「日付順」に戻しますか？'}
+              </p>
+              <p style={{ margin: 0, fontSize: '11px', color: 'var(--sub-text, #666)' }}>
+                {lang === 'en'
+                  ? 'All manual positioning will be cleared for this directory level.'
+                  : '※このフォルダー内の手動並び順データがクリアされ、登録日・更新日順に自動再配置されます。'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '0px',
+                  border: '1px solid var(--btn-border, rgba(120,120,120,0.4))',
+                  background: 'transparent',
+                  color: 'var(--main-text)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600
+                }}
+              >
+                {lang === 'en' ? 'Cancel' : 'キャンセル'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentKey = explorerCategory || '__root__';
+                  resetFolderCustomOrder(currentKey);
+                  resetFolderCustomFolderOrder(currentKey);
+                  setSortMode('date');
+                  setSortDirection('desc');
+                  setIsResetModalOpen(false);
+                }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '0px',
+                  border: '1px solid var(--sb-accent, #2563eb)',
+                  background: 'var(--sb-accent, #2563eb)',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 700
+                }}
+              >
+                {lang === 'en' ? 'Reset to Date Order' : 'リセットして日付順に戻す'}
+              </button>
             </div>
           </div>
         </div>
