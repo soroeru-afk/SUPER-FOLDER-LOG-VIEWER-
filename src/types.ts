@@ -8,6 +8,9 @@ export interface FileObj {
   title: string;
   dateSource: string;
   content: string;
+  isShortcut?: boolean;
+  originalCategory?: string | null;
+  originalFilename?: string;
 }
 
 export interface PhysicalFolder {

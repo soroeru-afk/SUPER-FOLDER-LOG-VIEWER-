@@ -13,6 +13,7 @@ export const Sidebar = () => {
     selectedFiles, currentFileObj, selectFile, toggleFileSelection,
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
+    fileShortcuts,
     createNewFolder, createNewFile,
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
@@ -162,6 +163,48 @@ export const Sidebar = () => {
         )}
         {f.date && <div className="file-date">{f.dateSource==='os'?<span style={{opacity:0.5,fontSize:'9px'}}>📅 </span>:null}{f.date.replace(/-/g,'.')} {f.time}</div>}
         <div className="file-title">
+          {f.isShortcut && (
+            <span 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                marginRight: '4px',
+                fontSize: '9.5px',
+                fontWeight: 700,
+                color: 'var(--sb-accent, #3b82f6)',
+                background: 'rgba(59, 130, 246, 0.12)',
+                padding: '0 3px',
+                borderRadius: '0px'
+              }}
+              title={`🔗 ショートカット (原本: ${f.originalCategory || 'ALL DATA (ルート)'})`}
+            >
+              🔗
+            </span>
+          )}
+          {!f.isShortcut && (() => {
+            const origKey = (f.category || '') + '::' + f.filename;
+            const dests = fileShortcuts[origKey] || [];
+            if (dests.length === 0) return null;
+            return (
+              <span 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  marginRight: '4px',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  color: '#059669',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid #10b981',
+                  padding: '0 4px',
+                  borderRadius: '0px'
+                }}
+                title={`👑 原本ファイル (ショートカット配信先 ${dests.length}件):\n${dests.map(d => '・' + (d || 'ALL DATA (ルート)')).join('\n')}`}
+              >
+                👑原本 📤{dests.length}
+              </span>
+            );
+          })()}
           {fileMarks[f.filename] && renderMarkBadge(fileMarks[f.filename])}
           <span dangerouslySetInnerHTML={{__html: titleHtml}} />
         </div>

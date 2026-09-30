@@ -2631,7 +2631,8 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   flex-shrink: 0;
 }
 
-.folder-card-rename-btn {
+.folder-card-rename-btn,
+.folder-card-delete-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2674,7 +2675,8 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   color: var(--sb-accent, #3b82f6);
 }
 
-.folder-card-rename-btn:hover {
+.folder-card-rename-btn:hover,
+.folder-card-delete-btn:hover {
   opacity: 1;
   background: var(--sb-item-hover, rgba(59, 130, 246, 0.15));
   border-color: var(--sb-accent, #3b82f6);

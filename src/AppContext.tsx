@@ -1,9 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
 import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename } from './utils';
 import { THEMES, getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from './theme';
 import { applySettingsToDOM } from './settingsSync';
 import { migrateFolderVisualSettings } from './folderVisuals';
+
+export interface ToastMessage {
+  id: string;
+  message: string;
+  type?: 'success' | 'info' | 'warn';
+}
 
 export interface AppState {
   dirHandle: any | null;
@@ -21,7 +27,8 @@ export interface AppState {
   settingsOpen: boolean;
   isHighlightOff: boolean;
   categoryOpenState: Record<string, boolean>;
-  movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any } | null;
+  movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', mode?: 'move'|'shortcut'|'duplicate', triggerRect?: any } | null;
+  setMovePanelMode: (mode: 'move'|'shortcut'|'duplicate') => void;
   loading: boolean;
   refreshing: boolean;
   sortMode: 'date' | 'name' | 'custom';
@@ -66,10 +73,18 @@ export interface AppState {
   expandAllGroups: () => void;
   collapseAllGroups: () => void;
   
-  openMovePanel: (e: React.MouseEvent, type: 'single'|'bulk'|'folder') => void;
+  openMovePanel: (e: React.MouseEvent, type: 'single'|'bulk'|'folder', defaultMode?: 'move'|'shortcut'|'duplicate') => void;
   closeMovePanels: () => void;
   execBulkMove: (files: FileObj[], destHandle: any | null, destCatName: string | null) => Promise<void>;
   moveToNewFolder: (folderName: string, isBulk: boolean) => Promise<void>;
+  createShortcut: (file: FileObj, targetCatName: string | null) => Promise<void>;
+  removeShortcut: (file: FileObj) => Promise<void>;
+  execBulkShortcut: (files: FileObj[], destCatName: string | null) => Promise<void>;
+  duplicateFile: (file: FileObj, destCatName?: string | null) => Promise<void>;
+  execBulkDuplicate: (files: FileObj[], destHandle: any | null, destCatName: string | null) => Promise<void>;
+  fileShortcuts: Record<string, string[]>;
+  toast: ToastMessage | null;
+  showToast: (message: string, type?: 'success' | 'info' | 'warn') => void;
   bulkDeleteFiles: () => Promise<void>;
   deleteCurrentFile: () => Promise<void>;
   renameCurrentFile: (newName: string) => Promise<void>;
@@ -135,6 +150,55 @@ import { translations, Language } from './i18n';
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dirHandle, setDirHandle] = useState<any | null>(null);
+  const [rawFiles, setRawFiles] = useState<FileObj[]>([]);
+  const [fileShortcuts, setFileShortcutsState] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem('lv_file_shortcuts');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const fileShortcutsRef = useRef<Record<string, string[]>>(fileShortcuts);
+  const setFileShortcuts = (updater: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => {
+    setFileShortcutsState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      fileShortcutsRef.current = next;
+      return next;
+    });
+  };
+
+  const buildAllFiles = (physical: FileObj[], shortcuts: Record<string, string[]>, pFolders: PhysicalFolder[]): FileObj[] => {
+    const pFolderMap = new Map<string, any>();
+    pFolders.forEach(pf => pFolderMap.set(pf.name, pf.handle));
+
+    const virtualShortcuts: FileObj[] = [];
+
+    physical.forEach(rf => {
+      const key = (rf.category || '') + '::' + rf.filename;
+      const targets = shortcuts[key] || [];
+      targets.forEach(targetCat => {
+        if (targetCat === (rf.category || '')) return;
+        virtualShortcuts.push({
+          filename: rf.filename,
+          handle: rf.handle,
+          category: targetCat || null,
+          folderHandle: targetCat ? (pFolderMap.get(targetCat) || null) : null,
+          date: rf.date,
+          time: rf.time,
+          title: rf.title,
+          dateSource: rf.dateSource,
+          content: rf.content,
+          isShortcut: true,
+          originalCategory: rf.category,
+          originalFilename: rf.filename
+        });
+      });
+    });
+
+    return [...physical, ...virtualShortcuts];
+  };
+
   const [allFiles, setAllFiles] = useState<FileObj[]>([]);
   const [allCategories, setAllCategories] = useState<CategoryObj[]>([]);
   const [physicalFolders, setPhysicalFolders] = useState<PhysicalFolder[]>([]);
@@ -761,7 +825,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {}
   }, [categoryOpenState]);
   
-  const [movePanelState, setMovePanelState] = useState<{isOpen: boolean, type: 'single'|'bulk'|'folder', triggerRect?: any} | null>(null);
+  const [movePanelState, setMovePanelState] = useState<{isOpen: boolean, type: 'single'|'bulk'|'folder', mode?: 'move'|'shortcut'|'duplicate', triggerRect?: any} | null>(null);
+  const setMovePanelMode = (mode: 'move'|'shortcut'|'duplicate') => {
+    setMovePanelState(prev => prev ? { ...prev, mode } : null);
+  };
+  
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const toastTimerRef = React.useRef<any>(null);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'warn' = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ id: String(Date.now()), message, type });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+    }, 2800);
+  };
   
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -852,10 +930,12 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         if (fallbackData) {
           setDirHandle({ name: fallbackData.rootFolderName, isFallback: true });
           setIsFallbackMode(true);
-          setAllFiles(fallbackData.fileObjs);
+          setRawFiles(fallbackData.fileObjs);
+          const merged = buildAllFiles(fallbackData.fileObjs, fileShortcuts, fallbackData.pFolders);
+          setAllFiles(merged);
           setPhysicalFolders(fallbackData.pFolders);
-          updateFilter(fallbackData.fileObjs, fallbackData.pFolders, searchQueries);
-          restoreLastLocation(fallbackData.fileObjs, fallbackData.pFolders);
+          updateFilter(merged, fallbackData.pFolders, searchQueries);
+          restoreLastLocation(merged, fallbackData.pFolders);
         }
       } else {
         const handle = await loadFolderHandle();
@@ -897,7 +977,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     return current;
   };
 
-  const loadFiles = async (handle: any) => {
+  const loadFiles = async (handle: any, overrideShortcuts?: Record<string, string[]>) => {
     const entries: {handle: any, category: string | null, folderHandle: any | null}[] = [];
     const pFolders: PhysicalFolder[] = [];
     
@@ -926,7 +1006,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       if (!d) {
         const lm = new Date(file.lastModified);
         d = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
-        t = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}`;
+        t = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}:${String(lm.getSeconds()).padStart(2,'0')}`;
         src = 'os';
       }
       return { 
@@ -943,12 +1023,34 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       return dtB.localeCompare(dtA);
     });
 
-    setAllFiles(files);
+    setRawFiles(files);
+    
+    // ディスク上の _shortcuts.json が存在する場合は読み込み同期
+    let shortcutsToUse = overrideShortcuts || fileShortcutsRef.current;
+    try {
+      if (handle && !isFallbackMode) {
+        const sf = await handle.getFileHandle('_shortcuts.json', { create: false });
+        const file = await sf.getFile();
+        const text = await file.text();
+        if (text) {
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed === 'object') {
+            shortcutsToUse = { ...shortcutsToUse, ...parsed };
+            localStorage.setItem('lv_file_shortcuts', JSON.stringify(shortcutsToUse));
+            fileShortcutsRef.current = shortcutsToUse;
+            setFileShortcutsState(shortcutsToUse);
+          }
+        }
+      }
+    } catch (e) {}
+
+    const merged = buildAllFiles(files, shortcutsToUse, pFolders);
+    setAllFiles(merged);
     setPhysicalFolders(pFolders);
-    updateFilter(files, pFolders, searchQueries);
+    updateFilter(merged, pFolders, searchQueries);
 
     // レジューム機能: 最後に開いていた場所（ファイル／フォルダー／ALL DATA）を復元
-    restoreLastLocation(files, pFolders);
+    restoreLastLocation(merged, pFolders);
   };
 
   const updateFilter = (files: FileObj[], pFolders: PhysicalFolder[], queries: string[]) => {
@@ -1076,9 +1178,11 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       setDirHandle({ name: rootFolderName, isFallback: true });
       setIsFallbackMode(true);
       
-      setAllFiles(fileObjs);
+      setRawFiles(fileObjs);
+      const merged = buildAllFiles(fileObjs, fileShortcuts, pFolders);
+      setAllFiles(merged);
       setPhysicalFolders(pFolders);
-      updateFilter(fileObjs, pFolders, searchQueries);
+      updateFilter(merged, pFolders, searchQueries);
       await saveFallbackData({ fileObjs, pFolders, rootFolderName });
       setLoading(false);
     };
@@ -1185,10 +1289,28 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         await w.write(newContent);
         await w.close();
       }
+      const origCat = currentFileObj.isShortcut ? (currentFileObj.originalCategory || '') : (currentFileObj.category || '');
+      const origName = currentFileObj.isShortcut ? (currentFileObj.originalFilename || currentFileObj.filename) : currentFileObj.filename;
+
       const updated = { ...currentFileObj, content: newContent };
       setCurrentFileObj(updated);
       setCurrentContent(newContent);
-      setAllFiles(prev => prev.map(f => f.filename === currentFileObj.filename && f.category === currentFileObj.category ? updated : f));
+
+      const nextRaw = rawFiles.map(f => {
+        if ((f.category || '') === origCat && f.filename === origName) {
+          return { ...f, content: newContent };
+        }
+        return f;
+      });
+      setRawFiles(nextRaw);
+
+      const merged = buildAllFiles(nextRaw, fileShortcuts, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+
+      if (isFallbackMode) {
+        await saveFallbackData({ fileObjs: nextRaw, pFolders: physicalFolders, rootFolderName: dirHandle?.name || 'Selected Folder' });
+      }
       setIsEditing(false);
     } catch(e: any) {
       alert(e.message);
@@ -1291,21 +1413,288 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setCategoryOpenState(newState);
   };
 
-  const openMovePanel = (e: React.MouseEvent, type: 'single'|'bulk'|'folder') => {
-    setMovePanelState({ isOpen: true, type, triggerRect: e.currentTarget.getBoundingClientRect() });
+  const openMovePanel = (e: React.MouseEvent, type: 'single'|'bulk'|'folder', defaultMode: 'move'|'shortcut'|'duplicate' = 'move') => {
+    setMovePanelState({ isOpen: true, type, mode: defaultMode, triggerRect: e.currentTarget.getBoundingClientRect() });
     e.stopPropagation();
   };
   const closeMovePanels = () => setMovePanelState(null);
+
+  const createShortcut = async (file: FileObj, targetCatName: string | null) => {
+    const origCat = file.isShortcut ? (file.originalCategory || '') : (file.category || '');
+    const origName = file.isShortcut ? (file.originalFilename || file.filename) : file.filename;
+    const key = origCat + '::' + origName;
+    const dest = targetCatName || '';
+    if (dest === origCat) {
+      showToast(lang === 'en' ? 'Cannot create shortcut in the same folder as original' : '原本と同じフォルダーにはショートカットを作成できません', 'warn');
+      return;
+    }
+
+    setFileShortcuts(prev => {
+      const current = prev[key] || [];
+      if (current.includes(dest)) {
+        showToast(lang === 'en' ? 'Shortcut already exists in target folder' : '指定フォルダーには既にショートカットが存在します', 'info');
+        return prev;
+      }
+      const next = { ...prev, [key]: [...current, dest] };
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
+      const merged = buildAllFiles(rawFiles, next, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+      showToast(lang === 'en' ? `✓ Created shortcut in 「${dest || 'Root'}」` : `✓ 「${dest || 'ALL DATA (ルート)'}」にショートカットを作成しました`, 'success');
+      return next;
+    });
+  };
+
+  const removeShortcut = async (file: FileObj) => {
+    if (!file.isShortcut) return;
+    const origCat = file.originalCategory || '';
+    const origName = file.originalFilename || file.filename;
+    const key = origCat + '::' + origName;
+    const currentCat = file.category || '';
+
+    setFileShortcuts(prev => {
+      const current = prev[key] || [];
+      const updated = current.filter(c => c !== currentCat);
+      const next = { ...prev };
+      if (updated.length > 0) {
+        next[key] = updated;
+      } else {
+        delete next[key];
+      }
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
+      const merged = buildAllFiles(rawFiles, next, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+      showToast(lang === 'en' ? '✓ Shortcut removed (Original preserved)' : '✓ ショートカットを解除しました（原本は安全に残っています）', 'info');
+      return next;
+    });
+
+    if (currentFileObj && currentFileObj.filename === file.filename && currentFileObj.category === file.category) {
+      setCurrentFileObj(null);
+      setCurrentContent('');
+    }
+  };
+
+  const execBulkShortcut = async (files: FileObj[], destCatName: string | null) => {
+    let addedCount = 0;
+    setFileShortcuts(prev => {
+      const next = { ...prev };
+      files.forEach(f => {
+        const origCat = f.isShortcut ? (f.originalCategory || '') : (f.category || '');
+        const origName = f.isShortcut ? (f.originalFilename || f.filename) : f.filename;
+        const key = origCat + '::' + origName;
+        const dest = destCatName || '';
+        if (dest === origCat) return;
+        const current = next[key] || [];
+        if (!current.includes(dest)) {
+          next[key] = [...current, dest];
+          addedCount++;
+        }
+      });
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
+      const merged = buildAllFiles(rawFiles, next, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+      showToast(lang === 'en' ? `✓ Created ${addedCount} shortcut(s) in 「${destCatName || 'Root'}」` : `✓ 「${destCatName || 'ALL DATA (ルート)'}」に${addedCount}件のショートカットを作成しました`, 'success');
+      return next;
+    });
+    if (isSelectMode) toggleSelectMode();
+    else clearFileSelection();
+  };
+
+  const duplicateFile = async (file: FileObj, destCatName?: string | null) => {
+    const targetCat = destCatName !== undefined ? destCatName : (file.isShortcut ? (file.originalCategory || null) : file.category);
+    const dotIdx = file.filename.lastIndexOf('.');
+    const baseName = dotIdx !== -1 ? file.filename.slice(0, dotIdx) : file.filename;
+    const ext = dotIdx !== -1 ? file.filename.slice(dotIdx) : '.txt';
+    
+    // 現在の最新日時を取得して新しいタイムスタンプを作成（日付順で一番上に来るように秒まで設定）
+    const now = new Date();
+    const curDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const curTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    const nowPrefix = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}_`;
+
+    let baseNameWithoutDate = baseName;
+    let hasDatePrefix = false;
+    if (/^\d{8}_\d{4}_/.test(baseName)) {
+      baseNameWithoutDate = baseName.slice(14);
+      hasDatePrefix = true;
+    } else if (/^\d{4}-\d{2}-\d{2}_/.test(baseName)) {
+      baseNameWithoutDate = baseName.slice(11);
+      hasDatePrefix = true;
+    }
+
+    // Check existing names in target folder
+    const existing = new Set(rawFiles.filter(f => (f.category || null) === targetCat).map(f => f.filename));
+    let newFilename = hasDatePrefix 
+      ? `${nowPrefix}${baseNameWithoutDate}_copy${ext}`
+      : `${baseName}_copy${ext}`;
+    let counter = 2;
+    while (existing.has(newFilename)) {
+      newFilename = hasDatePrefix 
+        ? `${nowPrefix}${baseNameWithoutDate}_copy${counter}${ext}`
+        : `${baseName}_copy${counter}${ext}`;
+      counter++;
+    }
+
+    const parsed = parseFilename(newFilename);
+
+    // カスタム並び順（手動並び順）でもフォルダーの一番先頭（最上部）に配置
+    const catKey = targetCat || '__root__';
+    setCustomFileOrders(prev => {
+      const existingList = prev[catKey] ? [...prev[catKey]] : rawFiles.filter(rf => (rf.category || null) === targetCat).map(rf => rf.filename);
+      const updatedList = [newFilename, ...existingList.filter(n => n !== newFilename)];
+      localStorage.setItem('lv_custom_file_orders', JSON.stringify({ ...prev, [catKey]: updatedList }));
+      return { ...prev, [catKey]: updatedList };
+    });
+
+    if (isFallbackMode || !dirHandle) {
+      const newFile: FileObj = {
+        filename: newFilename,
+        handle: null,
+        category: targetCat,
+        folderHandle: null,
+        date: curDate,
+        time: curTime,
+        title: (file.title || baseNameWithoutDate) + ' (コピー)',
+        dateSource: 'custom',
+        content: file.content
+      };
+      const nextRaw = [newFile, ...rawFiles];
+      setRawFiles(nextRaw);
+      const merged = buildAllFiles(nextRaw, fileShortcutsRef.current, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+      await saveFallbackData({ fileObjs: nextRaw, pFolders: physicalFolders, rootFolderName: dirHandle?.name || 'Selected Folder' });
+      showToast(lang === 'en' ? `✓ Duplicated: ${newFilename}` : `✓ 複製しました: ${newFilename}`, 'success');
+    } else {
+      try {
+        const targetHandle = targetCat ? await getDirectoryHandleByPath(dirHandle, targetCat, true) : dirHandle;
+        const nf = await targetHandle.getFileHandle(newFilename, { create: true });
+        const w = await nf.createWritable();
+        await w.write(file.content);
+        await w.close();
+
+        // 楽観的即時UI更新（タイムラグ0で一番上に反映）
+        const newFile: FileObj = {
+          filename: newFilename,
+          handle: nf,
+          category: targetCat,
+          folderHandle: targetCat ? targetHandle : null,
+          date: curDate,
+          time: curTime,
+          title: parsed.title || newFilename.replace(/\.[^.]+$/, ''),
+          dateSource: 'custom',
+          content: file.content
+        };
+        const nextRaw = [newFile, ...rawFiles];
+        setRawFiles(nextRaw);
+        const merged = buildAllFiles(nextRaw, fileShortcutsRef.current, physicalFolders);
+        setAllFiles(merged);
+        updateFilter(merged, physicalFolders, searchQueries);
+
+        showToast(lang === 'en' ? `✓ Duplicated: ${newFilename}` : `✓ 複製しました: ${newFilename}`, 'success');
+      } catch (e: any) {
+        alert(e.message);
+      }
+    }
+  };
+
+  const execBulkDuplicate = async (files: FileObj[], destHandle: any | null, destCatName: string | null) => {
+    for (const f of files) {
+      await duplicateFile(f, destCatName);
+    }
+    if (isSelectMode) toggleSelectMode();
+    else clearFileSelection();
+  };
 
   const execBulkMove = async (files: FileObj[], destHandle: any | null, destCatName: string | null) => {
     if (isFallbackMode) {
       alert(t.main.fallbackMoveError);
       return;
     }
-    for (const f of files) {
+    const targetFolderHandle = destHandle || (destCatName ? await getDirectoryHandleByPath(dirHandle, destCatName, true) : dirHandle);
+    
+    // 1. ショートカットファイルの移動処理（ショートカット先フォルダーの更新）
+    let shortcutsUpdated = false;
+    const nextShortcuts = { ...fileShortcutsRef.current };
+
+    files.forEach(f => {
+      if (f.isShortcut) {
+        const origCat = f.originalCategory || '';
+        const origName = f.originalFilename || f.filename;
+        const origKey = origCat + '::' + origName;
+        const currentTargetCat = f.category || '';
+        const newDestCat = destCatName || '';
+        
+        const curTargets = nextShortcuts[origKey] || [];
+        const filtered = curTargets.filter(c => c !== currentTargetCat);
+        // 原本と異なるフォルダーであれば移動先（ルート''含む）を追加
+        if (newDestCat !== origCat && !filtered.includes(newDestCat)) {
+          filtered.push(newDestCat);
+        }
+        if (filtered.length > 0) {
+          nextShortcuts[origKey] = filtered;
+        } else {
+          delete nextShortcuts[origKey];
+        }
+        shortcutsUpdated = true;
+      }
+    });
+
+    // 2. 実体ファイルの移動処理に伴う原本ショートカットキーの追従
+    const physicalFiles = files.filter(f => !f.isShortcut);
+    physicalFiles.forEach(f => {
+      const oldOrigKey = (f.category || '') + '::' + f.filename;
+      const newOrigKey = (destCatName || '') + '::' + f.filename;
+      if (oldOrigKey !== newOrigKey && nextShortcuts[oldOrigKey]) {
+        const targets = nextShortcuts[oldOrigKey].filter(t => t !== (destCatName || ''));
+        delete nextShortcuts[oldOrigKey];
+        if (targets.length > 0) {
+          nextShortcuts[newOrigKey] = targets;
+        }
+        shortcutsUpdated = true;
+      }
+    });
+
+    if (shortcutsUpdated) {
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+      setFileShortcuts(nextShortcuts);
+      fileShortcutsRef.current = nextShortcuts;
+    }
+
+    // 3. 実体ファイルの移動処理（楽観的即時更新）
+    const movedFilenames = new Set(physicalFiles.map(f => (f.category || '') + '::' + f.filename));
+
+    const nextRaw = rawFiles.map(rf => {
+      const key = (rf.category || '') + '::' + rf.filename;
+      if (movedFilenames.has(key)) {
+        return { ...rf, category: destCatName, folderHandle: destCatName ? targetFolderHandle : null };
+      }
+      return rf;
+    });
+    setRawFiles(nextRaw);
+    const merged = buildAllFiles(nextRaw, shortcutsUpdated ? nextShortcuts : fileShortcutsRef.current, physicalFolders);
+    setAllFiles(merged);
+    updateFilter(merged, physicalFolders, searchQueries);
+
+    if (currentFileObj) {
+      if (currentFileObj.isShortcut) {
+        if (files.some(f => f.filename === currentFileObj.filename && f.category === currentFileObj.category)) {
+          setCurrentFileObj({ ...currentFileObj, category: destCatName });
+        }
+      } else if (movedFilenames.has((currentFileObj.category || '') + '::' + currentFileObj.filename)) {
+        setCurrentFileObj({ ...currentFileObj, category: destCatName, folderHandle: destCatName ? targetFolderHandle : null });
+      }
+    }
+
+    showToast(lang === 'en' ? `✓ Moved ${files.length} file(s) to 「${destCatName || 'Root'}」` : `✓ ${files.length}件を「${destCatName || 'ALL DATA (ルート)'}」へ移動しました`, 'success');
+
+    // 4. 物理ディスク書き込み（実体ファイルのみ実行）
+    for (const f of physicalFiles) {
       try {
         if (f.category === destCatName) continue;
-        const target = destHandle || dirHandle;
+        const target = targetFolderHandle;
         const nf = await target.getFileHandle(f.filename, {create:true});
         const w = await nf.createWritable();
         await w.write(f.content);
@@ -1313,13 +1702,9 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         
         if (f.folderHandle) await f.folderHandle.removeEntry(f.filename);
         else await dirHandle.removeEntry(f.filename);
-        
-        if (currentFileObj && currentFileObj.filename === f.filename && currentFileObj.category === f.category) {
-          setCurrentFileObj({ ...currentFileObj, category: destCatName, folderHandle: destHandle, handle: nf });
-        }
       } catch(e) { console.warn(e); }
     }
-    await loadFiles(dirHandle);
+
     if(isSelectMode) toggleSelectMode();
     else clearFileSelection();
   };
@@ -1335,34 +1720,77 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
   };
 
   const bulkDeleteFiles = async () => {
-    if (isFallbackMode) {
-      alert(t.main.fallbackDeleteError);
-      return;
-    }
     if(!selectedFileMap.size || !confirm(`${selectedFileMap.size}${t.main.confirmDeleteBulk}`)) return;
     let dc = false;
+    const nextShortcuts = { ...fileShortcuts };
+    let shortcutsChanged = false;
+
     for (const f of selectedFileMap.values()) {
       try {
-        if(f.folderHandle) await f.folderHandle.removeEntry(f.filename);
-        else await dirHandle.removeEntry(f.filename);
-        if(currentFileObj && currentFileObj.filename === f.filename) dc = true;
+        if (f.isShortcut) {
+          const origCat = f.originalCategory || '';
+          const origName = f.originalFilename || f.filename;
+          const key = origCat + '::' + origName;
+          const cur = nextShortcuts[key] || [];
+          nextShortcuts[key] = cur.filter(c => c !== (f.category || ''));
+          shortcutsChanged = true;
+          if (currentFileObj && currentFileObj.filename === f.filename && currentFileObj.category === f.category) dc = true;
+        } else {
+          if(f.folderHandle) await f.folderHandle.removeEntry(f.filename);
+          else if (dirHandle && !isFallbackMode) await dirHandle.removeEntry(f.filename);
+          
+          const origKey = (f.category || '') + '::' + f.filename;
+          if (nextShortcuts[origKey]) {
+            delete nextShortcuts[origKey];
+            shortcutsChanged = true;
+          }
+          if(currentFileObj && currentFileObj.filename === f.filename) dc = true;
+        }
       } catch(e){}
     }
+
+    if (shortcutsChanged) {
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+      setFileShortcuts(nextShortcuts);
+    }
+
     if (dc) setCurrentFileObj(null);
-    await loadFiles(dirHandle);
+    if (!isFallbackMode && dirHandle) {
+      await loadFiles(dirHandle);
+    } else {
+      const remainingRaw = rawFiles.filter(rf => !selectedFileMap.has((rf.category||'')+'::'+rf.filename));
+      setRawFiles(remainingRaw);
+      const merged = buildAllFiles(remainingRaw, nextShortcuts, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+    }
     if(isSelectMode) toggleSelectMode();
     else clearFileSelection();
   };
 
   const deleteCurrentFile = async () => {
+    if (!currentFileObj) return;
+    if (currentFileObj.isShortcut) {
+      if (!confirm(lang === 'en' ? 'Remove this shortcut? (Original file will not be deleted)' : 'このショートカットを解除しますか？（原本ファイルは削除されません）')) return;
+      await removeShortcut(currentFileObj);
+      return;
+    }
     if (isFallbackMode) {
       alert(t.main.fallbackDeleteError);
       return;
     }
-    if(!currentFileObj || !confirm(t.main.confirmDeleteFile)) return;
+    if(!confirm(t.main.confirmDeleteFile)) return;
     try {
       if(currentFileObj.folderHandle) await currentFileObj.folderHandle.removeEntry(currentFileObj.filename);
       else await dirHandle.removeEntry(currentFileObj.filename);
+      
+      const origKey = (currentFileObj.category || '') + '::' + currentFileObj.filename;
+      if (fileShortcuts[origKey]) {
+        const nextShortcuts = { ...fileShortcuts };
+        delete nextShortcuts[origKey];
+        localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+        setFileShortcuts(nextShortcuts);
+      }
       setCurrentFileObj(null);
       await loadFiles(dirHandle);
     } catch(e:any) { alert(e.message); }
@@ -1381,6 +1809,19 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       await w.write(currentFileObj.content);
       await w.close();
       await th.removeEntry(currentFileObj.filename);
+
+      // ショートカットキーの追従
+      const oldKey = (currentFileObj.category || '') + '::' + currentFileObj.filename;
+      const newKey = (currentFileObj.category || '') + '::' + newName;
+      if (fileShortcutsRef.current[oldKey]) {
+        const nextShortcuts = { ...fileShortcutsRef.current };
+        nextShortcuts[newKey] = nextShortcuts[oldKey];
+        delete nextShortcuts[oldKey];
+        localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+        setFileShortcuts(nextShortcuts);
+        fileShortcutsRef.current = nextShortcuts;
+      }
+
       setCurrentFileObj({...currentFileObj, filename: newName, handle: nf});
       await loadFiles(dirHandle);
     } catch(e:any) { alert(e.message); }
@@ -1398,9 +1839,56 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     const newShortName = newShortNameRaw.trim();
     const newCategoryPath = parentPath ? `${parentPath}/${newShortName}` : newShortName;
 
+    // ショートカットの移行処理マップ（フォルダー名変更に同期追従）
+    const nextShortcuts: Record<string, string[]> = {};
+    let shortcutsChanged = false;
+    Object.entries(fileShortcutsRef.current).forEach(([key, rawTargets]) => {
+      const targets = rawTargets as string[];
+      let newKey = key;
+      const [catPart, fname] = key.split('::');
+      if (catPart === oldCategoryPath) {
+        newKey = `${newCategoryPath}::${fname}`;
+        shortcutsChanged = true;
+      } else if (catPart.startsWith(oldCategoryPath + '/')) {
+        const suffix = catPart.slice(oldCategoryPath.length);
+        newKey = `${newCategoryPath}${suffix}::${fname}`;
+        shortcutsChanged = true;
+      }
+
+      const newTargets = targets.map(target => {
+        if (target === oldCategoryPath) {
+          shortcutsChanged = true;
+          return newCategoryPath;
+        } else if (target.startsWith(oldCategoryPath + '/')) {
+          shortcutsChanged = true;
+          return newCategoryPath + target.slice(oldCategoryPath.length);
+        }
+        return target;
+      });
+
+      nextShortcuts[newKey] = newTargets;
+    });
+
+    if (shortcutsChanged) {
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+      setFileShortcuts(nextShortcuts);
+      fileShortcutsRef.current = nextShortcuts;
+    }
+
+    // カスタム並び順の移行
+    setCustomFileOrders(prev => {
+      const nextOrders = { ...prev };
+      if (nextOrders[oldCategoryPath]) {
+        nextOrders[newCategoryPath] = nextOrders[oldCategoryPath];
+        delete nextOrders[oldCategoryPath];
+      }
+      localStorage.setItem('lv_custom_file_orders', JSON.stringify(nextOrders));
+      return nextOrders;
+    });
+
     // フォールバックモードの場合
     if (isFallbackMode) {
-      const updatedFiles = allFiles.map(f => {
+      const updatedFiles = rawFiles.map(f => {
         if (!f.category) return f;
         if (f.category === oldCategoryPath) {
           return { ...f, category: newCategoryPath };
@@ -1419,9 +1907,11 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         }
         return p;
       });
-      setAllFiles(updatedFiles);
+      setRawFiles(updatedFiles);
       setPhysicalFolders(updatedFolders);
-      updateFilter(updatedFiles, updatedFolders, searchQueries);
+      const merged = buildAllFiles(updatedFiles, nextShortcuts, updatedFolders);
+      setAllFiles(merged);
+      updateFilter(merged, updatedFolders, searchQueries);
       await saveFallbackData({
         rootFolderName: dirHandle?.name || 'Local Logs',
         pFolders: updatedFolders,
@@ -1487,7 +1977,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
       migrateFolderVisualSettings(oldCategoryPath, newCategoryPath);
       closeMovePanels();
-      await loadFiles(dirHandle);
+      await loadFiles(dirHandle, nextShortcuts);
       return true;
     } catch (e: any) {
       alert(`フォルダー名変更に失敗しました: ${e.message}`);
@@ -1495,24 +1985,94 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
   };
 
-  const deleteFolder = async (name: string, folderHandle: any) => {
-    if (isFallbackMode) {
-      alert(t.main.fallbackDeleteError);
-      return;
+  const syncShortcutsToDisk = async (shortcuts: Record<string, string[]>, targetDirHandle?: any) => {
+    const dh = targetDirHandle || dirHandle;
+    if (!dh || isFallbackMode) return;
+    try {
+      const fileHandle = await dh.getFileHandle('_shortcuts.json', { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(shortcuts, null, 2));
+      await writable.close();
+    } catch(e) {
+      console.warn('Could not sync _shortcuts.json to disk', e);
     }
+  };
+
+  const deleteFolder = async (name: string, folderHandle?: any) => {
     const parts = name.split('/');
     const shortName = parts[parts.length - 1];
     const parentPath = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
 
+    // 削除確認メッセージの作成（内部ファイル数集計）
     let count = 0;
-    try {
-      for await (const item of folderHandle.values()) { if (item.kind === 'file') count++; }
-    } catch(e) {}
-    const msg = count > 0 ? `「${shortName}」\n⚠️ ${count} ${t.main.confirmDeleteFolder}` : `「${shortName}」\n${t.main.confirmDeleteFolder}`;
+    let srcHandle = folderHandle;
+    if (!isFallbackMode && dirHandle) {
+      try {
+        if (!srcHandle) srcHandle = await getDirectoryHandleByPath(dirHandle, name, false);
+        if (srcHandle && srcHandle.values) {
+          for await (const item of srcHandle.values()) {
+            if (item.kind === 'file') count++;
+          }
+        }
+      } catch (e) {}
+    } else {
+      count = rawFiles.filter(f => f.category === name || (f.category && f.category.startsWith(name + '/'))).length;
+    }
+
+    const msg = count > 0 
+      ? (lang === 'en' ? `Delete folder 「${shortName}」?\n⚠️ Warning: Contains ${count} files (All contents will be deleted)` : `「${shortName}」フォルダーを削除しますか？\n⚠️ 警告: このフォルダーには ${count} 件のファイルが含まれており、中身もすべて削除されます`)
+      : (lang === 'en' ? `Delete folder 「${shortName}」?` : `「${shortName}」フォルダーを削除しますか？`);
     if (!confirm(msg)) return;
-    try {
-      const parentHandle = parentPath ? await getDirectoryHandleByPath(dirHandle, parentPath, false) : dirHandle;
-      await parentHandle.removeEntry(shortName, { recursive: true });
+
+    // 削除フォルダーに属するショートカットをクリーンアップ
+    const nextShortcuts: Record<string, string[]> = {};
+    let shortcutsChanged = false;
+
+    Object.entries(fileShortcutsRef.current).forEach(([key, rawTargets]) => {
+      const targets = rawTargets as string[];
+      const [catPart] = key.split('::');
+      if (catPart === name || catPart.startsWith(name + '/')) {
+        shortcutsChanged = true;
+        return;
+      }
+      const filteredTargets = targets.filter(t => t !== name && !t.startsWith(name + '/'));
+      if (filteredTargets.length !== targets.length) {
+        shortcutsChanged = true;
+      }
+      if (filteredTargets.length > 0) {
+        nextShortcuts[key] = filteredTargets;
+      }
+    });
+
+    if (shortcutsChanged) {
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+      setFileShortcuts(nextShortcuts);
+      fileShortcutsRef.current = nextShortcuts;
+      await syncShortcutsToDisk(nextShortcuts);
+    }
+
+    // カスタム並び順のクリーンアップ
+    setCustomFileOrders(prev => {
+      const next = { ...prev };
+      delete next[name];
+      localStorage.setItem('lv_custom_file_orders', JSON.stringify(next));
+      return next;
+    });
+
+    // 1. フォールバックモードの場合
+    if (isFallbackMode) {
+      const remainingRaw = rawFiles.filter(f => f.category !== name && !(f.category && f.category.startsWith(name + '/')));
+      const remainingFolders = physicalFolders.filter(p => p.name !== name && !p.name.startsWith(name + '/'));
+      setRawFiles(remainingRaw);
+      setPhysicalFolders(remainingFolders);
+      const merged = buildAllFiles(remainingRaw, nextShortcuts, remainingFolders);
+      setAllFiles(merged);
+      updateFilter(merged, remainingFolders, searchQueries);
+      await saveFallbackData({
+        rootFolderName: dirHandle?.name || 'Local Logs',
+        pFolders: remainingFolders,
+        fileObjs: remainingRaw
+      });
       if (currentFileObj && (currentFileObj.category === name || currentFileObj.category?.startsWith(name + '/'))) {
         setCurrentFileObj(null);
       }
@@ -1520,8 +2080,36 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         setExplorerCategory(parentPath);
       }
       closeMovePanels();
-      await loadFiles(dirHandle);
-    } catch(e:any){ alert(e.message); }
+      showToast(lang === 'en' ? `✓ Deleted folder 「${shortName}」` : `✓ フォルダー「${shortName}」を削除しました`, 'info');
+      return;
+    }
+
+    // 2. 通常の File System Access API モード
+    try {
+      const parentHandle = parentPath ? await getDirectoryHandleByPath(dirHandle, parentPath, false) : dirHandle;
+      if (parentHandle) {
+        try {
+          await parentHandle.removeEntry(shortName, { recursive: true });
+        } catch (removeErr: any) {
+          // 実フォルダーがディスク上にまだ無い場合（ショートカットのみの仮想フォルダー等）はNotFoundを許容
+          if (removeErr.name !== 'NotFoundError') {
+            console.warn('Could not remove physical entry:', removeErr);
+          }
+        }
+      }
+
+      if (currentFileObj && (currentFileObj.category === name || currentFileObj.category?.startsWith(name + '/'))) {
+        setCurrentFileObj(null);
+      }
+      if (explorerCategory === name || explorerCategory?.startsWith(name + '/')) {
+        setExplorerCategory(parentPath);
+      }
+      closeMovePanels();
+      await loadFiles(dirHandle, nextShortcuts);
+      showToast(lang === 'en' ? `✓ Deleted folder 「${shortName}」` : `✓ フォルダー「${shortName}」を削除しました`, 'info');
+    } catch(e: any){ 
+      alert(`フォルダー削除に失敗しました: ${e.message}`); 
+    }
   };
 
   const createNewFolder = async (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string): Promise<boolean> => {
@@ -1659,7 +2247,10 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       openFolder, reopenFolder, refreshFolder, setSearchQuery, clearSearch, removeSearchQuery,
       selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, selectAllFiles, deselectAllFiles, clearFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
-      openMovePanel, closeMovePanels, execBulkMove, moveToNewFolder, bulkDeleteFiles, deleteCurrentFile,
+      openMovePanel, closeMovePanels, setMovePanelMode, execBulkMove, moveToNewFolder,
+      createShortcut, removeShortcut, execBulkShortcut, duplicateFile, execBulkDuplicate, fileShortcuts,
+      toast, showToast,
+      bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       ttsSettings, updateTtsSettings, voiceRates, voices, writingMode, setWritingMode,
       currentTheme, setTheme, cycleTheme,

@@ -128,3 +128,13 @@ export function extractFirstSentence(text: string) {
   if (combined.length > 60) combined = combined.slice(0, 60) + '…';
   return combined;
 }
+
+export async function getDirectoryHandleByPath(rootDirHandle: any, pathStr: string, create = true) {
+  if (!rootDirHandle || !pathStr) return rootDirHandle;
+  const parts = pathStr.split('/').filter(p => p.trim().length > 0);
+  let current = rootDirHandle;
+  for (const part of parts) {
+    current = await current.getDirectoryHandle(part, { create });
+  }
+  return current;
+}

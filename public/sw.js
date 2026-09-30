@@ -1,5 +1,5 @@
 // Service Worker for SUPER FOLDER LOG VIEWER +
-const CACHE_NAME = 'sf-log-viewer-v3.1.6';
+const CACHE_NAME = 'sf-log-viewer-v3.5.0';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

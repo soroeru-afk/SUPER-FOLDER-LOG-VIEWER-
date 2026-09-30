@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { FileObj } from '../types';
-import { FolderIcon, FoldersStackIcon, MoveIcon, DeleteIcon, EditIcon, ImageIcon, SunOutlineIcon, ShuffleIcon, UploadIcon } from './Icons';
+import { FolderIcon, FoldersStackIcon, MoveIcon, DeleteIcon, EditIcon, ImageIcon, SunOutlineIcon, ShuffleIcon, UploadIcon, CopyIcon, ShortcutIcon, UnlinkIcon } from './Icons';
 import { 
   loadFolderVisualSettings, 
   saveFolderVisualSettings, 
@@ -40,6 +40,7 @@ export const FolderExplorer: React.FC = () => {
     createNewFile,
     createNewFolder,
     renameFolder,
+    deleteFolder,
     importExistingFiles,
     dirHandle,
     physicalFolders,
@@ -54,6 +55,12 @@ export const FolderExplorer: React.FC = () => {
     clearFileSelection,
     bulkDeleteFiles,
     openMovePanel,
+    createShortcut,
+    removeShortcut,
+    execBulkShortcut,
+    duplicateFile,
+    execBulkDuplicate,
+    fileShortcuts,
     mainBgWhite,
     toggleMainBgWhite
   } = useAppContext();
@@ -359,8 +366,8 @@ export const FolderExplorer: React.FC = () => {
         const dB = (b.date || '') + (b.time || '');
         return dB.localeCompare(dA);
       } else if (sortMode === 'date') {
-        const dA = a.date || '';
-        const dB = b.date || '';
+        const dA = (a.date || '') + (a.time || '');
+        const dB = (b.date || '') + (b.time || '');
         if (dA !== dB) {
           return sortDirection === 'desc' ? dB.localeCompare(dA) : dA.localeCompare(dB);
         }
@@ -406,8 +413,8 @@ export const FolderExplorer: React.FC = () => {
         const dB = (b.date || '') + (b.time || '');
         return dB.localeCompare(dA);
       } else if (sortMode === 'date') {
-        const dA = a.date || '';
-        const dB = b.date || '';
+        const dA = (a.date || '') + (a.time || '');
+        const dB = (b.date || '') + (b.time || '');
         if (dA !== dB) return sortDirection === 'desc' ? dB.localeCompare(dA) : dA.localeCompare(dB);
         return sortDirection === 'desc' ? b.filename.localeCompare(a.filename) : a.filename.localeCompare(b.filename);
       } else {
@@ -554,7 +561,23 @@ export const FolderExplorer: React.FC = () => {
       alert(lang === 'en' ? 'Please select files using checkboxes first.' : '移動するファイルをチェックマークで選択してください。');
       return;
     }
-    openMovePanel(e, 'bulk');
+    openMovePanel(e, 'bulk', 'move');
+  };
+
+  const handleOpenBulkShortcut = (e: React.MouseEvent) => {
+    if (totalSelectedCount === 0) {
+      alert(lang === 'en' ? 'Please select files using checkboxes first.' : 'ショートカットを作成するファイルをチェックマークで選択してください。');
+      return;
+    }
+    openMovePanel(e, 'bulk', 'shortcut');
+  };
+
+  const handleOpenBulkDuplicate = (e: React.MouseEvent) => {
+    if (totalSelectedCount === 0) {
+      alert(lang === 'en' ? 'Please select files using checkboxes first.' : '複製するファイルをチェックマークで選択してください。');
+      return;
+    }
+    openMovePanel(e, 'bulk', 'duplicate');
   };
 
   const MARK_OPTIONS: { mark: string | null; label: string; icon: string }[] = [
@@ -650,6 +673,16 @@ export const FolderExplorer: React.FC = () => {
                   title={lang === 'en' ? 'Rename current folder' : '現在開いているフォルダー名を変更'}
                 >
                   ✏️ {lang === 'en' ? 'Rename' : '名前変更'}
+                </button>
+                <button 
+                  className="explorer-btn" 
+                  onClick={() => {
+                    const found = physicalFolders.find(p => p.name === explorerCategory);
+                    deleteFolder(explorerCategory, found?.handle);
+                  }} 
+                  title={lang === 'en' ? 'Delete current folder' : '現在開いているフォルダーを削除'}
+                >
+                  🗑️ {lang === 'en' ? 'Delete' : 'フォルダー削除'}
                 </button>
               </>
             )}
@@ -1080,6 +1113,17 @@ export const FolderExplorer: React.FC = () => {
                           >
                             <EditIcon />
                           </button>
+                          <button
+                            type="button"
+                            className="folder-card-delete-btn"
+                            title={lang === 'en' ? 'Delete this folder' : 'フォルダーを削除'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteFolder(cat.name, cat.handle);
+                            }}
+                          >
+                            <DeleteIcon size={12} />
+                          </button>
                           <span className="folder-card-open-arrow">
                             {lang === 'en' ? 'Open ➔' : '開く ➔'}
                           </span>
@@ -1252,6 +1296,28 @@ export const FolderExplorer: React.FC = () => {
                   )}
                 </div>
 
+                {/* ショートカット作成... ボタン */}
+                <button
+                  type="button"
+                  className="explorer-bulk-tool-btn shortcut"
+                  onClick={handleOpenBulkShortcut}
+                  title={lang === 'en' ? 'Create shortcut for selected files in another folder' : '選択したファイルのショートカットを別フォルダーに作成'}
+                >
+                  <ShortcutIcon size={12} />
+                  <span>{lang === 'en' ? 'Shortcut...' : 'ショートカット...'}</span>
+                </button>
+
+                {/* 複製... ボタン */}
+                <button
+                  type="button"
+                  className="explorer-bulk-tool-btn copy"
+                  onClick={handleOpenBulkDuplicate}
+                  title={lang === 'en' ? 'Duplicate selected files' : '選択したファイルを複製（コピー）'}
+                >
+                  <CopyIcon size={12} />
+                  <span>{lang === 'en' ? 'Duplicate...' : '複製...'}</span>
+                </button>
+
                 {/* 移動先... ボタン */}
                 <button
                   type="button"
@@ -1268,7 +1334,7 @@ export const FolderExplorer: React.FC = () => {
                   type="button"
                   className="explorer-bulk-tool-btn delete"
                   onClick={handleBulkDelete}
-                  title={lang === 'en' ? 'Delete selected files' : '選択したファイルを削除'}
+                  title={lang === 'en' ? 'Delete selected files (or unlink shortcuts)' : '選択したファイルを削除（ショートカットの場合は解除）'}
                 >
                   <DeleteIcon />
                   <span>{t.main.delete || '削除'}</span>
@@ -1403,6 +1469,51 @@ export const FolderExplorer: React.FC = () => {
                         {f.filename}
                       </div>
                       <div className="article-card-tags">
+                        {f.isShortcut && (
+                          <span 
+                            className="article-shortcut-badge" 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              padding: '1px 5px',
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              background: 'rgba(59, 130, 246, 0.15)',
+                              border: '1px solid var(--sb-accent, #3b82f6)',
+                              color: 'var(--sb-accent, #3b82f6)',
+                              borderRadius: '0px'
+                            }}
+                            title={`ショートカット (原本: ${f.originalCategory || 'ALL DATA (ルート)'} / ${f.originalFilename || f.filename})`}
+                          >
+                            🔗 {lang === 'en' ? 'Shortcut' : 'ショートカット'}
+                          </span>
+                        )}
+                        {!f.isShortcut && (() => {
+                          const origKey = (f.category || '') + '::' + f.filename;
+                          const activeCats = fileShortcuts[origKey] || [];
+                          if (activeCats.length === 0) return null;
+                          return (
+                            <span 
+                              className="article-original-badge" 
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '1px 6px',
+                                fontSize: '9.5px',
+                                fontWeight: 700,
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid #10b981',
+                                color: '#059669',
+                                borderRadius: '0px'
+                              }}
+                              title={`👑 原本ファイル (マスター)\nこの原本のショートカット配置先(${activeCats.length}件):\n${activeCats.map(c => '・' + (c || 'ALL DATA (ルート)')).join('\n')}`}
+                            >
+                              👑 {lang === 'en' ? `Original (📤 ${activeCats.length})` : `原本 📤 ${activeCats.length}ヶ所に配信`}
+                            </span>
+                          );
+                        })()}
                         {mark && <span className="article-mark-badge">{mark}</span>}
                         {f.date && (
                           <span className="article-date-badge">
@@ -1424,9 +1535,56 @@ export const FolderExplorer: React.FC = () => {
 
                     {/* カードフッター */}
                     <div className="article-card-footer">
-                      <span className="article-char-count">
-                        {charCount.toLocaleString()} {lang === 'en' ? 'chars' : '文字'}
-                      </span>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          type="button"
+                          className="article-quick-btn"
+                          title={lang === 'en' ? 'Duplicate file' : 'このファイルを複製'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateFile(f);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                            padding: '2px 5px',
+                            fontSize: '10px',
+                            color: 'var(--btn-text, inherit)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                        >
+                          <CopyIcon size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          className="article-quick-btn"
+                          title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectFile(f);
+                            openMovePanel(e, 'single', 'shortcut');
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                            padding: '2px 5px',
+                            fontSize: '10px',
+                            color: 'var(--btn-text, inherit)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                        >
+                          <ShortcutIcon size={11} />
+                        </button>
+                        <span className="article-char-count">
+                          {charCount.toLocaleString()} {lang === 'en' ? 'chars' : '文字'}
+                        </span>
+                      </div>
                       <span className="article-open-label">
                         {lang === 'en' ? 'Open ➔' : '開く ➔'}
                       </span>
@@ -1497,10 +1655,55 @@ export const FolderExplorer: React.FC = () => {
                         />
                       )}
                       <div className="article-list-icon-box">
-                        <span className="article-list-doc-icon">📄</span>
+                        <span className="article-list-doc-icon">{f.isShortcut ? '🔗' : '📄'}</span>
                       </div>
                       <div className="article-list-content">
                         <div className="article-list-title-line">
+                          {f.isShortcut && (
+                            <span 
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                padding: '0 4px',
+                                fontSize: '9.5px',
+                                fontWeight: 700,
+                                background: 'rgba(59, 130, 246, 0.15)',
+                                border: '1px solid var(--sb-accent, #3b82f6)',
+                                color: 'var(--sb-accent, #3b82f6)',
+                                marginRight: '6px',
+                                borderRadius: '0px'
+                              }}
+                              title={`ショートカット (原本: ${f.originalCategory || 'ALL DATA'} / ${f.originalFilename || f.filename})`}
+                            >
+                              🔗
+                            </span>
+                          )}
+                          {!f.isShortcut && (() => {
+                            const origKey = (f.category || '') + '::' + f.filename;
+                            const activeCats = fileShortcuts[origKey] || [];
+                            if (activeCats.length === 0) return null;
+                            return (
+                              <span 
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  padding: '0 5px',
+                                  fontSize: '9px',
+                                  fontWeight: 700,
+                                  background: 'rgba(16, 185, 129, 0.12)',
+                                  border: '1px solid #10b981',
+                                  color: '#059669',
+                                  marginRight: '6px',
+                                  borderRadius: '0px'
+                                }}
+                                title={`👑 原本ファイル (ショートカット配信先 ${activeCats.length}件):\n${activeCats.map(c => '・' + (c || 'ALL DATA (ルート)')).join('\n')}`}
+                              >
+                                👑原本 📤{activeCats.length}
+                              </span>
+                            );
+                          })()}
                           {mark && <span className="article-mark-badge" style={{ marginRight: '6px' }}>{mark}</span>}
                           <span className="article-list-title" title={f.title || f.filename}>
                             {f.title || f.filename}
@@ -1523,6 +1726,50 @@ export const FolderExplorer: React.FC = () => {
                     </div>
 
                     <div className="article-list-right">
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginRight: '4px' }}>
+                        <button
+                          type="button"
+                          title={lang === 'en' ? 'Duplicate file' : 'このファイルを複製'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateFile(f);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '2px 4px',
+                            color: 'var(--sub-text, inherit)',
+                            cursor: 'pointer',
+                            opacity: 0.6
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+                        >
+                          <CopyIcon size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectFile(f);
+                            openMovePanel(e, 'single', 'shortcut');
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '2px 4px',
+                            color: 'var(--sub-text, inherit)',
+                            cursor: 'pointer',
+                            opacity: 0.6
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+                        >
+                          <ShortcutIcon size={12} />
+                        </button>
+                      </div>
+
                       {f.date && (
                         <span className="article-list-date" title="日付">
                           {f.date}
