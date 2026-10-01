@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { FileObj } from '../types';
+import { highlightText, escHtml, highlightTextSafe } from '../utils';
 import { FolderIcon, FoldersStackIcon, MoveIcon, DeleteIcon, EditIcon, ImageIcon, SunOutlineIcon, ShuffleIcon, UploadIcon, CopyIcon, ShortcutIcon, UnlinkIcon } from './Icons';
 import { 
   loadFolderVisualSettings, 
@@ -67,6 +68,29 @@ export const FolderExplorer: React.FC = () => {
 
   const [isExplorerSelectMode, setIsExplorerSelectMode] = useState(false);
   const [filterText, setFilterText] = useState('');
+  const [searchScope, setSearchScope] = useState<'all' | 'recursive' | 'current'>('recursive');
+  const [groupMode, setGroupMode] = useState<'standard' | 'by-category'>(() => {
+    return (localStorage.getItem('sf_explorer_group_mode') as 'standard' | 'by-category') || 'standard';
+  });
+
+  const handleSetGroupMode = (mode: 'standard' | 'by-category') => {
+    setGroupMode(mode);
+    try {
+      localStorage.setItem('sf_explorer_group_mode', mode);
+    } catch {}
+  };
+
+  // 検索クエリの抽出 (AND検索用)
+  const searchQueries = useMemo(() => {
+    const q = filterText.trim();
+    return q ? q.split(/[\s　]+/).filter(Boolean) : [];
+  }, [filterText]);
+
+  const handleRemoveSearchTag = (query: string) => {
+    const remaining = searchQueries.filter(q => q !== query).join(' ');
+    setFilterText(remaining);
+  };
+
   const [layoutMode, setLayoutMode] = useState<'card' | 'list'>(() => {
     return (localStorage.getItem('sf_explorer_layout') as 'card' | 'list') || 'card';
   });
@@ -87,6 +111,82 @@ export const FolderExplorer: React.FC = () => {
   const [coverInputUrl, setCoverInputUrl] = useState('');
   const [isDraggingModalFile, setIsDraggingModalFile] = useState(false);
   const [draggingCardPath, setDraggingCardPath] = useState<string | null>(null);
+
+  // スクロールに応じた段階的読み込み（インフィニットスクロール / 表示件数制御）
+  const PAGE_SIZE = 24;
+  const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
+  const [groupExpandedLimits, setGroupExpandedLimits] = useState<Record<string, number>>({});
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const isLoadingMoreRef = useRef<boolean>(false);
+
+  // フォルダー変更や検索条件・並び替え変更時に表示件数をリセット
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+    setGroupExpandedLimits({});
+    isLoadingMoreRef.current = false;
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = 0;
+    }
+  }, [explorerCategory, searchQueries, sortMode, sortDirection, searchScope, groupMode, layoutMode]);
+
+  // IntersectionObserver によるスクロール到達時の自動ロード
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    const rootEl = scrollAreaRef.current;
+    if (!sentinel || !rootEl) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0] && entries[0].isIntersecting && !isLoadingMoreRef.current) {
+          // 実際にスクロールが行われている場合のみ次のページを追加
+          if (rootEl.scrollTop > 20) {
+            isLoadingMoreRef.current = true;
+            setVisibleCount(prev => prev + PAGE_SIZE);
+            setTimeout(() => {
+              isLoadingMoreRef.current = false;
+            }, 300);
+          }
+        }
+      },
+      { root: rootEl, rootMargin: '100px' }
+    );
+
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+    };
+  }, [visibleCount]);
+
+  // スクロール領域での直接イベント監視（スムーズなフォールバック）
+  const handleScrollArea = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (isLoadingMoreRef.current) return;
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (target.scrollTop > 20 && distanceToBottom < 180) {
+      if (visibleCount < activeDisplayedFiles.length) {
+        isLoadingMoreRef.current = true;
+        setVisibleCount(prev => Math.min(prev + PAGE_SIZE, activeDisplayedFiles.length));
+        setTimeout(() => {
+          isLoadingMoreRef.current = false;
+        }, 300);
+      }
+    }
+  };
+
+  const handleExpandGroup = (catKey: string, step = 30) => {
+    setGroupExpandedLimits(prev => ({
+      ...prev,
+      [catKey]: (prev[catKey] || 30) + step
+    }));
+  };
+
+  const handleExpandGroupAll = (catKey: string, total: number) => {
+    setGroupExpandedLimits(prev => ({
+      ...prev,
+      [catKey]: total
+    }));
+  };
 
   useEffect(() => {
     const handleVisualChanged = () => {
@@ -224,6 +324,30 @@ export const FolderExplorer: React.FC = () => {
     return clean.slice(0, maxLen) + (clean.length > maxLen ? '...' : '');
   };
 
+  // 検索キーワードマッチ箇所のハイライトスニペット生成
+  const getSnippetWithHighlight = (content: string, queries: string[], maxLen = 140) => {
+    if (!content) return '';
+    if (queries.length === 0) return getDigestSnippet(content, maxLen);
+    
+    const lowerContent = content.toLowerCase();
+    let bestIdx = -1;
+    for (const q of queries) {
+      const idx = lowerContent.indexOf(q.toLowerCase());
+      if (idx !== -1 && (bestIdx === -1 || idx < bestIdx)) {
+        bestIdx = idx;
+      }
+    }
+    
+    if (bestIdx === -1) return getDigestSnippet(content, maxLen);
+    
+    const start = Math.max(0, bestIdx - 35);
+    const end = Math.min(content.length, bestIdx + 105);
+    let snippet = content.substring(start, end).replace(/\r?\n+/g, ' ');
+    if (start > 0) snippet = '...' + snippet;
+    if (end < content.length) snippet += '...';
+    return snippet;
+  };
+
   // 1. パンくずリストの階層分解
   const breadcrumbs = useMemo(() => {
     if (!explorerCategory) return [];
@@ -333,29 +457,11 @@ export const FolderExplorer: React.FC = () => {
     return subsWithCount;
   }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFolderOrders]);
 
-  // 3. 現在のフォルダの直下にあるファイル群を抽出
-  const filesInCurrentFolder = useMemo(() => {
-    let files: FileObj[] = [];
-    if (!explorerCategory) {
-      files = allFiles.filter(f => !f.category);
-    } else {
-      files = allFiles.filter(f => f.category === explorerCategory);
-    }
-
-    // フィルタリング
-    if (filterText.trim()) {
-      const q = filterText.toLowerCase();
-      files = files.filter(f => 
-        (f.title || '').toLowerCase().includes(q) ||
-        (f.filename || '').toLowerCase().includes(q) ||
-        (f.content || '').toLowerCase().includes(q)
-      );
-    }
-
-    // ソート処理
+  // ファイルリストソートヘルパー
+  const sortFileList = (files: FileObj[], catKeyForCustom?: string) => {
     return [...files].sort((a, b) => {
       if (sortMode === 'custom') {
-        const catKey = explorerCategory || '__root__';
+        const catKey = catKeyForCustom || a.category || '__root__';
         const list = customFileOrders[catKey] || [];
         const idxA = list.indexOf(a.filename);
         const idxB = list.indexOf(b.filename);
@@ -378,14 +484,154 @@ export const FolderExplorer: React.FC = () => {
           : (b.title || b.filename).localeCompare(a.title || a.filename, 'ja');
       }
     });
-  }, [allFiles, explorerCategory, filterText, sortMode, sortDirection, customFileOrders]);
+  };
 
-  // 現在フォルダー内のファイルの選択判定
+  // 3. 現在のフォルダの直下にあるファイル群（非検索時）
+  const filesInCurrentFolder = useMemo(() => {
+    let files: FileObj[] = [];
+    if (!explorerCategory) {
+      files = allFiles.filter(f => !f.category);
+    } else {
+      files = allFiles.filter(f => f.category === explorerCategory);
+    }
+    return sortFileList(files, explorerCategory || '__root__');
+  }, [allFiles, explorerCategory, sortMode, sortDirection, customFileOrders]);
+
+  // 検索時の一致するサブカテゴリー
+  const matchingSubCategories = useMemo(() => {
+    if (searchQueries.length === 0) return [];
+    return allCategories.filter(cat => {
+      if (searchScope === 'current' && explorerCategory) {
+        const prefix = explorerCategory + '/';
+        const depth = explorerCategory.split('/').length + 1;
+        if (!(cat.name.startsWith(prefix) && cat.name.split('/').length === depth)) return false;
+      } else if (searchScope === 'recursive' && explorerCategory) {
+        const prefix = explorerCategory + '/';
+        if (!cat.name.startsWith(prefix)) return false;
+      }
+      return searchQueries.some(q => cat.name.toLowerCase().includes(q.toLowerCase()));
+    }).map(cat => {
+      const subPrefix = cat.name + '/';
+      const allFilesInSub = allFiles.filter(f => f.category === cat.name || (f.category && f.category.startsWith(subPrefix)));
+      const shortName = cat.name.split('/').pop() || cat.name;
+      const directChildFolders = allCategories.filter(c => 
+        c.name.startsWith(subPrefix) && c.name.split('/').length === (cat.name.split('/').length + 1)
+      );
+      return {
+        ...cat,
+        shortName,
+        totalCount: allFilesInSub.length,
+        childFolderCount: directChildFolders.length
+      };
+    });
+  }, [allCategories, allFiles, searchQueries, searchScope, explorerCategory]);
+
+  // 検索ヒットファイル一覧
+  const matchingFiles = useMemo(() => {
+    if (searchQueries.length === 0) return [];
+    
+    let scopePool: FileObj[] = [];
+    if (searchScope === 'all') {
+      scopePool = allFiles;
+    } else if (searchScope === 'current') {
+      scopePool = !explorerCategory ? allFiles.filter(f => !f.category) : allFiles.filter(f => f.category === explorerCategory);
+    } else {
+      // recursive
+      scopePool = !explorerCategory 
+        ? allFiles 
+        : allFiles.filter(f => f.category === explorerCategory || (f.category && f.category.startsWith(explorerCategory + '/')));
+    }
+
+    const filtered = scopePool.filter(f => {
+      const target = (
+        (f.title || '') + ' ' + 
+        (f.filename || '') + ' ' + 
+        (f.category || '') + ' ' + 
+        (f.date || '') + ' ' + 
+        (f.content || '')
+      ).toLowerCase();
+      return searchQueries.every(q => target.includes(q.toLowerCase()));
+    });
+
+    return sortFileList(filtered);
+  }, [allFiles, explorerCategory, searchScope, searchQueries, sortMode, sortDirection, customFileOrders]);
+
+  // 検索結果をカテゴリー別にグループ化
+  const matchingFilesByCategory = useMemo(() => {
+    if (searchQueries.length === 0) return [];
+    const groups: { category: string | null; label: string; files: FileObj[] }[] = [];
+    const map = new Map<string | null, FileObj[]>();
+    
+    matchingFiles.forEach(f => {
+      const cat = f.category || null;
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(f);
+    });
+
+    const currentCatKey = explorerCategory || null;
+    if (map.has(currentCatKey)) {
+      groups.push({
+        category: currentCatKey,
+        label: currentCatKey ? (currentCatKey.split('/').pop() || currentCatKey) : (lang === 'en' ? 'Direct Files (Root)' : 'このフォルダー直下のファイル'),
+        files: map.get(currentCatKey)!
+      });
+    }
+
+    Array.from(map.entries()).forEach(([cat, list]) => {
+      if (cat === currentCatKey) return;
+      groups.push({
+        category: cat,
+        label: cat ? cat.replace(/\//g, ' > ') : (lang === 'en' ? 'Root (No folder)' : 'ALL DATA (ルート)'),
+        files: list
+      });
+    });
+
+    return groups;
+  }, [matchingFiles, searchQueries, explorerCategory, lang]);
+
+  // サブカテゴリー別のファイル展開（非検索時のグループモード用）
+  const subCategoryFileGroups = useMemo(() => {
+    const groups: { category: string; label: string; shortName: string; files: FileObj[]; totalCount: number }[] = [];
+    const currentPrefix = explorerCategory ? explorerCategory + '/' : '';
+    
+    const matchingCats = allCategories.filter(cat => {
+      if (explorerCategory) {
+        return cat.name.startsWith(currentPrefix);
+      } else {
+        return true;
+      }
+    });
+
+    matchingCats.forEach(cat => {
+      const catFiles = allFiles.filter(f => f.category === cat.name);
+      const subPrefix = cat.name + '/';
+      const recursiveFiles = allFiles.filter(f => f.category === cat.name || (f.category && f.category.startsWith(subPrefix)));
+      if (recursiveFiles.length > 0) {
+        groups.push({
+          category: cat.name,
+          label: cat.name.replace(/\//g, ' > '),
+          shortName: cat.name.split('/').pop() || cat.name,
+          files: sortFileList(catFiles, cat.name),
+          totalCount: recursiveFiles.length
+        });
+      }
+    });
+
+    return groups;
+  }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFileOrders]);
+
+  // 画面に表示するアクティブなファイル群（一括選択・並び替え用）
+  const activeDisplayedFiles = useMemo(() => {
+    if (searchQueries.length > 0) return matchingFiles;
+    return filesInCurrentFolder;
+  }, [searchQueries.length, matchingFiles, filesInCurrentFolder]);
+
+  // 現在表示中のファイルの選択判定
   const selectedInCurrentFolder = useMemo(() => {
-    return filesInCurrentFolder.filter(f => selectedFiles.has((f.category || '') + '::' + f.filename));
-  }, [filesInCurrentFolder, selectedFiles]);
+    return activeDisplayedFiles.filter(f => selectedFiles.has((f.category || '') + '::' + f.filename));
+  }, [activeDisplayedFiles, selectedFiles]);
 
-  const isAllFolderSelected = filesInCurrentFolder.length > 0 && selectedInCurrentFolder.length === filesInCurrentFolder.length;
+  const isAllFolderSelected = activeDisplayedFiles.length > 0 && selectedInCurrentFolder.length === activeDisplayedFiles.length;
   const isSomeFolderSelected = selectedInCurrentFolder.length > 0 && !isAllFolderSelected;
   const totalSelectedCount = selectedFiles.size;
   const isSelecting = isExplorerSelectMode || totalSelectedCount > 0;
@@ -607,6 +853,433 @@ export const FolderExplorer: React.FC = () => {
     return cat ? cat.handle : null;
   }, [physicalFolders, explorerCategory]);
 
+  // カード型アイテム描画関数
+  const renderArticleCard = (f: FileObj, showCategoryBadge = true) => {
+    const mark = fileMarks[f.filename];
+    const digest = searchQueries.length > 0 ? getSnippetWithHighlight(f.content, searchQueries) : getDigestSnippet(f.content);
+    const charCount = f.content ? f.content.length : 0;
+    const fileKey = (f.category || '') + '::' + f.filename;
+    const isSelected = selectedFiles.has(fileKey);
+
+    return (
+      <div 
+        key={fileKey}
+        className={`article-card ${isSelected ? 'selected' : ''}`}
+        onClick={() => {
+          if (isSelecting) {
+            toggleFileSelection(f);
+          } else {
+            selectFile(f);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { 
+          if (e.key === 'Enter') {
+            if (isSelecting) toggleFileSelection(f);
+            else selectFile(f);
+          }
+        }}
+      >
+        {/* カードヘッダー: チェックボックス & ファイル名 & カテゴリ & 日付 & マーク */}
+        <div className="article-card-header">
+          {(isSelecting || isSelected) ? (
+            <div 
+              className={`article-card-checkbox ${isSelected ? 'checked' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFileSelection(f);
+              }}
+              role="checkbox"
+              aria-checked={isSelected}
+              title={isSelected ? (lang === 'en' ? 'Deselect' : '選択解除') : (lang === 'en' ? 'Select' : '選択')}
+            >
+              {isSelected && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="article-check-svg">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+          ) : (
+            <div 
+              className="article-card-checkbox hover-reveal"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExplorerSelectMode(true);
+                toggleFileSelection(f);
+              }}
+              role="checkbox"
+              aria-checked={false}
+              title={lang === 'en' ? 'Select' : '選択'}
+            />
+          )}
+
+          <div 
+            className="article-card-filename" 
+            title={f.filename}
+            dangerouslySetInnerHTML={{
+              __html: searchQueries.length > 0 ? highlightText(f.filename, searchQueries) : escHtml(f.filename)
+            }}
+          />
+
+          <div className="article-card-tags">
+            {showCategoryBadge && f.category && (
+              <button
+                type="button"
+                className="article-category-badge"
+                title={`フォルダー「${f.category}」を開く`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openExplorer(f.category);
+                }}
+              >
+                📁 {f.category.replace(/\//g, ' > ')}
+              </button>
+            )}
+            {f.isShortcut && (
+              <span 
+                className="article-shortcut-badge" 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  padding: '1px 5px',
+                  fontSize: '9.5px',
+                  fontWeight: 700,
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid var(--sb-accent, #3b82f6)',
+                  color: 'var(--sb-accent, #3b82f6)',
+                  borderRadius: '0px'
+                }}
+                title={`ショートカット (原本: ${f.originalCategory || 'ALL DATA (ルート)'} / ${f.originalFilename || f.filename})`}
+              >
+                🔗 {lang === 'en' ? 'Shortcut' : 'ショートカット'}
+              </span>
+            )}
+            {!f.isShortcut && (() => {
+              const origKey = (f.category || '') + '::' + f.filename;
+              const activeCats = fileShortcuts[origKey] || [];
+              if (activeCats.length === 0) return null;
+              return (
+                <span 
+                  className="article-original-badge" 
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    padding: '1px 6px',
+                    fontSize: '9.5px',
+                    fontWeight: 700,
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid #10b981',
+                    color: '#059669',
+                    borderRadius: '0px'
+                  }}
+                  title={`👑 原本ファイル (マスター)\nこの原本のショートカット配置先(${activeCats.length}件):\n${activeCats.map(c => '・' + (c || 'ALL DATA (ルート)')).join('\n')}`}
+                >
+                  👑 {lang === 'en' ? `Original (📤 ${activeCats.length})` : `原本 📤 ${activeCats.length}ヶ所に配信`}
+                </span>
+              );
+            })()}
+            {mark && <span className="article-mark-badge">{mark}</span>}
+            {f.date && (
+              <span className="article-date-badge">
+                {f.date}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* カードタイトル */}
+        <div 
+          className="article-card-title"
+          dangerouslySetInnerHTML={{
+            __html: searchQueries.length > 0 ? highlightText(f.title || f.filename, searchQueries) : escHtml(f.title || f.filename)
+          }}
+        />
+
+        {/* ダイジェスト本文（先頭プレビュー / 検索スニペット） */}
+        <div 
+          className="article-card-digest"
+          dangerouslySetInnerHTML={{
+            __html: searchQueries.length > 0 ? highlightText(digest, searchQueries) : escHtml(digest || (lang === 'en' ? '(Empty file)' : '（本文なし）'))
+          }}
+        />
+
+        {/* カードフッター */}
+        <div className="article-card-footer">
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              className="article-quick-btn"
+              title={lang === 'en' ? 'Duplicate file' : 'このファイルを複製'}
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateFile(f);
+              }}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                padding: '2px 5px',
+                fontSize: '10px',
+                color: 'var(--btn-text, inherit)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px'
+              }}
+            >
+              <CopyIcon size={11} />
+            </button>
+            <button
+              type="button"
+              className="article-quick-btn"
+              title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
+              onClick={(e) => {
+                e.stopPropagation();
+                selectFile(f);
+                openMovePanel(e, 'single', 'shortcut');
+              }}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
+                padding: '2px 5px',
+                fontSize: '10px',
+                color: 'var(--btn-text, inherit)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px'
+              }}
+            >
+              <ShortcutIcon size={11} />
+            </button>
+            <span className="article-char-count">
+              {charCount.toLocaleString()} {lang === 'en' ? 'chars' : '文字'}
+            </span>
+          </div>
+          <span className="article-open-label">
+            {lang === 'en' ? 'Open ➔' : '開く ➔'}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // リスト型アイテム描画関数
+  const renderArticleListRow = (f: FileObj, showCategoryBadge = true) => {
+    const mark = fileMarks[f.filename];
+    const digest = searchQueries.length > 0 ? getSnippetWithHighlight(f.content, searchQueries, 110) : getDigestSnippet(f.content, 90);
+    const charCount = f.content ? f.content.length : 0;
+    const fileKey = (f.category || '') + '::' + f.filename;
+    const isSelected = selectedFiles.has(fileKey);
+
+    return (
+      <div 
+        key={fileKey}
+        className={`article-list-row ${isSelected ? 'selected' : ''}`}
+        onClick={() => {
+          if (isSelecting) {
+            toggleFileSelection(f);
+          } else {
+            selectFile(f);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { 
+          if (e.key === 'Enter') {
+            if (isSelecting) toggleFileSelection(f);
+            else selectFile(f);
+          }
+        }}
+      >
+        <div className="article-list-left">
+          {(isSelecting || isSelected) ? (
+            <div 
+              className={`article-list-checkbox ${isSelected ? 'checked' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFileSelection(f);
+              }}
+              role="checkbox"
+              aria-checked={isSelected}
+              title={isSelected ? (lang === 'en' ? 'Deselect' : '選択解除') : (lang === 'en' ? 'Select' : '選択')}
+            >
+              {isSelected && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="article-check-svg">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+          ) : (
+            <div 
+              className="article-list-checkbox hover-reveal"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExplorerSelectMode(true);
+                toggleFileSelection(f);
+              }}
+              role="checkbox"
+              aria-checked={false}
+              title={lang === 'en' ? 'Select' : '選択'}
+            />
+          )}
+          <div className="article-list-icon-box">
+            <span className="article-list-doc-icon">{f.isShortcut ? '🔗' : '📄'}</span>
+          </div>
+          <div className="article-list-content">
+            <div className="article-list-title-line">
+              {showCategoryBadge && f.category && (
+                <button
+                  type="button"
+                  className="article-category-badge"
+                  style={{ marginRight: '6px' }}
+                  title={`フォルダー「${f.category}」を開く`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openExplorer(f.category);
+                  }}
+                >
+                  📁 {f.category.replace(/\//g, ' > ')}
+                </button>
+              )}
+              {f.isShortcut && (
+                <span 
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    padding: '0 4px',
+                    fontSize: '9.5px',
+                    fontWeight: 700,
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    border: '1px solid var(--sb-accent, #3b82f6)',
+                    color: 'var(--sb-accent, #3b82f6)',
+                    marginRight: '6px',
+                    borderRadius: '0px'
+                  }}
+                  title={`ショートカット (原本: ${f.originalCategory || 'ALL DATA'} / ${f.originalFilename || f.filename})`}
+                >
+                  🔗
+                </span>
+              )}
+              {!f.isShortcut && (() => {
+                const origKey = (f.category || '') + '::' + f.filename;
+                const activeCats = fileShortcuts[origKey] || [];
+                if (activeCats.length === 0) return null;
+                return (
+                  <span 
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      padding: '0 5px',
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      border: '1px solid #10b981',
+                      color: '#059669',
+                      marginRight: '6px',
+                      borderRadius: '0px'
+                    }}
+                    title={`👑 原本ファイル (ショートカット配信先 ${activeCats.length}件):\n${activeCats.map(c => '・' + (c || 'ALL DATA (ルート)')).join('\n')}`}
+                  >
+                    👑原本 📤{activeCats.length}
+                  </span>
+                );
+              })()}
+              {mark && <span className="article-mark-badge" style={{ marginRight: '6px' }}>{mark}</span>}
+              <span 
+                className="article-list-title" 
+                title={f.title || f.filename}
+                dangerouslySetInnerHTML={{
+                  __html: searchQueries.length > 0 ? highlightText(f.title || f.filename, searchQueries) : escHtml(f.title || f.filename)
+                }}
+              />
+            </div>
+            <div className="article-list-sub-line">
+              <span 
+                className="article-list-filename" 
+                title={f.filename}
+                dangerouslySetInnerHTML={{
+                  __html: searchQueries.length > 0 ? highlightText(f.filename, searchQueries) : escHtml(f.filename)
+                }}
+              />
+              {digest && (
+                <>
+                  <span className="article-list-dot">•</span>
+                  <span 
+                    className="article-list-snippet"
+                    dangerouslySetInnerHTML={{
+                      __html: searchQueries.length > 0 ? highlightText(digest, searchQueries) : escHtml(digest)
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="article-list-right">
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginRight: '4px' }}>
+            <button
+              type="button"
+              title={lang === 'en' ? 'Duplicate file' : 'このファイルを複製'}
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateFile(f);
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '2px 4px',
+                color: 'var(--sub-text, inherit)',
+                cursor: 'pointer',
+                opacity: 0.6
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+            >
+              <CopyIcon size={12} />
+            </button>
+            <button
+              type="button"
+              title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
+              onClick={(e) => {
+                e.stopPropagation();
+                selectFile(f);
+                openMovePanel(e, 'single', 'shortcut');
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '2px 4px',
+                color: 'var(--sub-text, inherit)',
+                cursor: 'pointer',
+                opacity: 0.6
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+            >
+              <ShortcutIcon size={12} />
+            </button>
+          </div>
+
+          {f.date && (
+            <span className="article-list-date" title="日付">
+              {f.date}
+            </span>
+          )}
+          <span className="article-list-chars" title="文字数">
+            {charCount.toLocaleString()} {lang === 'en' ? 'chars' : '文字'}
+          </span>
+          <span className="article-list-open-arrow">➔</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div id="explorer-view" className="explorer-container">
       {/* 01. 上部コントロール・パンくずナビゲーション */}
@@ -721,27 +1394,114 @@ export const FolderExplorer: React.FC = () => {
         </div>
 
         {/* 02. サブツールバー（検索・ソート切り替え・集計） */}
-        <div className="explorer-toolbar">
-          <div className="explorer-search-box">
-            <span className="explorer-search-icon">🔍</span>
-            <input 
-              type="text" 
-              placeholder={lang === 'en' ? 'Filter in this directory...' : 'このフォルダー内を検索...'}
-              value={filterText}
-              onChange={e => setFilterText(e.target.value)}
-              className="explorer-search-input"
-            />
-            {filterText && (
-              <button className="explorer-clear-btn" onClick={() => setFilterText('')}>✕</button>
-            )}
+        <div className="explorer-toolbar" style={{ flexWrap: 'wrap', gap: '12px' }}>
+          <div className="explorer-search-area-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 340px', minWidth: '260px', maxWidth: '620px' }}>
+            <div className="explorer-search-box" style={{ width: '100%', position: 'relative' }}>
+              <span className="explorer-search-icon">🔍</span>
+              <input 
+                type="text" 
+                placeholder={
+                  searchScope === 'all' 
+                    ? (lang === 'en' ? 'Search all folders (ALL DATA)...' : '全フォルダー (ALL DATA) を検索...') 
+                    : searchScope === 'recursive'
+                    ? (lang === 'en' ? 'Search this folder & sub-folders...' : 'このフォルダー配下全体を検索...')
+                    : (lang === 'en' ? 'Search this folder direct only...' : 'このフォルダー直下のみを検索...')
+                }
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+                className="explorer-search-input"
+              />
+              {filterText && (
+                <button className="explorer-clear-btn" onClick={() => setFilterText('')} title="検索文字をクリア">✕</button>
+              )}
+            </div>
+
+            {/* 検索スコープ切り替えピル & 検索キーワードタグ */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
+              <div className="explorer-search-scope-bar">
+                <span className="explorer-scope-label">
+                  {lang === 'en' ? 'SCOPE:' : '検索範囲:'}
+                </span>
+                <button
+                  type="button"
+                  className={`explorer-scope-pill ${searchScope === 'all' ? 'active' : ''}`}
+                  onClick={() => setSearchScope('all')}
+                  title={lang === 'en' ? 'Search all files in all folders' : '全フォルダー（ALL DATA）から全件検索'}
+                >
+                  🌐 {lang === 'en' ? 'All Folders' : 'ALL DATA (全階層)'}
+                </button>
+                {explorerCategory && (
+                  <button
+                    type="button"
+                    className={`explorer-scope-pill ${searchScope === 'recursive' ? 'active' : ''}`}
+                    onClick={() => setSearchScope('recursive')}
+                    title={lang === 'en' ? 'Search within current folder and all its subfolders' : '現在開いているフォルダーとその配下のサブフォルダーすべて'}
+                  >
+                    📁 {lang === 'en' ? 'This & Sub-folders' : '配下全体 (サブ含む)'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`explorer-scope-pill ${searchScope === 'current' ? 'active' : ''}`}
+                  onClick={() => setSearchScope('current')}
+                  title={lang === 'en' ? 'Search only direct files in this current folder' : 'このフォルダー直下のファイルのみ'}
+                >
+                  📂 {lang === 'en' ? 'Direct Only' : '直下のみ'}
+                </button>
+              </div>
+
+              {searchQueries.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  {searchQueries.map(q => (
+                    <span
+                      key={q}
+                      className="search-breadcrumb-tag"
+                    >
+                      <span>🔍 {q}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSearchTag(q)}
+                        className="search-breadcrumb-tag-remove"
+                        title={`キーワード「${q}」を外す`}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setFilterText('')}
+                    className="explorer-btn"
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      borderColor: 'rgba(239, 68, 68, 0.3)',
+                      color: 'var(--danger-color, #ef4444)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '2px 8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="検索を解除して通常の一覧に戻る"
+                  >
+                    <span>✕</span>
+                    <span>{lang === 'en' ? 'Clear search' : '検索解除'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="explorer-meta-info">
+          <div className="explorer-meta-info" style={{ marginLeft: 'auto' }}>
             <span className="explorer-stat-badge">
               {lang === 'en' ? `SUB-DIRS: ${subCategories.length}` : `サブフォルダ: ${subCategories.length}`}
             </span>
             <span className="explorer-stat-badge">
-              {lang === 'en' ? `FILES: ${filesInCurrentFolder.length}` : `ファイル: ${filesInCurrentFolder.length}`}
+              {!explorerCategory
+                ? (lang === 'en' ? `FILES: ${filesInCurrentFolder.length} (ALL: ${allFiles.length})` : `ファイル: ${filesInCurrentFolder.length} (全階層: ${allFiles.length})`)
+                : (lang === 'en' ? `FILES: ${filesInCurrentFolder.length}` : `ファイル: ${filesInCurrentFolder.length}`)}
             </span>
 
             {/* ソート順切り替え */}
@@ -825,7 +1585,7 @@ export const FolderExplorer: React.FC = () => {
         </div>
       </div>
 
-      <div className="explorer-scroll-area">
+      <div className="explorer-scroll-area" ref={scrollAreaRef} onScroll={handleScrollArea}>
         {/* 03. サブディレクトリ群のカード表示（存在する場合） */}
         {subCategories.length > 0 && (
           <section className="explorer-section">
@@ -1137,30 +1897,149 @@ export const FolderExplorer: React.FC = () => {
           </section>
         )}
 
-        {/* 04. ログファイル・テキストのダイジェストカード/リスト一覧 */}
+        {/* 03-B. 検索時にフォルダー名がマッチしたサブカテゴリー一覧 */}
+        {searchQueries.length > 0 && matchingSubCategories.length > 0 && (
+          <section className="explorer-section">
+            <div className="explorer-section-title">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="section-icon">📁</span>
+                <span>{lang === 'en' ? `MATCHING FOLDERS (${matchingSubCategories.length})` : `一致したフォルダー・サブカテゴリー (${matchingSubCategories.length})`}</span>
+              </div>
+            </div>
+            <div className="explorer-folders-grid">
+              {matchingSubCategories.map(cat => {
+                return (
+                  <div 
+                    key={cat.name} 
+                    className="folder-card"
+                    onClick={() => openExplorer(cat.name)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter') openExplorer(cat.name); }}
+                  >
+                    <div className="folder-card-top">
+                      <div className="folder-card-icon-wrap">
+                        <FolderIcon size={20} />
+                      </div>
+                      <div 
+                        className="folder-card-name" 
+                        title={cat.name}
+                        dangerouslySetInnerHTML={{
+                          __html: highlightText(cat.name.replace(/\//g, ' > '), searchQueries)
+                        }}
+                      />
+                      <div className="folder-card-count" title={`${cat.totalCount} files`}>
+                        {cat.totalCount}
+                      </div>
+                    </div>
+                    <div className="folder-card-substats">
+                      <span className="folder-card-subinfo">
+                        📁 {cat.name.replace(/\//g, ' > ')}
+                      </span>
+                      <div className="folder-card-actions">
+                        <span className="folder-card-open-arrow">
+                          {lang === 'en' ? 'Open ➔' : '開く ➔'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* 04. ログファイル・テキストの一覧（検索時 / 通常表示時 / サブカテゴリー展開） */}
         <section className={`explorer-section ${isSelecting ? 'select-mode-active' : ''}`} style={{ position: 'relative', zIndex: 30 }}>
           <div className="explorer-section-title" style={{ position: 'relative', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-            {/* 左側: 見出しタイトルと件数 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span className="section-icon">📄</span>
-              <span>LOGS / ARTICLES ({filesInCurrentFolder.length})</span>
-              {sortMode === 'custom' && (
-                <span 
-                  style={{ 
-                    fontSize: '9.5px', 
-                    padding: '1px 6px', 
-                    background: 'rgba(59, 130, 246, 0.12)', 
-                    color: 'var(--sb-accent, #3b82f6)', 
-                    border: '1px solid rgba(59, 130, 246, 0.3)', 
-                    borderRadius: '0px', 
-                    fontWeight: 700,
-                    letterSpacing: '0.4px'
-                  }}
-                  title={lang === 'en' ? 'Custom ordering is active' : '手動で設定したカスタム並び順が適用されています'}
-                >
-                  {lang === 'en' ? 'CUSTOM ORDER' : 'カスタム順'}
+            {/* 左側: 見出しタイトルと件数 & グループ表示切り替え */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="section-icon">{searchQueries.length > 0 ? '🔍' : '📄'}</span>
+                <span>
+                  {searchQueries.length > 0 
+                    ? (lang === 'en' ? `SEARCH RESULTS (${matchingFiles.length})` : `検索結果 (${matchingFiles.length}件)`)
+                    : groupMode === 'by-category'
+                    ? (!explorerCategory
+                        ? (lang === 'en' ? `ALL FOLDERS EXPANDED (${allFiles.length})` : `全フォルダー展開 (${allFiles.length}件)`)
+                        : (lang === 'en' ? `ALL SUB-FOLDERS EXPANDED (${categoryFileCounts.get(explorerCategory) || filesInCurrentFolder.length})` : `配下サブフォルダー展開 (${categoryFileCounts.get(explorerCategory) || filesInCurrentFolder.length}件)`))
+                    : (!explorerCategory
+                        ? (lang === 'en' ? `ROOT DIRECT FILES (${filesInCurrentFolder.length})` : `ルート直下のファイル (${filesInCurrentFolder.length}件)`)
+                        : (lang === 'en' ? `LOGS / ARTICLES (${filesInCurrentFolder.length})` : `ログファイル・記事一覧 (${filesInCurrentFolder.length}件)`))}
                 </span>
-              )}
+                {searchQueries.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterText('')}
+                    className="explorer-btn"
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      borderColor: 'rgba(239, 68, 68, 0.3)',
+                      color: 'var(--danger-color, #ef4444)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '2px 8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="検索を解除して通常の一覧に戻る"
+                  >
+                    <span>✕</span>
+                    <span>{lang === 'en' ? 'Clear' : '検索解除'}</span>
+                  </button>
+                )}
+                {sortMode === 'custom' && searchQueries.length === 0 && (
+                  <span 
+                    style={{ 
+                      fontSize: '9.5px', 
+                      padding: '1px 6px', 
+                      background: 'rgba(59, 130, 246, 0.12)', 
+                      color: 'var(--sb-accent, #3b82f6)', 
+                      border: '1px solid rgba(59, 130, 246, 0.3)', 
+                      borderRadius: '0px', 
+                      fontWeight: 700,
+                      letterSpacing: '0.4px'
+                    }}
+                    title={lang === 'en' ? 'Custom ordering is active' : '手動で設定したカスタム並び順が適用されています'}
+                  >
+                    {lang === 'en' ? 'CUSTOM ORDER' : 'カスタム順'}
+                  </span>
+                )}
+              </div>
+
+              {/* サブカテゴリー別グループ表示 vs 直下/フラット切り替えピル */}
+              <div className="explorer-layout-group" style={{ marginLeft: '4px' }}>
+                <button
+                  type="button"
+                  className={`explorer-layout-btn ${groupMode === 'standard' ? 'active' : ''}`}
+                  onClick={() => handleSetGroupMode('standard')}
+                  title={
+                    searchQueries.length > 0
+                      ? (lang === 'en' ? 'Flat search result list' : '全検索結果をフラットに一覧表示')
+                      : (lang === 'en' ? 'Show only direct files in this folder' : 'このフォルダー直下のファイルのみ表示')
+                  }
+                  style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                >
+                  <span>📄</span>
+                  <span>{searchQueries.length > 0 ? (lang === 'en' ? 'Flat List' : '全件一覧') : (lang === 'en' ? 'Direct Files' : '直下のみ')}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`explorer-layout-btn ${groupMode === 'by-category' ? 'active' : ''}`}
+                  onClick={() => handleSetGroupMode('by-category')}
+                  title={
+                    searchQueries.length > 0
+                      ? (lang === 'en' ? 'Group search results by folder' : '検索結果をフォルダー（カテゴリー）別に整理して表示')
+                      : (lang === 'en' ? 'Expand all sub-categories and their files' : 'サブカテゴリー別にフォルダーと配下ファイルを展開表示')
+                  }
+                  style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                >
+                  <span>📁</span>
+                  <span>{lang === 'en' ? 'Group by Folder' : 'フォルダー別に整理'}</span>
+                </button>
+              </div>
             </div>
 
             {/* 右側: ツールバー + 表示形式ピルを一番右寄りにまとめて配置 */}
@@ -1183,7 +2062,7 @@ export const FolderExplorer: React.FC = () => {
                   type="button"
                   className={`explorer-bulk-tool-btn select-all ${isAllFolderSelected ? 'active' : ''}`}
                   onClick={handleToggleSelectAll}
-                  disabled={filesInCurrentFolder.length === 0}
+                  disabled={activeDisplayedFiles.length === 0}
                   title={isAllFolderSelected ? (lang === 'en' ? 'Deselect all' : '全選択解除') : (lang === 'en' ? 'Select all' : 'すべて選択')}
                 >
                   <div className={`explorer-mini-checkbox ${isAllFolderSelected ? 'checked' : (isSomeFolderSelected ? 'indeterminate' : '')}`}>
@@ -1391,399 +2270,357 @@ export const FolderExplorer: React.FC = () => {
             </div>
           </div>
 
-          {filesInCurrentFolder.length === 0 ? (
-            <div className="explorer-empty-box">
-              {loading || isResuming ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '24px 0' }}>
-                  <span className="dice-spinner-mini" style={{ fontSize: '24px' }}>🎲</span>
-                  <span style={{ fontSize: '13px', opacity: 0.85 }}>
-                    {lang === 'en' ? 'Loading folder logs...' : 'フォルダーを読み込み中です...'}
-                  </span>
-                </div>
-              ) : (
-                <p>{lang === 'en' ? 'No files in this directory' : 'このフォルダーにはファイルがありません'}</p>
-              )}
-            </div>
-          ) : layoutMode === 'card' ? (
-            <div className="explorer-files-grid">
-              {filesInCurrentFolder.map(f => {
-                const mark = fileMarks[f.filename];
-                const digest = getDigestSnippet(f.content);
-                const charCount = f.content ? f.content.length : 0;
-                const fileKey = (f.category || '') + '::' + f.filename;
-                const isSelected = selectedFiles.has(fileKey);
+          {/* 検索時のレンダリング */}
+          {searchQueries.length > 0 ? (
+            matchingFiles.length === 0 ? (
+              <div className="explorer-empty-box" style={{ padding: '36px 20px', textAlign: 'center' }}>
+                <p style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
+                  {lang === 'en' 
+                    ? `No files found matching "${searchQueries.join(' ')}"` 
+                    : `「${searchQueries.join(' ')}」に一致するファイルは見つかりませんでした`}
+                </p>
+                {searchScope !== 'all' && (
+                  <div style={{ marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="explorer-btn primary"
+                      onClick={() => setSearchScope('all')}
+                      style={{ padding: '6px 14px', fontSize: '12px' }}
+                    >
+                      🌐 {lang === 'en' ? 'Search All Folders (ALL DATA)' : '検索範囲を全フォルダー（ALL DATA）に広げる'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : groupMode === 'by-category' ? (
+              /* 検索結果: フォルダー（カテゴリー）別グループ表示 */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {matchingFilesByCategory.map(group => {
+                  const catKey = group.category || '__root__';
+                  const limit = groupExpandedLimits[catKey] || 30;
+                  const displayedFiles = group.files.slice(0, limit);
+                  const hasMore = group.files.length > limit;
 
-                return (
-                  <div 
-                    key={f.filename}
-                    className={`article-card ${isSelected ? 'selected' : ''}`}
-                    onClick={() => {
-                      if (isSelecting) {
-                        toggleFileSelection(f);
-                      } else {
-                        selectFile(f);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => { 
-                      if (e.key === 'Enter') {
-                        if (isSelecting) toggleFileSelection(f);
-                        else selectFile(f);
-                      }
-                    }}
-                  >
-                    {/* カードヘッダー: チェックボックス & ファイル名 & 日付 & マーク */}
-                    <div className="article-card-header">
-                      {(isSelecting || isSelected) ? (
-                        <div 
-                          className={`article-card-checkbox ${isSelected ? 'checked' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFileSelection(f);
-                          }}
-                          role="checkbox"
-                          aria-checked={isSelected}
-                          title={isSelected ? (lang === 'en' ? 'Deselect' : '選択解除') : (lang === 'en' ? 'Select' : '選択')}
-                        >
-                          {isSelected && (
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="article-check-svg">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
+                  return (
+                    <div key={catKey} className="explorer-category-group-block" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div className="explorer-category-group-header">
+                        <div className="group-title">
+                          <span style={{ fontSize: '14px' }}>📁</span>
+                          <span 
+                            dangerouslySetInnerHTML={{
+                              __html: highlightText(group.label, searchQueries)
+                            }}
+                          />
+                          <span className="group-count">
+                            {group.files.length} {lang === 'en' ? 'matches' : '件一致'}
+                          </span>
+                        </div>
+                        {group.category && (
+                          <button
+                            type="button"
+                            className="group-open-btn"
+                            onClick={() => openExplorer(group.category)}
+                            title={`フォルダー「${group.label}」を開く`}
+                          >
+                            {lang === 'en' ? 'Open folder ➔' : 'フォルダーを開く ➔'}
+                          </button>
+                        )}
+                      </div>
+
+                      {layoutMode === 'card' ? (
+                        <div className="explorer-files-grid">
+                          {displayedFiles.map(f => renderArticleCard(f, false))}
                         </div>
                       ) : (
-                        <div 
-                          className="article-card-checkbox hover-reveal"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsExplorerSelectMode(true);
-                            toggleFileSelection(f);
-                          }}
-                          role="checkbox"
-                          aria-checked={false}
-                          title={lang === 'en' ? 'Select' : '選択'}
-                        />
+                        <div className={`explorer-files-list density-${listDensity}`}>
+                          {displayedFiles.map(f => renderArticleListRow(f, false))}
+                        </div>
                       )}
-                      <div className="article-card-filename" title={f.filename}>
-                        {f.filename}
-                      </div>
-                      <div className="article-card-tags">
-                        {f.isShortcut && (
-                          <span 
-                            className="article-shortcut-badge" 
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                              padding: '1px 5px',
-                              fontSize: '9.5px',
-                              fontWeight: 700,
-                              background: 'rgba(59, 130, 246, 0.15)',
-                              border: '1px solid var(--sb-accent, #3b82f6)',
-                              color: 'var(--sb-accent, #3b82f6)',
-                              borderRadius: '0px'
-                            }}
-                            title={`ショートカット (原本: ${f.originalCategory || 'ALL DATA (ルート)'} / ${f.originalFilename || f.filename})`}
-                          >
-                            🔗 {lang === 'en' ? 'Shortcut' : 'ショートカット'}
+
+                      {/* グループ内の追加読み込みボタン */}
+                      {hasMore && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--btn-hover, rgba(120, 120, 120, 0.06))', border: '1px solid var(--card-border, rgba(120, 120, 120, 0.15))', borderRadius: '0px', marginTop: '2px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--main-text, inherit)', opacity: 0.75 }}>
+                            {lang === 'en' ? `Showing ${displayedFiles.length} of ${group.files.length} files` : `表示中: ${displayedFiles.length} / ${group.files.length} 件`}
                           </span>
-                        )}
-                        {!f.isShortcut && (() => {
-                          const origKey = (f.category || '') + '::' + f.filename;
-                          const activeCats = fileShortcuts[origKey] || [];
-                          if (activeCats.length === 0) return null;
-                          return (
-                            <span 
-                              className="article-original-badge" 
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                                padding: '1px 6px',
-                                fontSize: '9.5px',
-                                fontWeight: 700,
-                                background: 'rgba(16, 185, 129, 0.12)',
-                                border: '1px solid #10b981',
-                                color: '#059669',
-                                borderRadius: '0px'
-                              }}
-                              title={`👑 原本ファイル (マスター)\nこの原本のショートカット配置先(${activeCats.length}件):\n${activeCats.map(c => '・' + (c || 'ALL DATA (ルート)')).join('\n')}`}
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              type="button"
+                              className="explorer-btn"
+                              onClick={() => handleExpandGroup(catKey, 30)}
+                              style={{ fontSize: '10.5px', padding: '2px 8px' }}
                             >
-                              👑 {lang === 'en' ? `Original (📤 ${activeCats.length})` : `原本 📤 ${activeCats.length}ヶ所に配信`}
-                            </span>
-                          );
-                        })()}
-                        {mark && <span className="article-mark-badge">{mark}</span>}
-                        {f.date && (
-                          <span className="article-date-badge">
-                            {f.date}
-                          </span>
-                        )}
-                      </div>
+                              ＋30件を表示
+                            </button>
+                            <button
+                              type="button"
+                              className="explorer-btn"
+                              onClick={() => handleExpandGroupAll(catKey, group.files.length)}
+                              style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                            >
+                              全{group.files.length}件を表示
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* 検索結果: 全件フラット表示 */
+              <div>
+                {layoutMode === 'card' ? (
+                  <div className="explorer-files-grid">
+                    {matchingFiles.slice(0, visibleCount).map(f => renderArticleCard(f, true))}
+                  </div>
+                ) : (
+                  <div className={`explorer-files-list density-${listDensity}`}>
+                    {matchingFiles.slice(0, visibleCount).map(f => renderArticleListRow(f, true))}
+                  </div>
+                )}
 
-                    {/* カードタイトル */}
-                    <div className="article-card-title">
-                      {f.title || f.filename}
+                {/* スクロール追加読み込みバー / 完了通知 */}
+                {matchingFiles.length > visibleCount && (
+                  <div className="explorer-load-more-bar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '24px 0 16px 0' }}>
+                    <div ref={loadMoreSentinelRef} style={{ height: '4px', width: '100%' }} />
+                    <span style={{ fontSize: '12px', color: 'var(--main-text, inherit)', opacity: 0.8, fontWeight: 600 }}>
+                      {lang === 'en'
+                        ? `Showing ${Math.min(visibleCount, matchingFiles.length)} of ${matchingFiles.length} files (scroll down or click below)`
+                        : `表示中: ${Math.min(visibleCount, matchingFiles.length)} / ${matchingFiles.length} 件（スクロールで自動追加）`}
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                      <button 
+                        type="button" 
+                        className="explorer-btn primary" 
+                        onClick={() => setVisibleCount(prev => Math.min(prev + PAGE_SIZE, matchingFiles.length))}
+                        style={{ fontSize: '11px', padding: '5px 16px' }}
+                      >
+                        {lang === 'en' ? `＋ Show more (+${PAGE_SIZE})` : `＋ さらに表示（+${PAGE_SIZE}件）`}
+                      </button>
+                      <button 
+                        type="button" 
+                        className="explorer-btn" 
+                        onClick={() => setVisibleCount(matchingFiles.length)}
+                        style={{ fontSize: '11px', padding: '5px 16px' }}
+                      >
+                        {lang === 'en' ? `Load All (${matchingFiles.length - visibleCount} remaining)` : `全件を一括表示（残り ${matchingFiles.length - visibleCount} 件）`}
+                      </button>
                     </div>
-
-                    {/* ダイジェスト本文（先頭2〜3行プレビュー） */}
-                    <div className="article-card-digest">
-                      {digest || (lang === 'en' ? '(Empty file)' : '（本文なし）')}
-                    </div>
-
-                    {/* カードフッター */}
-                    <div className="article-card-footer">
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <button
-                          type="button"
-                          className="article-quick-btn"
-                          title={lang === 'en' ? 'Duplicate file' : 'このファイルを複製'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            duplicateFile(f);
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
-                            padding: '2px 5px',
-                            fontSize: '10px',
-                            color: 'var(--btn-text, inherit)',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '2px'
-                          }}
-                        >
-                          <CopyIcon size={11} />
-                        </button>
-                        <button
-                          type="button"
-                          className="article-quick-btn"
-                          title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            selectFile(f);
-                            openMovePanel(e, 'single', 'shortcut');
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid var(--card-border, rgba(120,120,120,0.3))',
-                            padding: '2px 5px',
-                            fontSize: '10px',
-                            color: 'var(--btn-text, inherit)',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '2px'
-                          }}
-                        >
-                          <ShortcutIcon size={11} />
-                        </button>
-                        <span className="article-char-count">
-                          {charCount.toLocaleString()} {lang === 'en' ? 'chars' : '文字'}
-                        </span>
-                      </div>
-                      <span className="article-open-label">
-                        {lang === 'en' ? 'Open ➔' : '開く ➔'}
+                  </div>
+                )}
+                {matchingFiles.length > PAGE_SIZE && visibleCount >= matchingFiles.length && (
+                  <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '11.5px', color: 'var(--main-text, inherit)', opacity: 0.55 }}>
+                    {lang === 'en' ? `All ${matchingFiles.length} files loaded` : `✓ 全 ${matchingFiles.length} 件のファイルをすべて読み込みました`}
+                  </div>
+                )}
+              </div>
+            )
+          ) : groupMode === 'by-category' && subCategoryFileGroups.length > 0 ? (
+            /* 通常時: サブカテゴリー別展開表示 */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+              {/* 直下のファイル（存在する場合） */}
+              {filesInCurrentFolder.length > 0 && (
+                <div className="explorer-category-group-block" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div className="explorer-category-group-header">
+                    <div className="group-title">
+                      <span style={{ fontSize: '14px' }}>📂</span>
+                      <span>
+                        {explorerCategory ? `${explorerCategory.split('/').pop()} (直下のファイル)` : 'ALL DATA (ルート直下のファイル)'}
+                      </span>
+                      <span className="group-count">
+                        {filesInCurrentFolder.length} {lang === 'en' ? 'files' : '件'}
                       </span>
                     </div>
+                  </div>
+                  {(() => {
+                    const catKey = explorerCategory || '__root__';
+                    const limit = groupExpandedLimits[catKey] || 30;
+                    const displayed = filesInCurrentFolder.slice(0, limit);
+                    const hasMore = filesInCurrentFolder.length > limit;
+
+                    return (
+                      <>
+                        {layoutMode === 'card' ? (
+                          <div className="explorer-files-grid">
+                            {displayed.map(f => renderArticleCard(f, false))}
+                          </div>
+                        ) : (
+                          <div className={`explorer-files-list density-${listDensity}`}>
+                            {displayed.map(f => renderArticleListRow(f, false))}
+                          </div>
+                        )}
+
+                        {hasMore && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--btn-hover, rgba(120, 120, 120, 0.06))', border: '1px solid var(--card-border, rgba(120, 120, 120, 0.15))', borderRadius: '0px', marginTop: '2px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--main-text, inherit)', opacity: 0.75 }}>
+                              {lang === 'en' ? `Showing ${displayed.length} of ${filesInCurrentFolder.length} files` : `表示中: ${displayed.length} / ${filesInCurrentFolder.length} 件`}
+                            </span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="explorer-btn"
+                                onClick={() => handleExpandGroup(catKey, 30)}
+                                style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                              >
+                                ＋30件を表示
+                              </button>
+                              <button
+                                type="button"
+                                className="explorer-btn"
+                                onClick={() => handleExpandGroupAll(catKey, filesInCurrentFolder.length)}
+                                style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                              >
+                                全{filesInCurrentFolder.length}件を表示
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* 各サブフォルダーの展開 */}
+              {subCategoryFileGroups.map(group => {
+                const catKey = group.category;
+                const limit = groupExpandedLimits[catKey] || 30;
+                const displayed = group.files.slice(0, limit);
+                const hasMore = group.files.length > limit;
+
+                return (
+                  <div key={group.category} className="explorer-category-group-block" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className="explorer-category-group-header">
+                      <div className="group-title">
+                        <span style={{ fontSize: '14px' }}>📁</span>
+                        <span>
+                          {group.label}
+                        </span>
+                        <span className="group-count">
+                          {group.totalCount} {lang === 'en' ? 'files' : '件'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="group-open-btn"
+                        onClick={() => openExplorer(group.category)}
+                        title={`フォルダー「${group.label}」を開く`}
+                      >
+                        {lang === 'en' ? 'Open folder ➔' : 'フォルダーを開く ➔'}
+                      </button>
+                    </div>
+
+                    {group.files.length > 0 ? (
+                      <>
+                        {layoutMode === 'card' ? (
+                          <div className="explorer-files-grid">
+                            {displayed.map(f => renderArticleCard(f, false))}
+                          </div>
+                        ) : (
+                          <div className={`explorer-files-list density-${listDensity}`}>
+                            {displayed.map(f => renderArticleListRow(f, false))}
+                          </div>
+                        )}
+
+                        {hasMore && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--btn-hover, rgba(120, 120, 120, 0.06))', border: '1px solid var(--card-border, rgba(120, 120, 120, 0.15))', borderRadius: '0px', marginTop: '2px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--main-text, inherit)', opacity: 0.75 }}>
+                              {lang === 'en' ? `Showing ${displayed.length} of ${group.files.length} files` : `表示中: ${displayed.length} / ${group.files.length} 件`}
+                            </span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="explorer-btn"
+                                onClick={() => handleExpandGroup(catKey, 30)}
+                                style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                              >
+                                ＋30件を表示
+                              </button>
+                              <button
+                                type="button"
+                                className="explorer-btn"
+                                onClick={() => handleExpandGroupAll(catKey, group.files.length)}
+                                style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                              >
+                                全{group.files.length}件を表示
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '11.5px', opacity: 0.6, padding: '8px 12px', fontStyle: 'italic' }}>
+                        {lang === 'en' ? '(No direct files in this folder, contains sub-folders)' : '（直下にファイルはなく、サブフォルダーが存在します）'}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           ) : (
-            /* 横長リスト型（イメージビュアーのようなスリム＆高一覧性ビュー） */
-            <div className={`explorer-files-list density-${listDensity}`}>
-              {filesInCurrentFolder.map(f => {
-                const mark = fileMarks[f.filename];
-                const digest = getDigestSnippet(f.content, 90);
-                const charCount = f.content ? f.content.length : 0;
-                const fileKey = (f.category || '') + '::' + f.filename;
-                const isSelected = selectedFiles.has(fileKey);
+            /* 通常時: 直下のファイルのみ表示 */
+            filesInCurrentFolder.length === 0 ? (
+              <div className="explorer-empty-box">
+                {loading || isResuming ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '24px 0' }}>
+                    <span className="dice-spinner-mini" style={{ fontSize: '24px' }}>🎲</span>
+                    <span style={{ fontSize: '13px', opacity: 0.85 }}>
+                      {lang === 'en' ? 'Loading folder logs...' : 'フォルダーを読み込み中です...'}
+                    </span>
+                  </div>
+                ) : (
+                  <p>{lang === 'en' ? 'No files in this directory' : 'このフォルダーにはファイルがありません'}</p>
+                )}
+              </div>
+            ) : (
+              <div>
+                {layoutMode === 'card' ? (
+                  <div className="explorer-files-grid">
+                    {filesInCurrentFolder.slice(0, visibleCount).map(f => renderArticleCard(f, false))}
+                  </div>
+                ) : (
+                  <div className={`explorer-files-list density-${listDensity}`}>
+                    {filesInCurrentFolder.slice(0, visibleCount).map(f => renderArticleListRow(f, false))}
+                  </div>
+                )}
 
-                return (
-                  <div 
-                    key={f.filename}
-                    className={`article-list-row ${isSelected ? 'selected' : ''}`}
-                    onClick={() => {
-                      if (isSelecting) {
-                        toggleFileSelection(f);
-                      } else {
-                        selectFile(f);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => { 
-                      if (e.key === 'Enter') {
-                        if (isSelecting) toggleFileSelection(f);
-                        else selectFile(f);
-                      }
-                    }}
-                  >
-                    <div className="article-list-left">
-                      {(isSelecting || isSelected) ? (
-                        <div 
-                          className={`article-list-checkbox ${isSelected ? 'checked' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFileSelection(f);
-                          }}
-                          role="checkbox"
-                          aria-checked={isSelected}
-                          title={isSelected ? (lang === 'en' ? 'Deselect' : '選択解除') : (lang === 'en' ? 'Select' : '選択')}
-                        >
-                          {isSelected && (
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="article-check-svg">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </div>
-                      ) : (
-                        <div 
-                          className="article-list-checkbox hover-reveal"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsExplorerSelectMode(true);
-                            toggleFileSelection(f);
-                          }}
-                          role="checkbox"
-                          aria-checked={false}
-                          title={lang === 'en' ? 'Select' : '選択'}
-                        />
-                      )}
-                      <div className="article-list-icon-box">
-                        <span className="article-list-doc-icon">{f.isShortcut ? '🔗' : '📄'}</span>
-                      </div>
-                      <div className="article-list-content">
-                        <div className="article-list-title-line">
-                          {f.isShortcut && (
-                            <span 
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '2px',
-                                padding: '0 4px',
-                                fontSize: '9.5px',
-                                fontWeight: 700,
-                                background: 'rgba(59, 130, 246, 0.15)',
-                                border: '1px solid var(--sb-accent, #3b82f6)',
-                                color: 'var(--sb-accent, #3b82f6)',
-                                marginRight: '6px',
-                                borderRadius: '0px'
-                              }}
-                              title={`ショートカット (原本: ${f.originalCategory || 'ALL DATA'} / ${f.originalFilename || f.filename})`}
-                            >
-                              🔗
-                            </span>
-                          )}
-                          {!f.isShortcut && (() => {
-                            const origKey = (f.category || '') + '::' + f.filename;
-                            const activeCats = fileShortcuts[origKey] || [];
-                            if (activeCats.length === 0) return null;
-                            return (
-                              <span 
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '3px',
-                                  padding: '0 5px',
-                                  fontSize: '9px',
-                                  fontWeight: 700,
-                                  background: 'rgba(16, 185, 129, 0.12)',
-                                  border: '1px solid #10b981',
-                                  color: '#059669',
-                                  marginRight: '6px',
-                                  borderRadius: '0px'
-                                }}
-                                title={`👑 原本ファイル (ショートカット配信先 ${activeCats.length}件):\n${activeCats.map(c => '・' + (c || 'ALL DATA (ルート)')).join('\n')}`}
-                              >
-                                👑原本 📤{activeCats.length}
-                              </span>
-                            );
-                          })()}
-                          {mark && <span className="article-mark-badge" style={{ marginRight: '6px' }}>{mark}</span>}
-                          <span className="article-list-title" title={f.title || f.filename}>
-                            {f.title || f.filename}
-                          </span>
-                        </div>
-                        <div className="article-list-sub-line">
-                          <span className="article-list-filename" title={f.filename}>
-                            {f.filename}
-                          </span>
-                          {digest && (
-                            <>
-                              <span className="article-list-dot">•</span>
-                              <span className="article-list-snippet">
-                                {digest}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="article-list-right">
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginRight: '4px' }}>
-                        <button
-                          type="button"
-                          title={lang === 'en' ? 'Duplicate file' : 'このファイルを複製'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            duplicateFile(f);
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            padding: '2px 4px',
-                            color: 'var(--sub-text, inherit)',
-                            cursor: 'pointer',
-                            opacity: 0.6
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
-                        >
-                          <CopyIcon size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            selectFile(f);
-                            openMovePanel(e, 'single', 'shortcut');
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            padding: '2px 4px',
-                            color: 'var(--sub-text, inherit)',
-                            cursor: 'pointer',
-                            opacity: 0.6
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
-                        >
-                          <ShortcutIcon size={12} />
-                        </button>
-                      </div>
-
-                      {f.date && (
-                        <span className="article-list-date" title="日付">
-                          {f.date}
-                        </span>
-                      )}
-                      <span className="article-list-chars" title="文字数">
-                        {charCount.toLocaleString()} {lang === 'en' ? 'chars' : '文字'}
-                      </span>
-                      <span className="article-list-open-arrow">➔</span>
+                {/* スクロール追加読み込みバー / 完了通知 */}
+                {filesInCurrentFolder.length > visibleCount && (
+                  <div className="explorer-load-more-bar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '24px 0 16px 0' }}>
+                    <div ref={loadMoreSentinelRef} style={{ height: '4px', width: '100%' }} />
+                    <span style={{ fontSize: '12px', color: 'var(--main-text, inherit)', opacity: 0.8, fontWeight: 600 }}>
+                      {lang === 'en'
+                        ? `Showing ${Math.min(visibleCount, filesInCurrentFolder.length)} of ${filesInCurrentFolder.length} files (scroll down or click below)`
+                        : `表示中: ${Math.min(visibleCount, filesInCurrentFolder.length)} / ${filesInCurrentFolder.length} 件（スクロールで自動追加）`}
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                      <button 
+                        type="button" 
+                        className="explorer-btn primary" 
+                        onClick={() => setVisibleCount(prev => Math.min(prev + PAGE_SIZE, filesInCurrentFolder.length))}
+                        style={{ fontSize: '11px', padding: '5px 16px' }}
+                      >
+                        {lang === 'en' ? `＋ Show more (+${PAGE_SIZE})` : `＋ さらに表示（+${PAGE_SIZE}件）`}
+                      </button>
+                      <button 
+                        type="button" 
+                        className="explorer-btn" 
+                        onClick={() => setVisibleCount(filesInCurrentFolder.length)}
+                        style={{ fontSize: '11px', padding: '5px 16px' }}
+                      >
+                        {lang === 'en' ? `Load All (${filesInCurrentFolder.length - visibleCount} remaining)` : `全件を一括表示（残り ${filesInCurrentFolder.length - visibleCount} 件）`}
+                      </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                )}
+                {filesInCurrentFolder.length > PAGE_SIZE && visibleCount >= filesInCurrentFolder.length && (
+                  <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '11.5px', color: 'var(--main-text, inherit)', opacity: 0.55 }}>
+                    {lang === 'en' ? `All ${filesInCurrentFolder.length} files loaded` : `✓ 全 ${filesInCurrentFolder.length} 件のファイルをすべて読み込みました`}
+                  </div>
+                )}
+              </div>
+            )
           )}
         </section>
       </div>
