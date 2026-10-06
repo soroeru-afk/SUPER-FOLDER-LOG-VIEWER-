@@ -23,7 +23,8 @@ export const MainContent = () => {
     mainBgWhite, toggleMainBgWhite,
     isResuming, pendingResumeHandle, resumeSavedFolder, loading,
     viewMode, openExplorer,
-    sidebarPosition
+    sidebarPosition,
+    isNewFileModalOpen, newFileInitialCategory, closeNewFileDialog, createAndOpenFile, allCategories
   } = useAppContext();
 
   const [markPaletteOpen, setMarkPaletteOpen] = useState(false);
@@ -33,6 +34,16 @@ export const MainContent = () => {
   const [renameInputVal, setRenameInputVal] = useState('');
   const [folderRenameTarget, setFolderRenameTarget] = useState<{ name: string; handle: any } | null>(null);
   const [folderRenameInputVal, setFolderRenameInputVal] = useState('');
+
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileCategory, setNewFileCategory] = useState('');
+
+  useEffect(() => {
+    if (isNewFileModalOpen) {
+      setNewFileName('');
+      setNewFileCategory(newFileInitialCategory || '');
+    }
+  }, [isNewFileModalOpen, newFileInitialCategory]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -229,14 +240,25 @@ export const MainContent = () => {
     setEditValue(currentContent);
   }, [currentContent, isEditing]);
 
-  // 編集モード時：枠が画面下まで自然に広がり、文章量に合わせて自動で下に伸びる（手動で伸ばす必要をなくす）
+  // 編集モード時：枠が画面下まで自然に広がり、確実にカーソルが入るようフォーカス
   useEffect(() => {
-    if (isEditing && editTextareaRef.current) {
-      const el = editTextareaRef.current;
-      el.style.height = 'auto';
-      const minViewportH = Math.max(500, window.innerHeight - 280);
-      const calculatedH = Math.max(minViewportH, el.scrollHeight + 32);
-      el.style.height = `${calculatedH}px`;
+    if (isEditing) {
+      const focusAndExpand = () => {
+        if (editTextareaRef.current) {
+          const el = editTextareaRef.current;
+          el.style.height = 'auto';
+          const minViewportH = Math.max(500, window.innerHeight - 280);
+          const calculatedH = Math.max(minViewportH, el.scrollHeight + 32);
+          el.style.height = `${calculatedH}px`;
+          el.focus();
+          const len = el.value.length;
+          el.setSelectionRange(len, len);
+        }
+      };
+      focusAndExpand();
+      const t1 = setTimeout(focusAndExpand, 40);
+      const t2 = setTimeout(focusAndExpand, 120);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
   }, [isEditing, editValue]);
 
@@ -1555,6 +1577,114 @@ export const MainContent = () => {
                 }}
               >
                 {t.main.save || '変更'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 新規ファイル作成モーダル（カテゴリー選択・即時編集起動対応） */}
+      {isNewFileModalOpen && (
+        <div className="modal-backdrop" onClick={closeNewFileDialog}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <span style={{ fontSize: '15px' }}>📄＋</span>
+              <span>{lang === 'en' ? 'Create New File' : '新規ファイル作成'}</span>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label className="modal-label" style={{ marginBottom: '6px' }}>
+                  {lang === 'en' ? 'Save Location (Folder / Category):' : '保存先フォルダー（カテゴリー）:'}
+                </label>
+                <select
+                  className="modal-input"
+                  value={newFileCategory}
+                  onChange={e => setNewFileCategory(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <option value="">🏠 {lang === 'en' ? 'Root (ALL DATA / Timeline)' : '最上位（ALL DATA / 時系列）'}</option>
+                  {allCategories.map(cat => (
+                    <option key={cat.name} value={cat.name}>
+                      📁 {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="modal-hint">
+                  {newFileCategory ? `「${newFileCategory}」の中に保存されます` : 'どのフォルダーにも属さない最上位（ALL DATA）に保存されます'}
+                </div>
+              </div>
+
+              <div>
+                <label className="modal-label" style={{ marginBottom: '6px' }}>
+                  {lang === 'en' ? 'File Name (Number or Title):' : 'ファイル名（番号またはタイトル）:'}
+                </label>
+                <input
+                  type="text"
+                  className="modal-input"
+                  placeholder="例: 0001 または 記録"
+                  value={newFileName}
+                  onChange={e => setNewFileName(e.target.value)}
+                  autoFocus
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (newFileName.trim()) {
+                        await createAndOpenFile(newFileName.trim(), newFileCategory || null);
+                      }
+                    } else if (e.key === 'Escape') {
+                      closeNewFileDialog();
+                    }
+                  }}
+                />
+                {(() => {
+                  const raw = newFileName.trim();
+                  let ext = '.txt';
+                  if (raw.endsWith('.md')) ext = '';
+                  else if (raw.endsWith('.txt')) ext = '';
+
+                  const now = new Date();
+                  const yyyy = now.getFullYear();
+                  const mm = String(now.getMonth() + 1).padStart(2, '0');
+                  const dd = String(now.getDate()).padStart(2, '0');
+                  const hh = String(now.getHours()).padStart(2, '0');
+                  const min = String(now.getMinutes()).padStart(2, '0');
+                  const datePrefix = `${yyyy}${mm}${dd}_${hh}${min}_`;
+
+                  let previewName = (raw || '0001') + ext;
+                  if (!/^\d{4}-?\d{2}-?\d{2}_\d{2}-?\d{2}\.?_/.test(previewName)) {
+                    previewName = datePrefix + previewName;
+                  }
+
+                  return (
+                    <div style={{ marginTop: '7px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <div style={{ color: 'var(--sb-accent, #3b82f6)', fontWeight: 700, fontFamily: 'monospace' }}>
+                        📄 {lang === 'en' ? 'File to create: ' : '作成されるファイル名: '}
+                        <span style={{ textDecoration: 'underline' }}>{previewName}</span>
+                      </div>
+                      <div className="modal-hint" style={{ margin: 0 }}>
+                        {lang === 'en' 
+                          ? '※ Standard text file (.txt) formatted with current date & number. Opens directly in EDIT mode.'
+                          : '※ 他のファイルと同じ「日付＋番号」形式（.txt）で作成され、すぐに編集モードで開かれます'}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn-cancel" onClick={closeNewFileDialog}>
+                {t.main.cancel}
+              </button>
+              <button
+                className="modal-btn-primary"
+                disabled={!newFileName.trim()}
+                onClick={async () => {
+                  if (newFileName.trim()) {
+                    await createAndOpenFile(newFileName.trim(), newFileCategory || null);
+                  }
+                }}
+              >
+                {lang === 'en' ? 'Create & Edit ➔' : '作成して編集を開始 ➔'}
               </button>
             </div>
           </div>

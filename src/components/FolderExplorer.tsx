@@ -39,6 +39,7 @@ export const FolderExplorer: React.FC = () => {
     t,
     lang,
     createNewFile,
+    openNewFileDialog,
     createNewFolder,
     renameFolder,
     deleteFolder,
@@ -1414,7 +1415,7 @@ export const FolderExplorer: React.FC = () => {
                 </button>
                 <button 
                   className="explorer-btn" 
-                  onClick={() => createNewFile(currentFolderHandle || dirHandle)}
+                  onClick={() => openNewFileDialog(explorerCategory)}
                   title={lang === 'en' ? 'Create a blank new file' : '空の新規ファイルを作成'}
                   style={{ padding: '5px 8px' }}
                 >

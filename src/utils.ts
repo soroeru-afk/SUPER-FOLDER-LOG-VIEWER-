@@ -2,10 +2,12 @@ const IDB_NAME = 'LogViewerDB';
 const IDB_STORE = 'handles';
 const IDB_KEY = 'lastFolder';
 const IDB_STORE_FALLBACK = 'fallback_files';
+const IDB_STORE_FILE_CACHE = 'file_cache';
+const IDB_KEY_METADATA = 'metadata_cache';
 
 export async function openIDB(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
-    const req = indexedDB.open(IDB_NAME, 2);
+    const req = indexedDB.open(IDB_NAME, 3);
     req.onupgradeneeded = (e: any) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(IDB_STORE)) {
@@ -14,10 +16,69 @@ export async function openIDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(IDB_STORE_FALLBACK)) {
         db.createObjectStore(IDB_STORE_FALLBACK);
       }
+      if (!db.objectStoreNames.contains(IDB_STORE_FILE_CACHE)) {
+        db.createObjectStore(IDB_STORE_FILE_CACHE);
+      }
     };
     req.onsuccess = (e: any) => res(e.target.result);
     req.onerror = (e: any) => rej(e.target.error);
   });
+}
+
+export interface CachedFileMeta {
+  filename: string;
+  category: string | null;
+  date: string;
+  time: string;
+  title: string;
+  dateSource: string;
+  snippet?: string;
+}
+
+export interface FileMetadataCache {
+  rootName: string;
+  pFolders: { name: string }[];
+  files: CachedFileMeta[];
+  savedAt: number;
+}
+
+export async function saveFileMetaCache(cache: FileMetadataCache) {
+  try {
+    const db = await openIDB();
+    // キャッシュサイズ肥大化防止: 各ファイルのスニペットは最大120文字、ファイル数は最大3000件に制限
+    const sanitizedFiles: CachedFileMeta[] = cache.files.slice(0, 3000).map(f => ({
+      filename: f.filename,
+      category: f.category,
+      date: f.date,
+      time: f.time,
+      title: f.title,
+      dateSource: f.dateSource,
+      snippet: f.snippet ? f.snippet.slice(0, 120) : ''
+    }));
+    const sanitizedCache: FileMetadataCache = {
+      rootName: cache.rootName || '',
+      pFolders: cache.pFolders || [],
+      files: sanitizedFiles,
+      savedAt: Date.now()
+    };
+    db.transaction(IDB_STORE_FILE_CACHE, 'readwrite').objectStore(IDB_STORE_FILE_CACHE).put(sanitizedCache, IDB_KEY_METADATA);
+  } catch(e) {
+    console.warn('Failed to save file metadata cache:', e);
+  }
+}
+
+export async function loadFileMetaCache(): Promise<FileMetadataCache | null> {
+  try {
+    const db = await openIDB();
+    return new Promise(res => {
+      const tx = db.transaction(IDB_STORE_FILE_CACHE, 'readonly');
+      const req = tx.objectStore(IDB_STORE_FILE_CACHE).get(IDB_KEY_METADATA);
+      req.onsuccess = (e: any) => res(e.target.result || null);
+      req.onerror = () => res(null);
+    });
+  } catch(e) {
+    return null;
+  }
 }
 
 export async function saveFallbackData(data: any) {

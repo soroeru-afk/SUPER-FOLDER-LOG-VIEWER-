@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
-import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename } from './utils';
+import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename, loadFileMetaCache, saveFileMetaCache, CachedFileMeta } from './utils';
 import { THEMES, getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from './theme';
 import { applySettingsToDOM } from './settingsSync';
 import { migrateFolderVisualSettings } from './folderVisuals';
@@ -59,7 +59,7 @@ export interface AppState {
   setSearchQuery: (query: string) => void;
   clearSearch: () => void;
   removeSearchQuery: (query: string) => void;
-  selectFile: (f: FileObj) => void;
+  selectFile: (f: FileObj, fromNav?: boolean, startEditing?: boolean) => void;
   toggleEdit: () => void;
   saveFile: (content: string) => Promise<void>;
   toggleSelectMode: () => void;
@@ -92,7 +92,12 @@ export interface AppState {
   renameFolder: (oldName: string, folderHandle?: any, explicitNewName?: string) => Promise<boolean>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
   createNewFolder: (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string) => Promise<boolean>;
-  createNewFile: (folderHandle: any) => Promise<void>;
+  createNewFile: (folderHandle?: any) => Promise<void>;
+  isNewFileModalOpen: boolean;
+  newFileInitialCategory: string | null;
+  openNewFileDialog: (initialCategory?: string | null) => void;
+  closeNewFileDialog: () => void;
+  createAndOpenFile: (filename: string, targetCategory: string | null) => Promise<void>;
   importExistingFiles: (targetFolderHandle: any, targetCategory?: string) => Promise<void>;
   lang: 'en' | 'ja';
   setLang: (lang: 'en' | 'ja') => void;
@@ -130,6 +135,8 @@ export interface AppState {
   isResuming: boolean;
   pendingResumeHandle: any;
   resumeSavedFolder: () => Promise<void>;
+  isBackgroundLoading: boolean;
+  backgroundProgress: { loaded: number; total: number };
 }
 
 export interface TTSSettings {
@@ -846,6 +853,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
   const [pendingResumeHandle, setPendingResumeHandle] = useState<any>(null);
+  const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
+  const [backgroundProgress, setBackgroundProgress] = useState({ loaded: 0, total: 0 });
+  const loadSessionIdRef = useRef(0);
 
   useEffect(() => {
     localStorage.setItem('lv_highlightOff', isHighlightOff ? '1' : '0');
@@ -885,6 +895,38 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const init = async () => {
+      // 1. IndexedDBから超高速メタデータキャッシュを先行読み込み（画面0秒復元）
+      let hasCachedFiles = false;
+      try {
+        const metaCache = await loadFileMetaCache();
+        if (metaCache && metaCache.files && metaCache.files.length > 0) {
+          const cachedFiles: FileObj[] = metaCache.files.map(cf => ({
+            filename: cf.filename,
+            handle: null,
+            category: cf.category,
+            folderHandle: null,
+            date: cf.date,
+            time: cf.time,
+            title: cf.title,
+            dateSource: cf.dateSource,
+            content: cf.snippet || ''
+          }));
+          const cachedPFolders: PhysicalFolder[] = (metaCache.pFolders || []).map(pf => ({
+            name: pf.name,
+            handle: null
+          }));
+          setRawFiles(cachedFiles);
+          const merged = buildAllFiles(cachedFiles, fileShortcutsRef.current, cachedPFolders);
+          setAllFiles(merged);
+          setPhysicalFolders(cachedPFolders);
+          updateFilter(merged, cachedPFolders, searchQueries);
+          restoreLastLocation(merged, cachedPFolders);
+          hasCachedFiles = true;
+        }
+      } catch (e) {
+        console.warn('Metadata cache restore error:', e);
+      }
+
       let fallbackData = await loadFallbackData();
       if (!fallbackData && !window.showDirectoryPicker) {
         const sampleContent = `# AI Search 検索ログ & Markdown再現テスト
@@ -941,7 +983,9 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       } else {
         const handle = await loadFolderHandle();
         if (handle) {
-          setIsResuming(true);
+          if (!hasCachedFiles) {
+            setIsResuming(true);
+          }
           try {
             const perm = typeof (handle as any).queryPermission === 'function'
               ? await (handle as any).queryPermission({ mode: 'readwrite' })
@@ -949,7 +993,10 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
             if (perm === 'granted') {
               setDirHandle(handle);
-              setLoading(true);
+              // キャッシュで既に一覧が表示されていれば全体スピナーは出さず静かに更新
+              if (!hasCachedFiles) {
+                setLoading(true);
+              }
               await loadFiles(handle);
               setLoading(false);
             } else {
@@ -979,6 +1026,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
   };
 
   const loadFiles = async (handle: any, overrideShortcuts?: Record<string, string[]>) => {
+    const currentSessionId = ++loadSessionIdRef.current;
     const entries: {handle: any, category: string | null, folderHandle: any | null}[] = [];
     const pFolders: PhysicalFolder[] = [];
     
@@ -999,32 +1047,30 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     
     pFolders.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
     
-    const files = await Promise.all(entries.map(async entry => {
+    // 【第1段階: メタデータ先行即時生成】
+    // ファイル名から日付・タイトルを即時パース。重い本文ディスクI/Oを待たずに画面描画へ！
+    const initialFiles: FileObj[] = entries.map(entry => {
       const p = parseFilename(entry.handle.name);
-      const file = await entry.handle.getFile();
-      const content = await file.text();
-      let d = p.date, t = p.time, src = '';
-      if (!d) {
-        const lm = new Date(file.lastModified);
-        d = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
-        t = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}:${String(lm.getSeconds()).padStart(2,'0')}`;
-        src = 'os';
-      }
       return { 
-        filename: entry.handle.name, handle: entry.handle, 
-        category: entry.category, folderHandle: entry.folderHandle, 
-        date: d, time: t, title: p.title || entry.handle.name.replace(/\.[^.]+$/,''), 
-        dateSource: src, content 
+        filename: entry.handle.name, 
+        handle: entry.handle, 
+        category: entry.category, 
+        folderHandle: entry.folderHandle, 
+        date: p.date, 
+        time: p.time, 
+        title: p.title || entry.handle.name.replace(/\.[^.]+$/,''), 
+        dateSource: p.date ? 'filename' : '', 
+        content: '' 
       };
-    }));
+    });
     
-    files.sort((a, b) => {
+    initialFiles.sort((a, b) => {
       const dtA = (a.date || '') + (a.time || '');
       const dtB = (b.date || '') + (b.time || '');
       return dtB.localeCompare(dtA);
     });
 
-    setRawFiles(files);
+    setRawFiles(initialFiles);
     
     // ディスク上の _shortcuts.json が存在する場合は読み込み同期
     let shortcutsToUse = overrideShortcuts || fileShortcutsRef.current;
@@ -1045,13 +1091,89 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       }
     } catch (e) {}
 
-    const merged = buildAllFiles(files, shortcutsToUse, pFolders);
+    const merged = buildAllFiles(initialFiles, shortcutsToUse, pFolders);
     setAllFiles(merged);
     setPhysicalFolders(pFolders);
     updateFilter(merged, pFolders, searchQueries);
 
     // レジューム機能: 最後に開いていた場所（ファイル／フォルダー／ALL DATA）を復元
     restoreLastLocation(merged, pFolders);
+
+    // ★ここでローディング表示を即座に解除！画面が表示されてユーザーが即操作可能に★
+    setLoading(false);
+    setIsResuming(false);
+
+    // 【第2段階: バックグラウンド非同期読み込み ＆ IndexedDBキャッシュ更新】
+    // 画面操作を一切ブロックしないよう、25件ごとのバッチで裏側で本文を順次ロード
+    setIsBackgroundLoading(true);
+    setBackgroundProgress({ loaded: 0, total: initialFiles.length });
+
+    (async () => {
+      const chunkSize = 25;
+      let totalLoaded = 0;
+      for (let i = 0; i < initialFiles.length; i += chunkSize) {
+        if (loadSessionIdRef.current !== currentSessionId) return; // 別のフォルダが開かれた場合は中断
+
+        const chunk = initialFiles.slice(i, i + chunkSize);
+        await Promise.all(chunk.map(async f => {
+          try {
+            if (!f.content && f.handle) {
+              const file = await f.handle.getFile();
+              f.content = await file.text();
+              if (!f.date) {
+                const lm = new Date(file.lastModified);
+                f.date = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
+                f.time = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}:${String(lm.getSeconds()).padStart(2,'0')}`;
+                f.dateSource = 'os';
+              }
+            }
+          } catch(e) {}
+        }));
+
+        totalLoaded = Math.min(i + chunkSize, initialFiles.length);
+        if (loadSessionIdRef.current === currentSessionId) {
+          setBackgroundProgress({ loaded: totalLoaded, total: initialFiles.length });
+        }
+
+        // メインスレッドのUI描画を優先するためわずかにインターバル
+        await new Promise(r => setTimeout(r, 10));
+
+        // 適度な間隔（125件ごと、または全件完了時）で画面データを静かに同期
+        if ((i + chunkSize >= initialFiles.length) || (i > 0 && i % 125 === 0)) {
+          if (loadSessionIdRef.current === currentSessionId) {
+            setRawFiles([...initialFiles]);
+            setAllFiles(prev => {
+              const sc = fileShortcutsRef.current;
+              return buildAllFiles(initialFiles, sc, pFolders);
+            });
+          }
+        }
+      }
+
+      if (loadSessionIdRef.current === currentSessionId) {
+        setIsBackgroundLoading(false);
+        // バックグラウンド完了時にIndexedDBへ軽量メタデータキャッシュを保存
+        try {
+          const cacheFiles: CachedFileMeta[] = initialFiles.map(f => ({
+            filename: f.filename,
+            category: f.category,
+            date: f.date,
+            time: f.time,
+            title: f.title,
+            dateSource: f.dateSource,
+            snippet: f.content ? f.content.slice(0, 100) : ''
+          }));
+          await saveFileMetaCache({
+            rootName: handle.name || 'Root',
+            pFolders: pFolders.map(pf => ({ name: pf.name })),
+            files: cacheFiles,
+            savedAt: Date.now()
+          });
+        } catch(e) {
+          console.warn('Failed to save metadata cache:', e);
+        }
+      }
+    })();
   };
 
   const updateFilter = (files: FileObj[], pFolders: PhysicalFolder[], queries: string[]) => {
@@ -1254,10 +1376,26 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setSearchQuery(newVal);
   };
 
-  const selectFile = (f: FileObj, fromNav = false) => {
+  const selectFile = async (f: FileObj, fromNav = false, startEditing = false) => {
+    let content = f.content;
+    if (!content && f.handle) {
+      try {
+        const file = await f.handle.getFile();
+        content = await file.text();
+        f.content = content;
+        if (!f.date) {
+          const lm = new Date(file.lastModified);
+          f.date = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
+          f.time = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}:${String(lm.getSeconds()).padStart(2,'0')}`;
+          f.dateSource = 'os';
+        }
+      } catch (e) {
+        console.warn('On-demand file read failed:', e);
+      }
+    }
     setCurrentFileObj(f);
-    setCurrentContent(f.content);
-    setIsEditing(false);
+    setCurrentContent(content || '');
+    setIsEditing(startEditing);
     setViewMode('reader');
     if (f.category) {
       setExplorerCategory(f.category);
@@ -2196,21 +2334,115 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
   };
 
-  const createNewFile = async (folderHandle: any) => {
-    if (isFallbackMode || !folderHandle) return;
-    const fileName = prompt(t.main.newFilePrompt || "新しいファイル名:");
-    if (!fileName || !fileName.trim()) return;
-    let name = fileName.trim();
-    if (!name.endsWith('.md') && !name.endsWith('.txt')) name += '.md';
-    try {
-      const fh = await folderHandle.getFileHandle(name, { create: true });
-      const w = await fh.createWritable();
-      await w.write("");
-      await w.close();
-      await loadFiles(dirHandle);
-    } catch (e: any) {
-      alert(e.message);
+  const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
+  const [newFileInitialCategory, setNewFileInitialCategory] = useState<string | null>(null);
+
+  const openNewFileDialog = (initialCategory?: string | null) => {
+    setNewFileInitialCategory(initialCategory !== undefined ? initialCategory : (explorerCategory || null));
+    setIsNewFileModalOpen(true);
+  };
+
+  const closeNewFileDialog = () => {
+    setIsNewFileModalOpen(false);
+  };
+
+  const createAndOpenFile = async (fileNameInput: string, targetCategory: string | null) => {
+    let raw = fileNameInput.trim();
+    if (!raw) return;
+
+    // 拡張子の判定（未指定なら既存ファイルと同じ標準の .txt、明示的に .md が入力された場合のみ .md）
+    let ext = '.txt';
+    if (raw.endsWith('.md')) {
+      ext = '';
+    } else if (raw.endsWith('.txt')) {
+      ext = '';
     }
+
+    // カオルさまの時系列フォーマット: 現在日時プリフィックス（YYYYMMDD_HHMM_）
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const datePrefix = `${yyyy}${mm}${dd}_${hh}${min}_`;
+
+    let finalFilename = raw + ext;
+    // すでに日時プリフィックスが入っていない場合は自動付与（例: 0001 -> 20261006_2215_0001.txt）
+    if (!/^\d{4}-?\d{2}-?\d{2}_\d{2}-?\d{2}\.?_/.test(finalFilename)) {
+      finalFilename = datePrefix + finalFilename;
+    }
+
+    const p = parseFilename(finalFilename);
+    const dateStr = p.date || `${yyyy}-${mm}-${dd}`;
+    const timeStr = p.time || `${hh}:${min}`;
+
+    // レジューム復元先をあらかじめ新ファイルにセット（loadFilesの復元で別ファイルに上書きされないようにする）
+    try {
+      localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'file', filename: finalFilename, category: targetCategory || null }));
+      localStorage.setItem('lv_lastFile', JSON.stringify({ filename: finalFilename, category: targetCategory || null }));
+    } catch(e) {}
+
+    let fh: any = null;
+    let targetDirHandle: any = null;
+
+    if (!isFallbackMode && dirHandle) {
+      try {
+        targetDirHandle = targetCategory 
+          ? await getDirectoryHandleByPath(dirHandle, targetCategory, true)
+          : dirHandle;
+
+        fh = await targetDirHandle.getFileHandle(finalFilename, { create: true });
+        const w = await fh.createWritable();
+        await w.write("");
+        await w.close();
+      } catch (e: any) {
+        alert(e.message);
+        return;
+      }
+    }
+
+    const newFileObj: FileObj = {
+      filename: finalFilename,
+      handle: fh,
+      category: targetCategory || null,
+      folderHandle: targetCategory ? targetDirHandle : null,
+      date: dateStr,
+      time: timeStr,
+      title: p.title || finalFilename.replace(/\.[^.]+$/, ''),
+      dateSource: 'filename',
+      content: ''
+    };
+
+    if (isFallbackMode) {
+      const nextRaw = [newFileObj, ...rawFiles];
+      setRawFiles(nextRaw);
+      const merged = buildAllFiles(nextRaw, fileShortcuts, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+      await saveFallbackData({ fileObjs: nextRaw, pFolders: physicalFolders, rootFolderName: dirHandle?.name || 'Selected Folder' });
+    } else if (dirHandle) {
+      await loadFiles(dirHandle);
+    }
+
+    // モーダルを閉じ、作成したファイルを選択して直ちに編集モードを開始！
+    setIsNewFileModalOpen(false);
+    await selectFile(newFileObj, false, true);
+    setIsEditing(true);
+
+    // loadFiles の並行処理や画面再描画による上書きを防ぐため、確実に編集モードを維持
+    setTimeout(() => {
+      setIsEditing(true);
+    }, 40);
+    setTimeout(() => {
+      setIsEditing(true);
+    }, 150);
+
+    showToast(lang === 'en' ? `Created: ${finalFilename}` : `ファイルを作成しました: ${finalFilename}`, 'success');
+  };
+
+  const createNewFile = async (folderHandle?: any) => {
+    openNewFileDialog(explorerCategory || null);
   };
 
   const importExistingFiles = async (targetFolderHandle: any, targetCategory?: string) => {
@@ -2304,13 +2536,15 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       toast, showToast,
       bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      isNewFileModalOpen, newFileInitialCategory, openNewFileDialog, closeNewFileDialog, createAndOpenFile,
       ttsSettings, updateTtsSettings, voiceRates, voices, writingMode, setWritingMode,
       currentTheme, setTheme, cycleTheme,
       paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, loadPaperForTheme,
       mainBgWhite, setMainBgWhite, toggleMainBgWhite,
       sidebarPosition, setSidebarPosition, toggleSidebarPosition,
       fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
-      isResuming, pendingResumeHandle, resumeSavedFolder
+      isResuming, pendingResumeHandle, resumeSavedFolder,
+      isBackgroundLoading, backgroundProgress
     }}>
       {children}
     </AppContext.Provider>

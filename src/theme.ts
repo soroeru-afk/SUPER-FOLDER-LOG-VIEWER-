@@ -380,9 +380,10 @@ export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {
   r.setProperty('--sb-category-opacity', t.sbCategoryOpacity || '0.85');
   r.setProperty('--sb-category-color', t.sbMutedOverride || t.sbMain || '');
 
-  // PWA/ブラウザのメタテーマカラーおよびヘッダー背景色の動的リアルタイム同期
+  // PWA/ブラウザのヘッダー色（theme-color）をサイドバー背景色（t.sbBg）に動的同期
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
-    metaThemeColor.setAttribute('content', t.sbBg || t.mainBg || '#0F172A');
+    metaThemeColor.setAttribute('content', t.sbBg || '#0F172A');
   }
 }
+

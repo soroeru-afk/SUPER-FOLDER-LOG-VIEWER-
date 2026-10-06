@@ -14,14 +14,15 @@ export const Sidebar = () => {
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
     fileShortcuts,
-    createNewFolder, createNewFile,
+    createNewFolder, createNewFile, openNewFileDialog,
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
     customFolderOrders,
     fileMarks, setBulkFileMarks, isResuming, pendingResumeHandle, resumeSavedFolder,
     openExplorer, explorerCategory, viewMode, setViewMode,
     canGoBack, canGoForward, goBack, goForward,
-    sidebarPosition, toggleSidebarPosition
+    sidebarPosition, toggleSidebarPosition,
+    isBackgroundLoading, backgroundProgress
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -261,9 +262,10 @@ export const Sidebar = () => {
     if (searchQueries.length > 0) isOpen = true;
 
     const isCategory = groupKey.startsWith('cat:');
+    let targetCatName: string | null = null;
     let targetHandle: any = null;
     if (isCategory) {
-      const targetCatName = groupKey.slice(4);
+      targetCatName = groupKey.slice(4);
       const cat = physicalFolders.find(c => c.name === targetCatName);
       if (cat) targetHandle = cat.handle;
     }
@@ -302,7 +304,7 @@ export const Sidebar = () => {
             <span 
               className="new-file-btn"
               title={t.main.newFilePrompt}
-              onClick={(e) => { e.stopPropagation(); createNewFile(targetHandle); }}
+              onClick={(e) => { e.stopPropagation(); openNewFileDialog(targetCatName); }}
               style={{
                 marginLeft: 'auto', background: 'var(--sb-accent)', color: '#fff',
                 width: '18px', height: '18px', borderRadius: '0px', display: 'flex',
@@ -883,16 +885,28 @@ export const Sidebar = () => {
       )}
 
       {dirHandle && isAddMode && (
-        <button 
-          onClick={createNewFolder}
-          style={{
-            margin: '0 10px 10px', padding: '10px', background: 'var(--sb-item-hover)', 
-            border: '1px dashed var(--sb-border)', borderRadius: '0px', 
-            color: 'var(--sb-accent)', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
-            display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
-          }}>
-          {t.main.newRootFolder || "+ 一番上（ルート）に新規フォルダー作成"}
-        </button>
+        <div style={{ margin: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <button 
+            onClick={() => openNewFileDialog(null)}
+            style={{
+              padding: '8px 10px', background: 'var(--sb-item-hover)', 
+              border: '1px dashed var(--sb-accent)', borderRadius: '0px', 
+              color: 'var(--sb-accent)', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+              display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
+            }}>
+            📄＋ {lang === 'en' ? 'Create New File' : '新規ファイル作成'}
+          </button>
+          <button 
+            onClick={createNewFolder}
+            style={{
+              padding: '8px 10px', background: 'var(--sb-item-hover)', 
+              border: '1px dashed var(--sb-border)', borderRadius: '0px', 
+              color: 'var(--sb-text)', opacity: 0.85, fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+              display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
+            }}>
+            📁＋ {t.main.newRootFolder || "ルートに新規フォルダー作成"}
+          </button>
+        </div>
       )}
 
       <div id="file-list">
@@ -900,11 +914,31 @@ export const Sidebar = () => {
         {dirHandle && renderList()}
       </div>
 
-      <div id="sidebar-footer">
+      <div id="sidebar-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <button id="settings-btn" onClick={(e) => { e.stopPropagation(); toggleSettings(); }}>
           <SettingsIcon />
           {t.app.settings}
         </button>
+
+        {isBackgroundLoading && backgroundProgress.total > 0 && (
+          <div 
+            style={{ 
+              fontSize: '10px', 
+              color: 'var(--sb-muted, #8FAFCF)', 
+              opacity: 0.75, 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '5px',
+              fontFamily: 'monospace',
+              letterSpacing: '0.4px',
+              userSelect: 'none'
+            }}
+            title={lang === 'en' ? 'Syncing file contents in background' : '裏で本文データを高速同期中'}
+          >
+            <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: 'var(--sb-accent, #3b82f6)', animation: 'pulse-soft 1.8s infinite ease-in-out' }} />
+            <span>SYNC {backgroundProgress.loaded}/{backgroundProgress.total}</span>
+          </div>
+        )}
       </div>
     </div>
   );
