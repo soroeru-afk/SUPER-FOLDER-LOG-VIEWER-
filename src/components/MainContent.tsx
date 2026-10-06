@@ -17,14 +17,15 @@ export const MainContent = () => {
     createShortcut, removeShortcut, execBulkShortcut, duplicateFile, execBulkDuplicate,
     fileShortcuts,
     renameFolder, deleteFolder, selectedFiles, selectedFileMap,
-    toast,
+    toast, showToast,
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
     paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
     mainBgWhite, toggleMainBgWhite,
     isResuming, pendingResumeHandle, resumeSavedFolder, loading,
     viewMode, openExplorer,
     sidebarPosition,
-    isNewFileModalOpen, newFileInitialCategory, closeNewFileDialog, createAndOpenFile, allCategories
+    isNewFileModalOpen, newFileInitialCategory, closeNewFileDialog, createAndOpenFile, allCategories,
+    createNewFolder, isNewFolderModalOpen, newFolderInitialParentPath, closeNewFolderDialog
   } = useAppContext();
 
   const [markPaletteOpen, setMarkPaletteOpen] = useState(false);
@@ -38,12 +39,49 @@ export const MainContent = () => {
   const [newFileName, setNewFileName] = useState('');
   const [newFileCategory, setNewFileCategory] = useState('');
 
+  const [newFolderModalName, setNewFolderModalName] = useState('');
+  const [newFolderModalParent, setNewFolderModalParent] = useState('');
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (isNewFileModalOpen) {
       setNewFileName('');
       setNewFileCategory(newFileInitialCategory || '');
     }
   }, [isNewFileModalOpen, newFileInitialCategory]);
+
+  useEffect(() => {
+    if (isNewFolderModalOpen) {
+      setNewFolderModalName('');
+      setNewFolderModalParent(newFolderInitialParentPath || '');
+      setTimeout(() => {
+        newFolderInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isNewFolderModalOpen, newFolderInitialParentPath]);
+
+  const handleCreateFolderModalSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newFolderModalName.trim();
+    if (!trimmed) return;
+
+    let targetHandle = dirHandle;
+    if (newFolderModalParent) {
+      const found = physicalFolders.find(p => p.name === newFolderModalParent);
+      if (found && found.handle) {
+        targetHandle = found.handle;
+      }
+    }
+
+    const success = await createNewFolder(targetHandle, newFolderModalParent, trimmed);
+    if (success) {
+      closeNewFolderDialog();
+      setNewFolderModalName('');
+      const fullPath = newFolderModalParent ? `${newFolderModalParent}/${trimmed}` : trimmed;
+      openExplorer(fullPath);
+      showToast(lang === 'en' ? `✓ Created folder 「${trimmed}」` : `✓ フォルダー「${trimmed}」を作成しました`, 'info');
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1687,6 +1725,104 @@ export const MainContent = () => {
                 {lang === 'en' ? 'Create & Edit ➔' : '作成して編集を開始 ➔'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 新規フォルダー作成モーダル（親フォルダー選択・00_付与ボタン対応） */}
+      {isNewFolderModalOpen && (
+        <div className="modal-backdrop" onClick={closeNewFolderDialog}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <span style={{ fontSize: '15px' }}>📁＋</span>
+              <span>{lang === 'en' ? 'Create New Folder' : '新規フォルダー作成'}</span>
+            </div>
+            <form onSubmit={handleCreateFolderModalSubmit}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label className="modal-label" style={{ marginBottom: '6px' }}>
+                    {lang === 'en' ? 'Destination Folder (Location):' : '作成先の場所（親フォルダー）:'}
+                  </label>
+                  <select
+                    className="modal-input"
+                    value={newFolderModalParent}
+                    onChange={e => setNewFolderModalParent(e.target.value)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level)' : 'ルートフォルダー (最上位)'} ({allFiles.length} {lang === 'en' ? 'files' : '件'})</option>
+                    {physicalFolders.map(cat => (
+                      <option key={cat.name} value={cat.name}>
+                        📁 {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="modal-hint">
+                    {newFolderModalParent ? `「${newFolderModalParent}」の中に作成されます` : '最上位（ルート）に作成されます'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label className="modal-label" style={{ margin: 0 }}>
+                      {lang === 'en' ? 'New Folder Name:' : '新しいフォルダー名:'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newFolderModalName.startsWith('00_')) {
+                          setNewFolderModalName(newFolderModalName.slice(3));
+                        } else {
+                          setNewFolderModalName('00_' + newFolderModalName);
+                        }
+                        newFolderInputRef.current?.focus();
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        fontFamily: 'monospace',
+                        borderRadius: '0px',
+                        border: newFolderModalName.startsWith('00_') ? '1px solid #3b82f6' : '1px solid var(--card-border, #CBD5E1)',
+                        background: newFolderModalName.startsWith('00_') ? '#3b82f6' : 'var(--btn-bg, #F1F5F9)',
+                        color: newFolderModalName.startsWith('00_') ? '#ffffff' : 'var(--main-text, #0F172A)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title={newFolderModalName.startsWith('00_') ? '先頭の「00_」を取り除く' : '先頭に「00_」をワンクリックで付与'}
+                    >
+                      {newFolderModalName.startsWith('00_') ? '✓ 先頭に 00_ 付き (解除)' : '＋「00_」を付ける'}
+                    </button>
+                  </div>
+                  <input
+                    ref={newFolderInputRef}
+                    type="text"
+                    className="modal-input"
+                    autoFocus
+                    placeholder={lang === 'en' ? 'Enter folder name...' : '例: 進行用_2026, 会議録 など'}
+                    value={newFolderModalName}
+                    onChange={e => setNewFolderModalName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') closeNewFolderDialog();
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="modal-btn-cancel" onClick={closeNewFolderDialog}>
+                  {t.main.cancel}
+                </button>
+                <button
+                  type="submit"
+                  className="modal-btn-primary"
+                  disabled={!newFolderModalName.trim()}
+                >
+                  📁 {lang === 'en' ? 'Create Folder ➔' : 'フォルダーを作成 ➔'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

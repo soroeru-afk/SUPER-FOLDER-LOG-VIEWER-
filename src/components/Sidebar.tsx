@@ -14,7 +14,7 @@ export const Sidebar = () => {
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
     fileShortcuts,
-    createNewFolder, createNewFile, openNewFileDialog,
+    createNewFolder, createNewFile, openNewFileDialog, openNewFolderDialog,
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
     customFolderOrders,
@@ -764,7 +764,7 @@ export const Sidebar = () => {
                 letterSpacing: '1px', padding: '3px 6px', borderRadius: '0px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'
               }}
-              title={t.main.newFolderPrompt}
+              title={lang === 'en' ? 'Toggle Add Mode (Create File / Folder)' : '新規作成モード切替（ファイル・フォルダー作成）'}
             >
               ＋ <FolderIcon />
             </button>
@@ -885,26 +885,53 @@ export const Sidebar = () => {
       )}
 
       {dirHandle && isAddMode && (
-        <div style={{ margin: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ margin: '0 10px 10px', display: 'flex', flexDirection: 'row', gap: '6px' }}>
           <button 
-            onClick={() => openNewFileDialog(null)}
+            onClick={() => openNewFileDialog(explorerCategory || currentFileObj?.category || null)}
             style={{
-              padding: '8px 10px', background: 'var(--sb-item-hover)', 
-              border: '1px dashed var(--sb-accent)', borderRadius: '0px', 
-              color: 'var(--sb-accent)', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
-              display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
-            }}>
-            📄＋ {lang === 'en' ? 'Create New File' : '新規ファイル作成'}
+              flex: 1,
+              padding: '7px 4px', 
+              background: 'var(--sb-item-hover)', 
+              border: '1px dashed var(--sb-accent)', 
+              borderRadius: '0px', 
+              color: 'var(--sb-accent)', 
+              fontSize: '11px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              gap: '4px',
+              whiteSpace: 'nowrap',
+              minWidth: 0
+            }}
+            title={lang === 'en' ? 'Create New File' : '新規ファイル作成'}
+          >
+            📄＋ {lang === 'en' ? 'New File' : '新規ファイル'}
           </button>
           <button 
-            onClick={createNewFolder}
+            onClick={() => openNewFolderDialog(null)}
             style={{
-              padding: '8px 10px', background: 'var(--sb-item-hover)', 
-              border: '1px dashed var(--sb-border)', borderRadius: '0px', 
-              color: 'var(--sb-text)', opacity: 0.85, fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
-              display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px'
-            }}>
-            📁＋ {t.main.newRootFolder || "ルートに新規フォルダー作成"}
+              flex: 1,
+              padding: '7px 4px', 
+              background: 'var(--sb-item-hover)', 
+              border: '1px dashed var(--sb-border)', 
+              borderRadius: '0px', 
+              color: 'var(--sb-text)', 
+              opacity: 0.9, 
+              fontSize: '11px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              gap: '4px',
+              whiteSpace: 'nowrap',
+              minWidth: 0
+            }}
+            title={lang === 'en' ? 'Create New Folder' : '新規フォルダー作成'}
+          >
+            📁＋ {lang === 'en' ? 'New Folder' : '新規フォルダー'}
           </button>
         </div>
       )}

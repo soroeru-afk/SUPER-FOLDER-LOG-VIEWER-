@@ -92,6 +92,10 @@ export interface AppState {
   renameFolder: (oldName: string, folderHandle?: any, explicitNewName?: string) => Promise<boolean>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
   createNewFolder: (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string) => Promise<boolean>;
+  isNewFolderModalOpen: boolean;
+  newFolderInitialParentPath: string | null;
+  openNewFolderDialog: (initialParentPath?: string | null) => void;
+  closeNewFolderDialog: () => void;
   createNewFile: (folderHandle?: any) => Promise<void>;
   isNewFileModalOpen: boolean;
   newFileInitialCategory: string | null;
@@ -2334,6 +2338,18 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
   };
 
+  const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
+  const [newFolderInitialParentPath, setNewFolderInitialParentPath] = useState<string | null>(null);
+
+  const openNewFolderDialog = (initialParentPath?: string | null) => {
+    setNewFolderInitialParentPath(initialParentPath !== undefined ? initialParentPath : (explorerCategory || null));
+    setIsNewFolderModalOpen(true);
+  };
+
+  const closeNewFolderDialog = () => {
+    setIsNewFolderModalOpen(false);
+  };
+
   const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
   const [newFileInitialCategory, setNewFileInitialCategory] = useState<string | null>(null);
 
@@ -2536,6 +2552,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       toast, showToast,
       bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      isNewFolderModalOpen, newFolderInitialParentPath, openNewFolderDialog, closeNewFolderDialog,
       isNewFileModalOpen, newFileInitialCategory, openNewFileDialog, closeNewFileDialog, createAndOpenFile,
       ttsSettings, updateTtsSettings, voiceRates, voices, writingMode, setWritingMode,
       currentTheme, setTheme, cycleTheme,
