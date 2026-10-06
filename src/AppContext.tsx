@@ -64,6 +64,7 @@ export interface AppState {
   saveFile: (content: string) => Promise<void>;
   toggleSelectMode: () => void;
   toggleFileSelection: (f: FileObj) => void;
+  selectFileRange: (targetFile: FileObj, orderedFiles: FileObj[], forceSelect?: boolean) => void;
   selectAllFiles: (files: FileObj[]) => void;
   deselectAllFiles: (files: FileObj[]) => void;
   clearFileSelection: () => void;
@@ -1317,6 +1318,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
   };
 
+  const [lastSelectedKey, setLastSelectedKey] = useState<string | null>(null);
+
   const toggleSelectMode = () => {
     const next = !isSelectMode;
     setIsSelectMode(next);
@@ -1324,6 +1327,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       setSelectedFiles(new Set());
       setSelectedFileMap(new Map());
       setMovePanelState(null);
+      setLastSelectedKey(null);
     }
   };
 
@@ -1341,6 +1345,54 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setSelectedFiles(newSet);
     setSelectedFileMap(newMap);
     if (newSet.size === 0) setMovePanelState(null);
+    setLastSelectedKey(key);
+  };
+
+  const selectFileRange = (targetFile: FileObj, orderedFiles: FileObj[], forceSelect?: boolean) => {
+    const targetKey = (targetFile.category || '') + '::' + targetFile.filename;
+    
+    // アンカーが無い、またはファイル一覧が空の場合は単一トグルとして処理
+    if (!lastSelectedKey || orderedFiles.length === 0) {
+      toggleFileSelection(targetFile);
+      setLastSelectedKey(targetKey);
+      return;
+    }
+
+    const anchorIdx = orderedFiles.findIndex(f => ((f.category || '') + '::' + f.filename) === lastSelectedKey);
+    const targetIdx = orderedFiles.findIndex(f => ((f.category || '') + '::' + f.filename) === targetKey);
+
+    if (anchorIdx === -1 || targetIdx === -1) {
+      toggleFileSelection(targetFile);
+      setLastSelectedKey(targetKey);
+      return;
+    }
+
+    const start = Math.min(anchorIdx, targetIdx);
+    const end = Math.max(anchorIdx, targetIdx);
+    const rangeFiles = orderedFiles.slice(start, end + 1);
+
+    const newSet = new Set(selectedFiles);
+    const newMap = new Map(selectedFileMap);
+
+    // 範囲内の全ファイルが既に選択されている場合は「範囲解除」、それ以外は「範囲選択」
+    const allSelected = rangeFiles.every(f => newSet.has((f.category || '') + '::' + f.filename));
+    const shouldSelect = forceSelect !== undefined ? forceSelect : !allSelected;
+
+    rangeFiles.forEach(f => {
+      const k = (f.category || '') + '::' + f.filename;
+      if (shouldSelect) {
+        newSet.add(k);
+        newMap.set(k, f);
+      } else {
+        newSet.delete(k);
+        newMap.delete(k);
+      }
+    });
+
+    setSelectedFiles(newSet);
+    setSelectedFileMap(newMap);
+    if (newSet.size === 0) setMovePanelState(null);
+    setLastSelectedKey(targetKey);
   };
 
   const selectAllFiles = (files: FileObj[]) => {
@@ -2245,7 +2297,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       viewMode, setViewMode, explorerCategory, setExplorerCategory, openExplorer,
       canGoBack, canGoForward, goBack, goForward, goBackExplorer, goForwardExplorer,
       openFolder, reopenFolder, refreshFolder, setSearchQuery, clearSearch, removeSearchQuery,
-      selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, selectAllFiles, deselectAllFiles, clearFileSelection, toggleHighlight,
+      selectFile, toggleEdit, saveFile, toggleSelectMode, toggleFileSelection, selectFileRange, selectAllFiles, deselectAllFiles, clearFileSelection, toggleHighlight,
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, setMovePanelMode, execBulkMove, moveToNewFolder,
       createShortcut, removeShortcut, execBulkShortcut, duplicateFile, execBulkDuplicate, fileShortcuts,

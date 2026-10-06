@@ -51,6 +51,7 @@ export const FolderExplorer: React.FC = () => {
     selectedFiles,
     selectedFileMap,
     toggleFileSelection,
+    selectFileRange,
     selectAllFiles,
     deselectAllFiles,
     clearFileSelection,
@@ -865,11 +866,20 @@ export const FolderExplorer: React.FC = () => {
       <div 
         key={fileKey}
         className={`article-card ${isSelected ? 'selected' : ''}`}
-        onClick={() => {
+        onClick={(e) => {
           if (isSelecting) {
-            toggleFileSelection(f);
+            if (e.shiftKey) {
+              selectFileRange(f, activeDisplayedFiles);
+            } else {
+              toggleFileSelection(f);
+            }
           } else {
-            selectFile(f);
+            if (e.shiftKey) {
+              setIsExplorerSelectMode(true);
+              selectFileRange(f, activeDisplayedFiles, true);
+            } else {
+              selectFile(f);
+            }
           }
         }}
         role="button"
@@ -888,7 +898,11 @@ export const FolderExplorer: React.FC = () => {
               className={`article-card-checkbox ${isSelected ? 'checked' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                toggleFileSelection(f);
+                if (e.shiftKey) {
+                  selectFileRange(f, activeDisplayedFiles);
+                } else {
+                  toggleFileSelection(f);
+                }
               }}
               role="checkbox"
               aria-checked={isSelected}
@@ -906,7 +920,11 @@ export const FolderExplorer: React.FC = () => {
               onClick={(e) => {
                 e.stopPropagation();
                 setIsExplorerSelectMode(true);
-                toggleFileSelection(f);
+                if (e.shiftKey) {
+                  selectFileRange(f, activeDisplayedFiles, true);
+                } else {
+                  toggleFileSelection(f);
+                }
               }}
               role="checkbox"
               aria-checked={false}
@@ -1078,11 +1096,20 @@ export const FolderExplorer: React.FC = () => {
       <div 
         key={fileKey}
         className={`article-list-row ${isSelected ? 'selected' : ''}`}
-        onClick={() => {
+        onClick={(e) => {
           if (isSelecting) {
-            toggleFileSelection(f);
+            if (e.shiftKey) {
+              selectFileRange(f, activeDisplayedFiles);
+            } else {
+              toggleFileSelection(f);
+            }
           } else {
-            selectFile(f);
+            if (e.shiftKey) {
+              setIsExplorerSelectMode(true);
+              selectFileRange(f, activeDisplayedFiles, true);
+            } else {
+              selectFile(f);
+            }
           }
         }}
         role="button"
@@ -1100,7 +1127,11 @@ export const FolderExplorer: React.FC = () => {
               className={`article-list-checkbox ${isSelected ? 'checked' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                toggleFileSelection(f);
+                if (e.shiftKey) {
+                  selectFileRange(f, activeDisplayedFiles);
+                } else {
+                  toggleFileSelection(f);
+                }
               }}
               role="checkbox"
               aria-checked={isSelected}
@@ -1118,7 +1149,11 @@ export const FolderExplorer: React.FC = () => {
               onClick={(e) => {
                 e.stopPropagation();
                 setIsExplorerSelectMode(true);
-                toggleFileSelection(f);
+                if (e.shiftKey) {
+                  selectFileRange(f, activeDisplayedFiles, true);
+                } else {
+                  toggleFileSelection(f);
+                }
               }}
               role="checkbox"
               aria-checked={false}

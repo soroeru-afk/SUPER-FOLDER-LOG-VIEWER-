@@ -1191,12 +1191,60 @@ html[data-sidebar-pos="right"] #settings-panel,
 #location-badge svg { flex-shrink: 0; width: 11px; height: 11px; opacity: 0.7; }
 
 body.select-mode .file-item { padding-left: 36px; position: relative; cursor: pointer; }
-body.select-mode .file-item .file-checkbox { position: absolute; left: 10px; top: 15px; width: 16px; height: 16px; border-radius: 0px; border: 1.5px solid var(--sb-border); background: var(--sb-item-hover); flex-shrink: 0; transition: all 0.1s; }
-body.select-mode .file-item.selected .file-checkbox { background: var(--sb-accent); border-color: var(--sb-accent); }
+body.select-mode .file-item .file-checkbox { 
+  position: absolute; 
+  left: 10px; 
+  top: 14px; 
+  width: 16px; 
+  height: 16px; 
+  border-radius: 0px; 
+  border: 1.5px solid var(--checkbox-border, rgba(140, 150, 160, 0.85)); 
+  background: rgba(255, 255, 255, 0.12); 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0; 
+  box-sizing: border-box;
+  transition: all 0.12s ease; 
+  z-index: 5;
+}
+body.select-mode .file-item:hover .file-checkbox,
+body.select-mode .file-item .file-checkbox:hover {
+  border-color: var(--sb-accent, #3b82f6) !important;
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+body.select-mode .file-item.selected .file-checkbox,
+body.select-mode .file-item .file-checkbox.checked { 
+  background: var(--sb-accent, #2563eb) !important; 
+  border-color: var(--sb-accent, #2563eb) !important; 
+}
+.file-check-svg {
+  width: 11px;
+  height: 11px;
+  stroke: #FFFFFF !important;
+  display: block;
+}
 body.select-mode .file-item.active { background: var(--sb-item-active); color: inherit; }
 body.select-mode .file-item.active .file-title { color: var(--sb-text); }
 body.select-mode .file-item.selected { background: var(--sb-item-active); }
 body.select-mode .file-item.selected .file-title { color: var(--sb-accent); }
+
+/* サイドバーチェックボックスのテーマ別視認性調整 */
+[data-theme-dark="false"] body.select-mode .file-item .file-checkbox:not(.checked),
+[data-theme-key="white"] body.select-mode .file-item .file-checkbox:not(.checked),
+[data-theme-key="light"] body.select-mode .file-item .file-checkbox:not(.checked),
+[data-theme-key="sepia"] body.select-mode .file-item .file-checkbox:not(.checked),
+[data-theme-key="mono"] body.select-mode .file-item .file-checkbox:not(.checked),
+[data-theme-key="rose"] body.select-mode .file-item .file-checkbox:not(.checked) {
+  border-color: #64748B !important;
+  background: #FFFFFF !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme-dark="true"] body.select-mode .file-item .file-checkbox:not(.checked) {
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
 
 #select-mode-btn { background: none; border: 1px solid var(--sb-border); border-radius: 0px; color: var(--sb-text); opacity: 0.75; font-size: 10px; font-weight: bold; letter-spacing: 1px; padding: 3px 8px; cursor: pointer; transition: all 0.12s; font-family: var(--font-sidebar); white-space: nowrap; }
 #select-mode-btn:hover { opacity: 1; border-color: var(--sb-border); }
@@ -1320,8 +1368,50 @@ body.select-mode .file-item.selected .file-title { color: var(--sb-accent); }
 #bulk-move-btn:hover { background: #2563EB; }
 #bulk-delete-btn { display: flex; align-items: center; gap: 6px; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); border-radius: 0px; color: #FCA5A5; font-size: 11px; font-weight: bold; padding: 7px 14px; cursor: pointer; transition: background 0.12s; }
 #bulk-delete-btn:hover { background: rgba(239,68,68,0.3); border-color: rgba(239,68,68,0.7); }
-#bulk-cancel-btn { background: rgba(255,255,255,0.07); border: none; border-radius: 0px; color: rgba(255,255,255,0.5); font-size: 11px; padding: 7px 10px; cursor: pointer; transition: background 0.12s; }
-#bulk-cancel-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+#bulk-cancel-btn { 
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08); 
+  border: 1px solid rgba(255, 255, 255, 0.22); 
+  border-radius: 0px; 
+  color: var(--sb-text, #ffffff); 
+  opacity: 0.9;
+  font-size: 11px; 
+  font-weight: 700;
+  padding: 7px 11px; 
+  cursor: pointer; 
+  transition: all 0.12s ease; 
+  white-space: nowrap;
+}
+#bulk-cancel-btn:hover { 
+  background: rgba(255, 255, 255, 0.18); 
+  border-color: rgba(255, 255, 255, 0.45); 
+  opacity: 1; 
+  color: #ffffff; 
+}
+
+/* 白・ライト系テーマ対応 */
+[data-theme-dark="false"] #bulk-cancel-btn,
+[data-theme-key="white"] #bulk-cancel-btn,
+[data-theme-key="light"] #bulk-cancel-btn,
+[data-theme-key="sepia"] #bulk-cancel-btn,
+[data-theme-key="mono"] #bulk-cancel-btn,
+[data-theme-key="rose"] #bulk-cancel-btn {
+  background: #F1F5F9 !important;
+  border: 1px solid #CBD5E1 !important;
+  color: #334155 !important;
+}
+[data-theme-dark="false"] #bulk-cancel-btn:hover,
+[data-theme-key="white"] #bulk-cancel-btn:hover,
+[data-theme-key="light"] #bulk-cancel-btn:hover,
+[data-theme-key="sepia"] #bulk-cancel-btn:hover,
+[data-theme-key="mono"] #bulk-cancel-btn:hover,
+[data-theme-key="rose"] #bulk-cancel-btn:hover {
+  background: #E2E8F0 !important;
+  border-color: #94A3B8 !important;
+  color: #0F172A !important;
+}
 
 .vertical-mode-active #content-area {
   overflow-y: hidden;

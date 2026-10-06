@@ -10,7 +10,7 @@ export const Sidebar = () => {
     setSearchQuery, clearSearch, removeSearchQuery, openFolder, reopenFolder, refreshFolder,
     loading, refreshing, isSelectMode, toggleSelectMode, isHighlightOff, toggleHighlight,
     expandAllGroups, collapseAllGroups, toggleSettings, settingsOpen,
-    selectedFiles, currentFileObj, selectFile, toggleFileSelection,
+    selectedFiles, currentFileObj, selectFile, toggleFileSelection, selectFileRange,
     categoryOpenState, setCategoryOpen,
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
     fileShortcuts,
@@ -28,6 +28,20 @@ export const Sidebar = () => {
   const [isAddMode, setIsAddMode] = useState(false);
   const [bulkMarkOpen, setBulkMarkOpen] = useState(false);
   const bulkMarkRef = useRef<HTMLDivElement>(null);
+
+  const visibleSidebarFiles = React.useMemo(() => {
+    if (searchQueries.length === 0) return allFiles;
+    return allFiles.filter(f => {
+      const q = searchQueries;
+      const fn = f.filename.toLowerCase();
+      const tit = f.title ? f.title.toLowerCase() : '';
+      const ct = f.content ? f.content.toLowerCase() : '';
+      return q.every(query => {
+        const lq = query.toLowerCase();
+        return fn.includes(lq) || tit.includes(lq) || ct.includes(lq);
+      });
+    });
+  }, [allFiles, searchQueries]);
 
   const isAnyGroupOpen = () => {
     const keys = Object.keys(categoryOpenState);
@@ -134,8 +148,20 @@ export const Sidebar = () => {
         key={(f.category||'')+'::'+f.filename}
         className={`file-item ${isSelected ? 'selected' : ''} ${isActive ? 'active' : ''}`}
         onClick={(e) => {
-          if (isSelectMode) toggleFileSelection(f);
-          else selectFile(f);
+          if (isSelectMode) {
+            if (e.shiftKey) {
+              selectFileRange(f, visibleSidebarFiles);
+            } else {
+              toggleFileSelection(f);
+            }
+          } else {
+            if (e.shiftKey) {
+              toggleSelectMode();
+              selectFileRange(f, visibleSidebarFiles, true);
+            } else {
+              selectFile(f);
+            }
+          }
         }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -157,8 +183,24 @@ export const Sidebar = () => {
         onDragEnd={() => { window.__draggedFiles = null; }}
       >
         {isSelectMode && (
-          <div className="file-checkbox">
-            {isSelected && <svg viewBox="-2 -2 28 28" fill="none" stroke="white" strokeWidth="3" style={{width:'100%', height:'100%'}}><polyline points="20 6 9 17 4 12"/></svg>}
+          <div 
+            className={`file-checkbox ${isSelected ? 'checked' : ''}`}
+            role="checkbox"
+            aria-checked={isSelected}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (e.shiftKey) {
+                selectFileRange(f, visibleSidebarFiles);
+              } else {
+                toggleFileSelection(f);
+              }
+            }}
+          >
+            {isSelected && (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="file-check-svg">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
           </div>
         )}
         {f.date && <div className="file-date">{f.dateSource==='os'?<span style={{opacity:0.5,fontSize:'9px'}}>📅 </span>:null}{f.date.replace(/-/g,'.')} {f.time}</div>}
@@ -765,6 +807,14 @@ export const Sidebar = () => {
           <div id="bulk-bar-inner">
             <span id="bulk-count">{lang === 'en' ? `${selectedFiles.size}${t.sidebar.selectedCount}` : `${selectedFiles.size}${t.sidebar.selectedCount}`}</span>
             
+            <button 
+              id="bulk-cancel-btn"
+              onClick={toggleSelectMode}
+              title={lang === 'en' ? 'Cancel selection and exit' : '選択を解除して終了'}
+            >
+              {lang === 'en' ? 'Cancel' : 'キャンセル'}
+            </button>
+
             <div className="bulk-mark-dropdown-container" ref={bulkMarkRef}>
               <button 
                 id="bulk-mark-btn"
