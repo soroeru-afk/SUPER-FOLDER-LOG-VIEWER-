@@ -844,57 +844,6 @@ export const MainContent = () => {
 
                     <ThemeQuickToggle />
 
-                    {/* 画像ファイル表示 / 非表示トグル（テーマボタンの横に配置・固定幅で文字ズレ防止） */}
-                    <button
-                      type="button"
-                      className={`theme-quick-toggle-btn-mirror ${showImageFiles ? 'active' : ''}`}
-                      onClick={toggleShowImageFiles}
-                      title={
-                        showImageFiles
-                          ? (lang === 'en' ? 'Image Files: ON (Showing image files. Click to hide)' : '画像ファイル表示: ON（画像ファイルを表示中。クリックで非表示）')
-                          : (lang === 'en' ? 'Image Files: OFF (Hiding image files for speed. Click to show)' : '画像ファイル表示: OFF（通常モード：画像ファイルを非表示。クリックで表示）')
-                      }
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '4px',
-                        height: '26px',
-                        width: '88px',
-                        minWidth: '88px',
-                        maxWidth: '88px',
-                        padding: '0 6px',
-                        boxSizing: 'border-box',
-                        background: showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, rgba(120, 120, 120, 0.08))',
-                        color: showImageFiles ? '#ffffff' : 'var(--btn-text, inherit)',
-                        border: `1px solid ${showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-border, var(--card-border, rgba(120, 120, 120, 0.25)))'}`,
-                        borderRadius: '0px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        letterSpacing: '0.2px',
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                        userSelect: 'none',
-                        transition: 'background 0.15s, border-color 0.15s, color 0.15s'
-                      }}
-                    >
-                      <ImageIcon size={13} style={{ color: showImageFiles ? '#ffffff' : 'currentColor', flexShrink: 0 }} />
-                      <span style={{ flexShrink: 0 }}>{lang === 'en' ? 'Img' : '画像'}</span>
-                      <span 
-                        style={{ 
-                          display: 'inline-block', 
-                          width: '24px', 
-                          textAlign: 'center', 
-                          fontWeight: 800,
-                          letterSpacing: '0.5px',
-                          flexShrink: 0
-                        }}
-                      >
-                        {showImageFiles ? 'ON' : 'OFF'}
-                      </span>
-                    </button>
-
                     <button
                       className={`tool-btn ${!hasPrevFile ? 'disabled-nav' : ''}`}
                       onClick={goToPrevFile}

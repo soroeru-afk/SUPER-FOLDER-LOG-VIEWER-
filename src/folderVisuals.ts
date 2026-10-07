@@ -1053,3 +1053,29 @@ export function migrateFolderVisualSettings(
   saveFolderVisualSettings(updatedSettings);
   return updatedSettings;
 }
+
+/**
+ * フォルダーカバー画像（高精細フォト）をブラウザメモリに先行事前ロードし、
+ * フォルダーを開いた瞬間やリロード時に下地の色を挟まず0msでパッと一発表示されるようにする
+ */
+const preloadedUrlSet = new Set<string>();
+
+export function preloadCoverImages(urls?: string[]) {
+  if (typeof window === 'undefined') return;
+  const targetUrls = urls || Object.values(CATEGORY_THEMES).flatMap(t => t.photoUrls || []);
+  targetUrls.forEach(url => {
+    if (!url || url.startsWith('data:') || preloadedUrlSet.has(url)) return;
+    preloadedUrlSet.add(url);
+    const img = new Image();
+    img.src = url;
+  });
+}
+
+// アプリ起動時にプリセットカバー写真を先行バックグラウンドロード
+try {
+  if (typeof window !== 'undefined') {
+    setTimeout(() => {
+      preloadCoverImages();
+    }, 100);
+  }
+} catch(e) {}

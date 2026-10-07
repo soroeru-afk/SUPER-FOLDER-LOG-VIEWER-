@@ -261,6 +261,11 @@ export const Sidebar = () => {
               <ImageThumbnail file={f} size={18} fit="cover" />
             </span>
           )}
+          {isImg && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginRight: '4px' }} title={lang === 'en' ? 'Image File' : '画像ファイル'}>
+              <ImageIcon size={13} />
+            </span>
+          )}
           <span dangerouslySetInnerHTML={{__html: titleHtml}} />
         </div>
         {previewHtml && <div dangerouslySetInnerHTML={{__html: previewHtml}} />}
@@ -957,114 +962,65 @@ export const Sidebar = () => {
         {dirHandle && renderList()}
       </div>
 
-      <div 
-        id="sidebar-footer" 
-        style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '6px',
-          padding: '10px 12px 14px',
-          borderTop: '1px solid var(--sb-border)',
-          background: 'var(--sb-bg)'
-        }}
-      >
-        {/* 1. 設定ボタン (通常の今まで通り) */}
-        <button 
-          id="settings-btn" 
-          onClick={(e) => { e.stopPropagation(); toggleSettings(); }}
-          style={{
-            flex: '1 1 auto',
-            minWidth: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            padding: '7px 8px',
-            background: 'none',
-            border: '1px solid var(--sb-border)',
-            borderRadius: '0px',
-            color: 'var(--sb-muted)',
-            fontSize: '11px',
-            fontWeight: 'bold',
-            letterSpacing: '1px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap'
-          }}
-          title={t.app.settings}
-        >
+      <div id="sidebar-footer">
+        <button id="settings-btn" onClick={(e) => { e.stopPropagation(); toggleSettings(); }}>
           <SettingsIcon />
           <span>{t.app.settings}</span>
         </button>
 
-        {/* 2. 画像オンオフ ボタン (グローバル切り替え - 固定幅78pxで設定ボタンが絶対に動かない) */}
+        {/* 画像ファイル表示 / 非表示トグル（固定幅・文字ズレ防止・落ち着いた統一カラー） */}
         <button
-          id="image-toggle-btn"
-          onClick={(e) => { e.stopPropagation(); toggleShowImageFiles(); }}
-          style={{
-            flexShrink: 0,
-            width: '78px',
-            minWidth: '78px',
-            maxWidth: '78px',
-            boxSizing: 'border-box',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '4px',
-            padding: '7px 0',
-            background: showImageFiles ? 'var(--sb-item-active, rgba(59, 130, 246, 0.15))' : 'none',
-            border: showImageFiles ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--sb-border)',
-            borderRadius: '0px',
-            color: showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--sb-muted)',
-            fontSize: '11px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap'
+          type="button"
+          className="sidebar-image-toggle-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleShowImageFiles();
           }}
           title={
             showImageFiles 
-              ? (lang === 'en' ? 'Image Files: ON (Click to hide images for faster response)' : '画像ファイル: 表示中（クリックで非表示にして高速化）')
-              : (lang === 'en' ? 'Image Files: OFF (Click to show image files)' : '画像ファイル: 非表示（クリックで画像ファイルを表示）')
+              ? (lang === 'en' ? 'Image Files: ON (Showing image files. Click to hide)' : '画像ファイル表示: ON（画像ファイルを表示中。クリックで非表示）')
+              : (lang === 'en' ? 'Image Files: OFF (Hiding image files for speed. Click to show)' : '画像ファイル表示: OFF（通常モード：画像ファイルを非表示。クリックで表示）')
           }
-        >
-          <ImageIcon size={13} />
-          <span>{showImageFiles ? '画像ON' : '画像OFF'}</span>
-        </button>
-
-        {/* 3. SYNC エリア (固定幅エリアで設定や画像ボタンが絶対にずれない) */}
-        <div 
-          id="sidebar-sync-slot"
-          style={{ 
-            flexShrink: 0,
-            width: '78px',
-            height: '28px',
-            display: 'inline-flex', 
-            alignItems: 'center', 
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
             justifyContent: 'center',
-            gap: '4px',
-            fontSize: '9.5px', 
-            fontFamily: 'monospace',
-            letterSpacing: '0.2px',
-            userSelect: 'none',
-            color: 'var(--sb-muted, #8FAFCF)',
-            border: '1px solid transparent',
+            gap: '5px',
+            height: '32px',
+            width: '92px',
+            minWidth: '92px',
+            maxWidth: '92px',
+            padding: '0 8px',
             boxSizing: 'border-box',
-            whiteSpace: 'nowrap'
+            background: 'none',
+            color: 'var(--sb-muted)',
+            border: '1px solid var(--sb-border)',
+            borderRadius: '0px',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            letterSpacing: '0.2px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            userSelect: 'none',
+            transition: 'all 0.15s'
           }}
-          title={
-            isBackgroundLoading && backgroundProgress.total > 0
-              ? (lang === 'en' ? `Syncing in background: ${backgroundProgress.loaded}/${backgroundProgress.total}` : `裏で本文データを高速同期中: ${backgroundProgress.loaded}/${backgroundProgress.total}`)
-              : (lang === 'en' ? 'All files synced' : '同期完了')
-          }
         >
-          {isBackgroundLoading && backgroundProgress.total > 0 ? (
-            <>
-              <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: 'var(--sb-accent, #3b82f6)', animation: 'pulse-soft 1.8s infinite ease-in-out', flexShrink: 0 }} />
-              <span>SYNC {backgroundProgress.loaded}</span>
-            </>
-          ) : (
-            <span style={{ opacity: 0.35, fontSize: '9px' }}>SYNC OK</span>
-          )}
-        </div>
+          <ImageIcon size={13} style={{ color: 'currentColor', flexShrink: 0 }} />
+          <span style={{ flexShrink: 0 }}>{lang === 'en' ? 'Img' : '画像'}</span>
+          <span 
+            style={{ 
+              display: 'inline-block', 
+              width: '24px', 
+              textAlign: 'center', 
+              fontWeight: 800,
+              letterSpacing: '0.5px',
+              flexShrink: 0
+            }}
+          >
+            {showImageFiles ? 'ON' : 'OFF'}
+          </span>
+        </button>
       </div>
     </div>
   );

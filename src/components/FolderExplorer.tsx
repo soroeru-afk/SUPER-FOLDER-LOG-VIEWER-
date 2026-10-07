@@ -14,7 +14,8 @@ import {
   shuffleFolderCover, 
   setFolderCoverPosition,
   migrateFolderVisualSettings,
-  readFileAsDataUrl 
+  readFileAsDataUrl,
+  preloadCoverImages
 } from '../folderVisuals';
 import { ThemeQuickToggle } from './ThemeQuickToggle';
 
@@ -466,6 +467,19 @@ export const FolderExplorer: React.FC = () => {
 
     return subsWithCount;
   }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFolderOrders, showImageFiles]);
+
+  // 高精細フォト設定時に、表示されるフォルダーカバー画像を先行メモリプリロード
+  // これにより画面を開いた瞬間に下地色を挟むことなく0msでパッと一発表示
+  useEffect(() => {
+    if (visualSettings.enabled && visualSettings.style === 'photo') {
+      const urls = subCategories
+        .map(cat => getFolderCoverData(cat.shortName, cat.name, visualSettings)?.backgroundUrl)
+        .filter(Boolean) as string[];
+      if (urls.length > 0) {
+        preloadCoverImages(urls);
+      }
+    }
+  }, [subCategories, visualSettings]);
 
   // ファイルリストソートヘルパー
   const sortFileList = (files: FileObj[], catKeyForCustom?: string) => {
@@ -1508,10 +1522,10 @@ export const FolderExplorer: React.FC = () => {
             {/* テーマQuick切り替えボタン */}
             <ThemeQuickToggle />
 
-            {/* 画像ファイル表示 / 非表示トグル（テーマボタンの横に配置・固定幅で文字ズレ防止） */}
+            {/* 画像ファイル表示 / 非表示トグル（テーマボタンの横に配置・固定幅で文字ズレ防止・落ち着いた統一カラー） */}
             <button
               type="button"
-              className={`theme-quick-toggle-btn-mirror ${showImageFiles ? 'active' : ''}`}
+              className="theme-quick-toggle-btn-mirror"
               onClick={toggleShowImageFiles}
               title={
                 showImageFiles 
@@ -1529,9 +1543,9 @@ export const FolderExplorer: React.FC = () => {
                 maxWidth: '88px',
                 padding: '0 6px',
                 boxSizing: 'border-box',
-                background: showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, rgba(120, 120, 120, 0.08))',
-                color: showImageFiles ? '#ffffff' : 'var(--btn-text, inherit)',
-                border: `1px solid ${showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-border, var(--card-border, rgba(120, 120, 120, 0.25)))'}`,
+                background: 'var(--btn-bg, rgba(120, 120, 120, 0.08))',
+                color: 'var(--btn-text, inherit)',
+                border: '1px solid var(--btn-border, var(--card-border, rgba(120, 120, 120, 0.25)))',
                 borderRadius: '0px',
                 fontSize: '11px',
                 fontWeight: 700,
@@ -1543,7 +1557,7 @@ export const FolderExplorer: React.FC = () => {
                 transition: 'background 0.15s, border-color 0.15s, color 0.15s'
               }}
             >
-              <ImageIcon size={13} style={{ color: showImageFiles ? '#ffffff' : 'currentColor', flexShrink: 0 }} />
+              <ImageIcon size={13} style={{ color: 'currentColor', flexShrink: 0 }} />
               <span style={{ flexShrink: 0 }}>{lang === 'en' ? 'Img' : '画像'}</span>
               <span 
                 style={{ 
