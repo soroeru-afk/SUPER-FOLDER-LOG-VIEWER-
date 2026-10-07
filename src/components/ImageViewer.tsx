@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileObj } from '../types';
 import { downloadFileBlob, isImageFilename } from '../utils';
-import { getCachedImageUrl } from './ImageThumbnail';
 
 interface ImageViewerProps {
   file: FileObj;
@@ -31,6 +30,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ file, lang }) => {
     setLoadError(false);
 
     let active = true;
+    let objectUrlToRevoke: string | null = null;
 
     const resolveImage = async () => {
       if (file.imageUrl) {
@@ -39,23 +39,25 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ file, lang }) => {
         return;
       }
 
-      setIsLoading(true);
-      try {
-        const url = await getCachedImageUrl(file);
-        if (!active) return;
-        if (url) {
+      if (file.handle) {
+        setIsLoading(true);
+        try {
+          const fileBlob = await file.handle.getFile();
+          if (!active) return;
+          const url = URL.createObjectURL(fileBlob);
+          objectUrlToRevoke = url;
           setImageSrc(url);
           setIsLoading(false);
-        } else {
-          setLoadError(true);
-          setIsLoading(false);
+        } catch (e) {
+          console.error('Failed to load image from handle:', e);
+          if (active) {
+            setLoadError(true);
+            setIsLoading(false);
+          }
         }
-      } catch (e) {
-        console.error('Failed to load image:', e);
-        if (active) {
-          setLoadError(true);
-          setIsLoading(false);
-        }
+      } else {
+        setIsLoading(false);
+        setLoadError(true);
       }
     };
 
@@ -63,6 +65,9 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ file, lang }) => {
 
     return () => {
       active = false;
+      if (objectUrlToRevoke) {
+        URL.revokeObjectURL(objectUrlToRevoke);
+      }
     };
   }, [file.filename, file.category, file.handle, file.imageUrl]);
 
@@ -144,14 +149,25 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ file, lang }) => {
     }
   };
 
-  // マウスホイールによるズーム
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 1.15 : 0.85;
-    setScale(prev => {
-      const next = prev * delta;
-      return Math.min(10, Math.max(0.05, Number(next.toFixed(2))));
-    });
+  // マウスホイールによるズーム（ネイティブリスナーで非パッシブ登録し、PWAでの親画面スクロール連動を完全防止）
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const delta = e.deltaY < 0 ? 1.15 : 0.85;
+      setScale(prev => {
+        const next = prev * delta;
+        return Math.min(10, Math.max(0.05, Number(next.toFixed(2))));
+      });
+    };
+
+    container.addEventListener('wheel', onNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onNativeWheel);
+    };
   }, []);
 
   // マウスドラッグによる移動（パン）
@@ -312,7 +328,6 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ file, lang }) => {
       {/* メイン画像キャンバス表示エリア */}
       <div 
         ref={containerRef}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -328,6 +343,8 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ file, lang }) => {
           justifyContent: 'center',
           overflow: 'hidden',
           position: 'relative',
+          overscrollBehavior: 'contain',
+          touchAction: 'none',
           cursor: isDragging ? 'grabbing' : (scale > 1 ? 'grab' : 'default'),
           // 透過チェッカーボード背景（ダーク＆ライト対応）
           backgroundImage: `

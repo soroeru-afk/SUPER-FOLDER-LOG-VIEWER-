@@ -893,7 +893,7 @@ export function getFolderCoverData(
     const photoUrl = presets[presetIdx % presets.length];
     return {
       backgroundUrl: photoUrl,
-      fallbackSvgDataUri: currentSvgDataUri,
+      fallbackSvgDataUri: '', // 写真モード時はイラストを背後に重ねず、背景グラデーションから直接写真をロード
       badge: theme.badge,
       gradient: theme.gradient,
       isCustom: false,

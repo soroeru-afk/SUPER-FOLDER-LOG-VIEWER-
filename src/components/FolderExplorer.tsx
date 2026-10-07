@@ -1873,7 +1873,9 @@ export const FolderExplorer: React.FC = () => {
                         className="folder-card-full-bg-layer"
                         style={{
                           backgroundColor: coverData.gradient ? coverData.gradient[0] : '#0f172a',
-                          backgroundImage: `url("${coverData.backgroundUrl}"), url("${coverData.fallbackSvgDataUri}")`,
+                          backgroundImage: (coverData.fallbackSvgDataUri && coverData.backgroundUrl !== coverData.fallbackSvgDataUri)
+                            ? `url("${coverData.backgroundUrl}"), url("${coverData.fallbackSvgDataUri}")`
+                            : `url("${coverData.backgroundUrl}")`,
                           backgroundPosition: coverData.backgroundPosition || 'center center',
                           opacity: (visualSettings.opacity ?? 1.0) * 0.28
                         }}
@@ -1887,7 +1889,9 @@ export const FolderExplorer: React.FC = () => {
                           className="folder-cover-bg-image"
                           style={{
                             backgroundColor: coverData.gradient ? coverData.gradient[0] : '#0f172a',
-                            backgroundImage: `url("${coverData.backgroundUrl}"), url("${coverData.fallbackSvgDataUri}")`,
+                            backgroundImage: (coverData.fallbackSvgDataUri && coverData.backgroundUrl !== coverData.fallbackSvgDataUri)
+                              ? `url("${coverData.backgroundUrl}"), url("${coverData.fallbackSvgDataUri}")`
+                              : `url("${coverData.backgroundUrl}")`,
                             backgroundPosition: coverData.backgroundPosition || 'center center',
                             opacity: visualSettings.opacity ?? 1.0,
                             filter: `brightness(${visualSettings.brightness ?? 1.05}) contrast(1.02)`
@@ -3057,7 +3061,7 @@ export const FolderExplorer: React.FC = () => {
                         borderRadius: '0px',
                         border: '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
                         backgroundColor: modalCoverData.gradient ? modalCoverData.gradient[0] : '#0f172a',
-                        backgroundImage: currentBg !== fallbackBg ? `url("${currentBg}"), url("${fallbackBg}")` : `url("${currentBg}")`,
+                        backgroundImage: (fallbackBg && currentBg !== fallbackBg) ? `url("${currentBg}"), url("${fallbackBg}")` : `url("${currentBg}")`,
                         backgroundSize: 'cover',
                         backgroundPosition: modalCoverData.backgroundPosition || 'center center',
                         position: 'relative',
