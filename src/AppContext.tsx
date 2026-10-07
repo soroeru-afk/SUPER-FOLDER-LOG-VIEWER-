@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
-import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename, loadFileMetaCache, saveFileMetaCache, CachedFileMeta } from './utils';
+import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename, loadFileMetaCache, saveFileMetaCache, CachedFileMeta, isImageFilename, isSupportedFilename, downloadFileBlob } from './utils';
 import { THEMES, getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from './theme';
 import { applySettingsToDOM } from './settingsSync';
 import { migrateFolderVisualSettings } from './folderVisuals';
@@ -141,6 +141,12 @@ export interface AppState {
   resumeSavedFolder: () => Promise<void>;
   isBackgroundLoading: boolean;
   backgroundProgress: { loaded: number; total: number };
+  showThumbnails: boolean;
+  setShowThumbnails: (show: boolean) => void;
+  toggleShowThumbnails: () => void;
+  showImageFiles: boolean;
+  setShowImageFiles: (show: boolean) => void;
+  toggleShowImageFiles: () => void;
 }
 
 export interface TTSSettings {
@@ -229,6 +235,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isHighlightOff, setIsHighlightOff] = useState(() => localStorage.getItem('lv_highlightOff') === '1');
   const [speakerModeEnabled, setSpeakerModeEnabled] = useState(() => localStorage.getItem('lv_speakerMode') === '1');
+  
+  const [showThumbnails, setShowThumbnailsState] = useState<boolean>(() => {
+    return localStorage.getItem('sf_show_thumbnails') !== '0';
+  });
+
+  const setShowThumbnails = (show: boolean) => {
+    setShowThumbnailsState(show);
+    localStorage.setItem('sf_show_thumbnails', show ? '1' : '0');
+  };
+
+  const toggleShowThumbnails = () => {
+    setShowThumbnailsState(prev => {
+      const next = !prev;
+      localStorage.setItem('sf_show_thumbnails', next ? '1' : '0');
+      return next;
+    });
+  };
+
+  // 通常は画像ファイル自体が見えない状態（デフォルト: false / 非表示）
+  const [showImageFiles, setShowImageFilesState] = useState<boolean>(() => {
+    return localStorage.getItem('sf_show_image_files') === '1';
+  });
+
+  const setShowImageFiles = (show: boolean) => {
+    setShowImageFilesState(show);
+    localStorage.setItem('sf_show_image_files', show ? '1' : '0');
+  };
+
+  const toggleShowImageFiles = () => {
+    setShowImageFilesState(prev => {
+      const next = !prev;
+      localStorage.setItem('sf_show_image_files', next ? '1' : '0');
+      return next;
+    });
+  };
   
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   
@@ -1037,7 +1078,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     async function collect(dirH: any, currentCat: string | null) {
       if (!dirH.values) return;
       for await (const item of dirH.values()) {
-        if (item.kind === 'file' && (item.name.endsWith('.txt') || item.name.endsWith('.md'))) {
+        if (item.kind === 'file' && isSupportedFilename(item.name)) {
           entries.push({ handle: item, category: currentCat, folderHandle: currentCat ? dirH : null });
         } else if (item.kind === 'directory') {
           if (item.name.startsWith('.')) continue; // ignore hidden folders like .git
@@ -1051,28 +1092,67 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     
     pFolders.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
     
-    // 【第1段階: メタデータ先行即時生成】
-    // ファイル名から日付・タイトルを即時パース。重い本文ディスクI/Oを待たずに画面描画へ！
+    // 【第1段階: メタデータ先行即時生成 ＆ キャッシュ引き継ぎ】
+    // 既存のキャッシュまたは直前のrawFilesから日付・タイトル・本文を引き継ぐ
+    const existingMap = new Map<string, FileObj>(rawFiles.map(f => [(f.category || '') + '::' + f.filename, f]));
+
     const initialFiles: FileObj[] = entries.map(entry => {
       const p = parseFilename(entry.handle.name);
+      const isImg = isImageFilename(entry.handle.name);
+      const existing = existingMap.get((entry.category || '') + '::' + entry.handle.name);
+      const date = p.date || existing?.date || '';
+      const time = p.time || existing?.time || '';
+      const title = p.title || existing?.title || entry.handle.name.replace(/\.[^.]+$/,'');
+      const content = existing?.content || '';
       return { 
         filename: entry.handle.name, 
         handle: entry.handle, 
         category: entry.category, 
         folderHandle: entry.folderHandle, 
-        date: p.date, 
-        time: p.time, 
-        title: p.title || entry.handle.name.replace(/\.[^.]+$/,''), 
-        dateSource: p.date ? 'filename' : '', 
-        content: '' 
+        date, 
+        time, 
+        title, 
+        dateSource: p.date ? 'filename' : (existing?.dateSource || ''), 
+        content,
+        isImage: isImg
       };
     });
+
+    // ファイル名から日付が取れなかった少数のファイル（00_... 等）のOS更新日時を即座に並列取得（10ms程度）
+    // これにより画面表示直後の並び順ガタつき（日付確定による並び替えのジャンプ）を完全防止
+    const dateMissingFiles = initialFiles.filter(f => !f.date && f.handle);
+    if (dateMissingFiles.length > 0) {
+      await Promise.all(dateMissingFiles.map(async f => {
+        try {
+          const file = await f.handle.getFile();
+          const lm = new Date(file.lastModified);
+          f.date = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
+          f.time = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}:${String(lm.getSeconds()).padStart(2,'0')}`;
+          f.dateSource = 'os';
+        } catch(e) {}
+      }));
+    }
     
     initialFiles.sort((a, b) => {
       const dtA = (a.date || '') + (a.time || '');
       const dtB = (b.date || '') + (b.time || '');
       return dtB.localeCompare(dtA);
     });
+
+    // 【ダイジェスト・本文スニペットの先行即時取得】
+    // 初回表示時に「.txtの後ろのダイジェスト」が後からピョコッと表示されて不自然になるのを防ぐため、
+    // 画面に即時表示される上位80件のテキストファイルの本文冒頭を先行ロード（約15ms）
+    const prioritySnippetFiles = initialFiles.filter(f => !f.isImage && !f.content && f.handle).slice(0, 80);
+    if (prioritySnippetFiles.length > 0) {
+      await Promise.all(prioritySnippetFiles.map(async f => {
+        try {
+          if (f.handle) {
+            const file = await f.handle.getFile();
+            f.content = await file.text();
+          }
+        } catch(e) {}
+      }));
+    }
 
     setRawFiles(initialFiles);
     
@@ -1113,7 +1193,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setBackgroundProgress({ loaded: 0, total: initialFiles.length });
 
     (async () => {
-      const chunkSize = 25;
+      const chunkSize = 50;
       let totalLoaded = 0;
       for (let i = 0; i < initialFiles.length; i += chunkSize) {
         if (loadSessionIdRef.current !== currentSessionId) return; // 別のフォルダが開かれた場合は中断
@@ -1121,9 +1201,18 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         const chunk = initialFiles.slice(i, i + chunkSize);
         await Promise.all(chunk.map(async f => {
           try {
-            if (!f.content && f.handle) {
+            // 画像ファイル、または既に本文と日付がある場合は重いディスクI/O(getFile)をスキップ
+            if (f.isImage && f.date) {
+              return;
+            }
+            if (!f.isImage && f.content && f.date) {
+              return;
+            }
+            if (f.handle) {
               const file = await f.handle.getFile();
-              f.content = await file.text();
+              if (!f.isImage && !f.content) {
+                f.content = await file.text();
+              }
               if (!f.date) {
                 const lm = new Date(file.lastModified);
                 f.date = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
@@ -1140,10 +1229,10 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         }
 
         // メインスレッドのUI描画を優先するためわずかにインターバル
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 6));
 
-        // 適度な間隔（125件ごと、または全件完了時）で画面データを静かに同期
-        if ((i + chunkSize >= initialFiles.length) || (i > 0 && i % 125 === 0)) {
+        // 適度な間隔（150件ごと、または全件完了時）で画面データを静かに同期
+        if ((i + chunkSize >= initialFiles.length) || (i > 0 && i % 150 === 0)) {
           if (loadSessionIdRef.current === currentSessionId) {
             setRawFiles([...initialFiles]);
             setAllFiles(prev => {
@@ -1263,7 +1352,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
       const fileObjs = await Promise.all(
         filesArr
-          .filter(f => f.name.endsWith('.txt') || f.name.endsWith('.md'))
+          .filter(f => isSupportedFilename(f.name))
           .map(async file => {
             const parts = (file as any).webkitRelativePath.split('/');
             let category: string | null = null;
@@ -1275,8 +1364,15 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
                category = parts.slice(1, -1).join('/');
             }
             
+            const isImg = isImageFilename(file.name);
             const p = parseFilename(file.name);
-            const content = await file.text();
+            let content = '';
+            let imageUrl: string | undefined = undefined;
+            if (isImg) {
+              imageUrl = URL.createObjectURL(file);
+            } else {
+              content = await file.text();
+            }
             let d = p.date, t = p.time, src = '';
             if (!d) {
               const lm = new Date(file.lastModified);
@@ -1288,7 +1384,9 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
             return { 
               filename: file.name, handle: null, category, folderHandle: null, 
               date: d, time: t, title: p.title || file.name.replace(/\.[^.]+$/,''), 
-              dateSource: src, content 
+              dateSource: src, content,
+              isImage: isImg,
+              imageUrl
             } as FileObj;
           })
       );
@@ -1382,7 +1480,25 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
   const selectFile = async (f: FileObj, fromNav = false, startEditing = false) => {
     let content = f.content;
-    if (!content && f.handle) {
+    const isImg = isImageFilename(f.filename);
+    f.isImage = isImg;
+
+    if (isImg) {
+      if (!f.imageUrl && f.handle) {
+        try {
+          const file = await f.handle.getFile();
+          f.imageUrl = URL.createObjectURL(file);
+          if (!f.date) {
+            const lm = new Date(file.lastModified);
+            f.date = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
+            f.time = `${String(lm.getHours()).padStart(2,'0')}:${String(lm.getMinutes()).padStart(2,'0')}:${String(lm.getSeconds()).padStart(2,'0')}`;
+            f.dateSource = 'os';
+          }
+        } catch (e) {
+          console.warn('Image load failed:', e);
+        }
+      }
+    } else if (!content && f.handle) {
       try {
         const file = await f.handle.getFile();
         content = await file.text();
@@ -1399,7 +1515,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
     setCurrentFileObj(f);
     setCurrentContent(content || '');
-    setIsEditing(startEditing);
+    setIsEditing(isImg ? false : startEditing);
     setViewMode('reader');
     if (f.category) {
       setExplorerCategory(f.category);
@@ -2561,7 +2677,9 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       sidebarPosition, setSidebarPosition, toggleSidebarPosition,
       fileMarks, setFileMark, setBulkFileMarks, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
       isResuming, pendingResumeHandle, resumeSavedFolder,
-      isBackgroundLoading, backgroundProgress
+      isBackgroundLoading, backgroundProgress,
+      showThumbnails, setShowThumbnails, toggleShowThumbnails,
+      showImageFiles, setShowImageFiles, toggleShowImageFiles
     }}>
       {children}
     </AppContext.Provider>

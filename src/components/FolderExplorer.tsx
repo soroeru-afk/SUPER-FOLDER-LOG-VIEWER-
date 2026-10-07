@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { FileObj } from '../types';
-import { highlightText, escHtml, highlightTextSafe } from '../utils';
+import { highlightText, escHtml, highlightTextSafe, isImageFilename } from '../utils';
+import { ImageThumbnail } from './ImageThumbnail';
 import { FolderIcon, FoldersStackIcon, MoveIcon, DeleteIcon, EditIcon, ImageIcon, SunOutlineIcon, ShuffleIcon, UploadIcon, CopyIcon, ShortcutIcon, UnlinkIcon } from './Icons';
 import { 
   loadFolderVisualSettings, 
@@ -65,7 +66,11 @@ export const FolderExplorer: React.FC = () => {
     execBulkDuplicate,
     fileShortcuts,
     mainBgWhite,
-    toggleMainBgWhite
+    toggleMainBgWhite,
+    showThumbnails,
+    toggleShowThumbnails,
+    showImageFiles,
+    toggleShowImageFiles
   } = useAppContext();
 
   const [isExplorerSelectMode, setIsExplorerSelectMode] = useState(false);
@@ -373,7 +378,10 @@ export const FolderExplorer: React.FC = () => {
     // 各サブフォルダの配下にあるファイル総数、子フォルダー数を計算
     const subsWithCount = directSubs.map(sub => {
       const subPrefix = sub.name + '/';
-      const allFilesInSub = allFiles.filter(f => f.category === sub.name || (f.category && f.category.startsWith(subPrefix)));
+      let allFilesInSub = allFiles.filter(f => f.category === sub.name || (f.category && f.category.startsWith(subPrefix)));
+      if (!showImageFiles) {
+        allFilesInSub = allFilesInSub.filter(f => !isImageFilename(f.filename));
+      }
       const shortName = sub.name.split('/').pop() || sub.name;
       
       // 子フォルダー数
@@ -457,7 +465,7 @@ export const FolderExplorer: React.FC = () => {
     });
 
     return subsWithCount;
-  }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFolderOrders]);
+  }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFolderOrders, showImageFiles]);
 
   // ファイルリストソートヘルパー
   const sortFileList = (files: FileObj[], catKeyForCustom?: string) => {
@@ -496,8 +504,11 @@ export const FolderExplorer: React.FC = () => {
     } else {
       files = allFiles.filter(f => f.category === explorerCategory);
     }
+    if (!showImageFiles) {
+      files = files.filter(f => !isImageFilename(f.filename));
+    }
     return sortFileList(files, explorerCategory || '__root__');
-  }, [allFiles, explorerCategory, sortMode, sortDirection, customFileOrders]);
+  }, [allFiles, explorerCategory, sortMode, sortDirection, customFileOrders, showImageFiles]);
 
   // 検索時の一致するサブカテゴリー
   const matchingSubCategories = useMemo(() => {
@@ -514,7 +525,10 @@ export const FolderExplorer: React.FC = () => {
       return searchQueries.some(q => cat.name.toLowerCase().includes(q.toLowerCase()));
     }).map(cat => {
       const subPrefix = cat.name + '/';
-      const allFilesInSub = allFiles.filter(f => f.category === cat.name || (f.category && f.category.startsWith(subPrefix)));
+      let allFilesInSub = allFiles.filter(f => f.category === cat.name || (f.category && f.category.startsWith(subPrefix)));
+      if (!showImageFiles) {
+        allFilesInSub = allFilesInSub.filter(f => !isImageFilename(f.filename));
+      }
       const shortName = cat.name.split('/').pop() || cat.name;
       const directChildFolders = allCategories.filter(c => 
         c.name.startsWith(subPrefix) && c.name.split('/').length === (cat.name.split('/').length + 1)
@@ -526,7 +540,7 @@ export const FolderExplorer: React.FC = () => {
         childFolderCount: directChildFolders.length
       };
     });
-  }, [allCategories, allFiles, searchQueries, searchScope, explorerCategory]);
+  }, [allCategories, allFiles, searchQueries, searchScope, explorerCategory, showImageFiles]);
 
   // 検索ヒットファイル一覧
   const matchingFiles = useMemo(() => {
@@ -544,6 +558,10 @@ export const FolderExplorer: React.FC = () => {
         : allFiles.filter(f => f.category === explorerCategory || (f.category && f.category.startsWith(explorerCategory + '/')));
     }
 
+    if (!showImageFiles) {
+      scopePool = scopePool.filter(f => !isImageFilename(f.filename));
+    }
+
     const filtered = scopePool.filter(f => {
       const target = (
         (f.title || '') + ' ' + 
@@ -556,7 +574,7 @@ export const FolderExplorer: React.FC = () => {
     });
 
     return sortFileList(filtered);
-  }, [allFiles, explorerCategory, searchScope, searchQueries, sortMode, sortDirection, customFileOrders]);
+  }, [allFiles, explorerCategory, searchScope, searchQueries, sortMode, sortDirection, customFileOrders, showImageFiles]);
 
   // 検索結果をカテゴリー別にグループ化
   const matchingFilesByCategory = useMemo(() => {
@@ -605,9 +623,13 @@ export const FolderExplorer: React.FC = () => {
     });
 
     matchingCats.forEach(cat => {
-      const catFiles = allFiles.filter(f => f.category === cat.name);
+      let catFiles = allFiles.filter(f => f.category === cat.name);
       const subPrefix = cat.name + '/';
-      const recursiveFiles = allFiles.filter(f => f.category === cat.name || (f.category && f.category.startsWith(subPrefix)));
+      let recursiveFiles = allFiles.filter(f => f.category === cat.name || (f.category && f.category.startsWith(subPrefix)));
+      if (!showImageFiles) {
+        catFiles = catFiles.filter(f => !isImageFilename(f.filename));
+        recursiveFiles = recursiveFiles.filter(f => !isImageFilename(f.filename));
+      }
       if (recursiveFiles.length > 0) {
         groups.push({
           category: cat.name,
@@ -620,7 +642,7 @@ export const FolderExplorer: React.FC = () => {
     });
 
     return groups;
-  }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFileOrders]);
+  }, [allCategories, allFiles, explorerCategory, sortMode, sortDirection, customFileOrders, showImageFiles]);
 
   // 画面に表示するアクティブなファイル群（一括選択・並び替え用）
   const activeDisplayedFiles = useMemo(() => {
@@ -1010,20 +1032,68 @@ export const FolderExplorer: React.FC = () => {
         </div>
 
         {/* カードタイトル */}
-        <div 
-          className="article-card-title"
-          dangerouslySetInnerHTML={{
+        <div className="article-card-title">
+          {isImageFilename(f.filename) && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginRight: '5px' }}>
+              <ImageIcon size={14} />
+            </span>
+          )}
+          <span dangerouslySetInnerHTML={{
             __html: searchQueries.length > 0 ? highlightText(f.title || f.filename, searchQueries) : escHtml(f.title || f.filename)
-          }}
-        />
+          }} />
+        </div>
 
-        {/* ダイジェスト本文（先頭プレビュー / 検索スニペット） */}
-        <div 
-          className="article-card-digest"
-          dangerouslySetInnerHTML={{
-            __html: searchQueries.length > 0 ? highlightText(digest, searchQueries) : escHtml(digest || (lang === 'en' ? '(Empty file)' : '（本文なし）'))
-          }}
-        />
+        {/* ダイジェスト本文 または 画像サムネイルプレビュー */}
+        {isImageFilename(f.filename) ? (
+          showThumbnails ? (
+            <div 
+              style={{ 
+                width: '100%', 
+                height: '96px', 
+                margin: '4px 0 10px', 
+                borderRadius: '0px', 
+                overflow: 'hidden', 
+                background: 'rgba(0,0,0,0.03)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              <ImageThumbnail file={f} height="96px" width="100%" fit="contain" />
+            </div>
+          ) : (
+            <div 
+              className="article-card-digest"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '8px', 
+                height: '96px', 
+                margin: '4px 0 10px', 
+                background: 'rgba(0,0,0,0.03)',
+                border: '1px dashed var(--card-border, rgba(120,120,120,0.25))',
+                borderRadius: '0px',
+                flexShrink: 0,
+                opacity: 0.75,
+                fontSize: '11.5px',
+                userSelect: 'none'
+              }}
+              title={lang === 'en' ? 'Image thumbnail hidden' : '画像サムネイル非表示中'}
+            >
+              <ImageIcon size={20} />
+              <span>{lang === 'en' ? 'Image File' : '画像ファイル'}</span>
+            </div>
+          )
+        ) : (
+          <div 
+            className="article-card-digest"
+            dangerouslySetInnerHTML={{
+              __html: searchQueries.length > 0 ? highlightText(digest, searchQueries) : escHtml(digest || (lang === 'en' ? '(Empty file)' : '（本文なし）'))
+            }}
+          />
+        )}
 
         {/* カードフッター */}
         <div className="article-card-footer">
@@ -1161,8 +1231,16 @@ export const FolderExplorer: React.FC = () => {
               title={lang === 'en' ? 'Select' : '選択'}
             />
           )}
-          <div className="article-list-icon-box">
-            <span className="article-list-doc-icon">{f.isShortcut ? '🔗' : '📄'}</span>
+          <div className="article-list-icon-box" style={{ width: '32px', height: '32px', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isImageFilename(f.filename) && showThumbnails ? (
+              <ImageThumbnail file={f} size={32} fit="cover" />
+            ) : isImageFilename(f.filename) ? (
+              <span className="article-list-doc-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title={lang === 'en' ? 'Image File' : '画像ファイル'}>
+                <ImageIcon size={18} />
+              </span>
+            ) : (
+              <span className="article-list-doc-icon">{f.isShortcut ? '🔗' : '📄'}</span>
+            )}
           </div>
           <div className="article-list-content">
             <div className="article-list-title-line">
@@ -1226,13 +1304,16 @@ export const FolderExplorer: React.FC = () => {
                 );
               })()}
               {mark && <span className="article-mark-badge" style={{ marginRight: '6px' }}>{mark}</span>}
-              <span 
-                className="article-list-title" 
-                title={f.title || f.filename}
-                dangerouslySetInnerHTML={{
+              <span className="article-list-title" title={f.title || f.filename}>
+                {isImageFilename(f.filename) && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginRight: '5px' }}>
+                    <ImageIcon size={13} />
+                  </span>
+                )}
+                <span dangerouslySetInnerHTML={{
                   __html: searchQueries.length > 0 ? highlightText(f.title || f.filename, searchQueries) : escHtml(f.title || f.filename)
-                }}
-              />
+                }} />
+              </span>
             </div>
             <div className="article-list-sub-line">
               <span 
@@ -1426,6 +1507,57 @@ export const FolderExplorer: React.FC = () => {
 
             {/* テーマQuick切り替えボタン */}
             <ThemeQuickToggle />
+
+            {/* 画像ファイル表示 / 非表示トグル（テーマボタンの横に配置・固定幅で文字ズレ防止） */}
+            <button
+              type="button"
+              className={`theme-quick-toggle-btn-mirror ${showImageFiles ? 'active' : ''}`}
+              onClick={toggleShowImageFiles}
+              title={
+                showImageFiles 
+                  ? (lang === 'en' ? 'Image Files: ON (Showing image files. Click to hide)' : '画像ファイル表示: ON（画像ファイルを表示中。クリックで非表示）')
+                  : (lang === 'en' ? 'Image Files: OFF (Hiding image files for speed. Click to show)' : '画像ファイル表示: OFF（通常モード：画像ファイルを非表示。クリックで表示）')
+              }
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                height: '26px',
+                width: '88px',
+                minWidth: '88px',
+                maxWidth: '88px',
+                padding: '0 6px',
+                boxSizing: 'border-box',
+                background: showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, rgba(120, 120, 120, 0.08))',
+                color: showImageFiles ? '#ffffff' : 'var(--btn-text, inherit)',
+                border: `1px solid ${showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-border, var(--card-border, rgba(120, 120, 120, 0.25)))'}`,
+                borderRadius: '0px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                letterSpacing: '0.2px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                userSelect: 'none',
+                transition: 'background 0.15s, border-color 0.15s, color 0.15s'
+              }}
+            >
+              <ImageIcon size={13} style={{ color: showImageFiles ? '#ffffff' : 'currentColor', flexShrink: 0 }} />
+              <span style={{ flexShrink: 0 }}>{lang === 'en' ? 'Img' : '画像'}</span>
+              <span 
+                style={{ 
+                  display: 'inline-block', 
+                  width: '24px', 
+                  textAlign: 'center', 
+                  fontWeight: 800,
+                  letterSpacing: '0.5px',
+                  flexShrink: 0
+                }}
+              >
+                {showImageFiles ? 'ON' : 'OFF'}
+              </span>
+            </button>
           </div>
         </div>
 

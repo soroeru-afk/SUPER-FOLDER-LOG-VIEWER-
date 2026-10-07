@@ -11,6 +11,8 @@ export interface FileObj {
   isShortcut?: boolean;
   originalCategory?: string | null;
   originalFilename?: string;
+  isImage?: boolean;
+  imageUrl?: string;
 }
 
 export interface PhysicalFolder {

@@ -199,3 +199,28 @@ export async function getDirectoryHandleByPath(rootDirHandle: any, pathStr: stri
   }
   return current;
 }
+
+export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico', '.avif'];
+
+export function isImageFilename(filename?: string | null): boolean {
+  if (!filename) return false;
+  const lower = filename.toLowerCase();
+  return IMAGE_EXTENSIONS.some(ext => lower.endsWith(ext));
+}
+
+export function isSupportedFilename(filename?: string | null): boolean {
+  if (!filename) return false;
+  const lower = filename.toLowerCase();
+  return lower.endsWith('.txt') || lower.endsWith('.md') || lower.endsWith('.log') || isImageFilename(filename);
+}
+
+export async function downloadFileBlob(fileOrBlob: Blob, filename: string) {
+  const url = URL.createObjectURL(fileOrBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { SearchIcon, FolderIcon, FoldersStackIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon, SolidSeriesIcon, SideChangeIcon } from './Icons';
+import { SearchIcon, FolderIcon, FoldersStackIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon, SolidSeriesIcon, SideChangeIcon, ImageIcon } from './Icons';
 import { FileObj } from '../types';
-import { highlightText, escHtml } from '../utils';
+import { highlightText, escHtml, isImageFilename } from '../utils';
+import { ImageThumbnail } from './ImageThumbnail';
 
 export const Sidebar = () => {
   const {
@@ -22,7 +23,8 @@ export const Sidebar = () => {
     openExplorer, explorerCategory, viewMode, setViewMode,
     canGoBack, canGoForward, goBack, goForward,
     sidebarPosition, toggleSidebarPosition,
-    isBackgroundLoading, backgroundProgress
+    isBackgroundLoading, backgroundProgress,
+    showThumbnails, showImageFiles, toggleShowImageFiles
   } = useAppContext();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -31,8 +33,12 @@ export const Sidebar = () => {
   const bulkMarkRef = useRef<HTMLDivElement>(null);
 
   const visibleSidebarFiles = React.useMemo(() => {
-    if (searchQueries.length === 0) return allFiles;
-    return allFiles.filter(f => {
+    let list = allFiles;
+    if (!showImageFiles) {
+      list = list.filter(f => !isImageFilename(f.filename));
+    }
+    if (searchQueries.length === 0) return list;
+    return list.filter(f => {
       const q = searchQueries;
       const fn = f.filename.toLowerCase();
       const tit = f.title ? f.title.toLowerCase() : '';
@@ -42,7 +48,7 @@ export const Sidebar = () => {
         return fn.includes(lq) || tit.includes(lq) || ct.includes(lq);
       });
     });
-  }, [allFiles, searchQueries]);
+  }, [allFiles, searchQueries, showImageFiles]);
 
   const isAnyGroupOpen = () => {
     const keys = Object.keys(categoryOpenState);
@@ -129,6 +135,7 @@ export const Sidebar = () => {
     const isSelected = selectedFiles.has((f.category||'')+'::'+f.filename);
     const isActive = currentFileObj && currentFileObj.filename === f.filename && currentFileObj.category === f.category;
     
+    const isImg = isImageFilename(f.filename);
     let titleHtml = escHtml(f.title);
     let previewHtml = '';
 
@@ -249,6 +256,11 @@ export const Sidebar = () => {
             );
           })()}
           {fileMarks[f.filename] && renderMarkBadge(fileMarks[f.filename])}
+          {isImg && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginRight: '6px' }}>
+              <ImageThumbnail file={f} size={18} fit="cover" />
+            </span>
+          )}
           <span dangerouslySetInnerHTML={{__html: titleHtml}} />
         </div>
         {previewHtml && <div dangerouslySetInnerHTML={{__html: previewHtml}} />}
@@ -327,8 +339,11 @@ export const Sidebar = () => {
   const renderList = () => {
     const today = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
     let filtered = allFiles;
+    if (!showImageFiles) {
+      filtered = filtered.filter(f => !isImageFilename(f.filename));
+    }
     if (searchQueries.length > 0) {
-      filtered = allFiles.filter(f => {
+      filtered = filtered.filter(f => {
         const target = (f.title + ' ' + f.filename + ' ' + (f.category||'') + ' ' + (f.date||'') + ' ' + f.content).toLowerCase();
         return searchQueries.every(q => target.includes(q.toLowerCase()));
       });
@@ -344,7 +359,8 @@ export const Sidebar = () => {
     const treeTop: CategoryNode[] = [];
     
     allCategories.forEach(cat => {
-      nodeMap.set(cat.name, { name: cat.name, files: cat.files, children: [], totalCount: cat.files.length });
+      const catFiles = showImageFiles ? cat.files : cat.files.filter(f => !isImageFilename(f.filename));
+      nodeMap.set(cat.name, { name: cat.name, files: catFiles, children: [], totalCount: catFiles.length });
     });
     
     allCategories.forEach(cat => {
@@ -481,7 +497,7 @@ export const Sidebar = () => {
             ALL DATA
           </span>
           <span className="category-count" style={{ marginLeft: 'auto' }}>
-            {allFiles.length}
+            {visibleSidebarFiles.length}
           </span>
         </button>
       </div>
@@ -645,7 +661,7 @@ export const Sidebar = () => {
         {/* 上段: ファイル件数 と 閲覧状態の戻る・進む（Back / Next） */}
         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px'}}>
           <span id="file-count" style={{textTransform:'uppercase', fontSize: '11px', fontWeight: 'bold', opacity: 0.85, letterSpacing: '0.5px'}}>
-            {allFiles.length} FILES
+            {visibleSidebarFiles.length} FILES
           </span>
           <div style={{display: 'inline-flex', borderRadius: '0px', overflow: 'hidden', border: '1px solid var(--sb-border)', background: 'var(--sb-item-hover)'}}>
             <button 
@@ -941,31 +957,114 @@ export const Sidebar = () => {
         {dirHandle && renderList()}
       </div>
 
-      <div id="sidebar-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-        <button id="settings-btn" onClick={(e) => { e.stopPropagation(); toggleSettings(); }}>
+      <div 
+        id="sidebar-footer" 
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '6px',
+          padding: '10px 12px 14px',
+          borderTop: '1px solid var(--sb-border)',
+          background: 'var(--sb-bg)'
+        }}
+      >
+        {/* 1. 設定ボタン (通常の今まで通り) */}
+        <button 
+          id="settings-btn" 
+          onClick={(e) => { e.stopPropagation(); toggleSettings(); }}
+          style={{
+            flex: '1 1 auto',
+            minWidth: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '7px 8px',
+            background: 'none',
+            border: '1px solid var(--sb-border)',
+            borderRadius: '0px',
+            color: 'var(--sb-muted)',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            letterSpacing: '1px',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap'
+          }}
+          title={t.app.settings}
+        >
           <SettingsIcon />
-          {t.app.settings}
+          <span>{t.app.settings}</span>
         </button>
 
-        {isBackgroundLoading && backgroundProgress.total > 0 && (
-          <div 
-            style={{ 
-              fontSize: '10px', 
-              color: 'var(--sb-muted, #8FAFCF)', 
-              opacity: 0.75, 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '5px',
-              fontFamily: 'monospace',
-              letterSpacing: '0.4px',
-              userSelect: 'none'
-            }}
-            title={lang === 'en' ? 'Syncing file contents in background' : '裏で本文データを高速同期中'}
-          >
-            <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: 'var(--sb-accent, #3b82f6)', animation: 'pulse-soft 1.8s infinite ease-in-out' }} />
-            <span>SYNC {backgroundProgress.loaded}/{backgroundProgress.total}</span>
-          </div>
-        )}
+        {/* 2. 画像オンオフ ボタン (グローバル切り替え - 固定幅78pxで設定ボタンが絶対に動かない) */}
+        <button
+          id="image-toggle-btn"
+          onClick={(e) => { e.stopPropagation(); toggleShowImageFiles(); }}
+          style={{
+            flexShrink: 0,
+            width: '78px',
+            minWidth: '78px',
+            maxWidth: '78px',
+            boxSizing: 'border-box',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '4px',
+            padding: '7px 0',
+            background: showImageFiles ? 'var(--sb-item-active, rgba(59, 130, 246, 0.15))' : 'none',
+            border: showImageFiles ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--sb-border)',
+            borderRadius: '0px',
+            color: showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--sb-muted)',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap'
+          }}
+          title={
+            showImageFiles 
+              ? (lang === 'en' ? 'Image Files: ON (Click to hide images for faster response)' : '画像ファイル: 表示中（クリックで非表示にして高速化）')
+              : (lang === 'en' ? 'Image Files: OFF (Click to show image files)' : '画像ファイル: 非表示（クリックで画像ファイルを表示）')
+          }
+        >
+          <ImageIcon size={13} />
+          <span>{showImageFiles ? '画像ON' : '画像OFF'}</span>
+        </button>
+
+        {/* 3. SYNC エリア (固定幅エリアで設定や画像ボタンが絶対にずれない) */}
+        <div 
+          id="sidebar-sync-slot"
+          style={{ 
+            flexShrink: 0,
+            width: '78px',
+            height: '28px',
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: '4px',
+            fontSize: '9.5px', 
+            fontFamily: 'monospace',
+            letterSpacing: '0.2px',
+            userSelect: 'none',
+            color: 'var(--sb-muted, #8FAFCF)',
+            border: '1px solid transparent',
+            boxSizing: 'border-box',
+            whiteSpace: 'nowrap'
+          }}
+          title={
+            isBackgroundLoading && backgroundProgress.total > 0
+              ? (lang === 'en' ? `Syncing in background: ${backgroundProgress.loaded}/${backgroundProgress.total}` : `裏で本文データを高速同期中: ${backgroundProgress.loaded}/${backgroundProgress.total}`)
+              : (lang === 'en' ? 'All files synced' : '同期完了')
+          }
+        >
+          {isBackgroundLoading && backgroundProgress.total > 0 ? (
+            <>
+              <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: 'var(--sb-accent, #3b82f6)', animation: 'pulse-soft 1.8s infinite ease-in-out', flexShrink: 0 }} />
+              <span>SYNC {backgroundProgress.loaded}</span>
+            </>
+          ) : (
+            <span style={{ opacity: 0.35, fontSize: '9px' }}>SYNC OK</span>
+          )}
+        </div>
       </div>
     </div>
   );

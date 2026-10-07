@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, CopyIcon, ShortcutIcon, UnlinkIcon } from './Icons';
+import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, CopyIcon, ShortcutIcon, UnlinkIcon, ImageIcon } from './Icons';
 import { ChevronsLeft, ChevronLeft, ChevronsRight, ChevronRight } from 'lucide-react';
-import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, getDirectoryHandleByPath } from '../utils';
+import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, getDirectoryHandleByPath, isImageFilename } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
 import { MarkdownView } from './MarkdownView';
 import { FolderExplorer } from './FolderExplorer';
 import { ThemeQuickToggle } from './ThemeQuickToggle';
+import { ImageViewer } from './ImageViewer';
 
 export const MainContent = () => {
   const {
@@ -21,6 +22,7 @@ export const MainContent = () => {
     lang, t, speakerModeEnabled, ttsSettings, voices, writingMode, setWritingMode,
     paperMode, paperColor, setPaperColor, setPaperMode, togglePaperMode, fileMarks, setFileMark, hasPrevFile, hasNextFile, goToPrevFile, goToNextFile,
     mainBgWhite, toggleMainBgWhite,
+    showImageFiles, toggleShowImageFiles,
     isResuming, pendingResumeHandle, resumeSavedFolder, loading,
     viewMode, openExplorer,
     sidebarPosition,
@@ -575,8 +577,13 @@ export const MainContent = () => {
     );
   };
 
+  const isCurrentImage = isImageFilename(currentFileObj?.filename);
+
   const getHeadingHTML = () => {
     if (!currentFileObj) return '';
+    if (isCurrentImage) {
+      return highlightText(currentFileObj.title || currentFileObj.filename, searchQueries);
+    }
     const firstSentence = extractFirstSentence(currentContent);
     const displayTitle = (firstSentence && firstSentence.length > 2) ? firstSentence : currentFileObj.title;
     return highlightText(displayTitle, searchQueries);
@@ -672,15 +679,19 @@ export const MainContent = () => {
                 >
                   <FolderIcon /> {lang === 'en' ? 'Explorer' : '一覧'}
                 </button>
-                <button className="tool-btn primary" onClick={isEditing ? () => saveFile(editValue) : toggleEdit}>
-                  {isEditing ? <><SaveIcon /> {t.main.save}</> : <><EditIcon /> {t.main.edit}</>}
-                </button>
-                {isEditing && (
-                  <button className="tool-btn" onClick={toggleEdit}>
-                    <ReadIcon /> {t.main.read}
-                  </button>
+                {!isCurrentImage && (
+                  <>
+                    <button className="tool-btn primary" onClick={isEditing ? () => saveFile(editValue) : toggleEdit}>
+                      {isEditing ? <><SaveIcon /> {t.main.save}</> : <><EditIcon /> {t.main.edit}</>}
+                    </button>
+                    {isEditing && (
+                      <button className="tool-btn" onClick={toggleEdit}>
+                        <ReadIcon /> {t.main.read}
+                      </button>
+                    )}
+                  </>
                 )}
-                {!isEditing && (
+                {!isEditing && !isCurrentImage && (
                   <>
                     <div className="toolbar-stepper" title={lang === 'en' ? 'Font size' : '文字サイズ'}>
                       <button
@@ -832,6 +843,57 @@ export const MainContent = () => {
                     </button>
 
                     <ThemeQuickToggle />
+
+                    {/* 画像ファイル表示 / 非表示トグル（テーマボタンの横に配置・固定幅で文字ズレ防止） */}
+                    <button
+                      type="button"
+                      className={`theme-quick-toggle-btn-mirror ${showImageFiles ? 'active' : ''}`}
+                      onClick={toggleShowImageFiles}
+                      title={
+                        showImageFiles
+                          ? (lang === 'en' ? 'Image Files: ON (Showing image files. Click to hide)' : '画像ファイル表示: ON（画像ファイルを表示中。クリックで非表示）')
+                          : (lang === 'en' ? 'Image Files: OFF (Hiding image files for speed. Click to show)' : '画像ファイル表示: OFF（通常モード：画像ファイルを非表示。クリックで表示）')
+                      }
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        height: '26px',
+                        width: '88px',
+                        minWidth: '88px',
+                        maxWidth: '88px',
+                        padding: '0 6px',
+                        boxSizing: 'border-box',
+                        background: showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, rgba(120, 120, 120, 0.08))',
+                        color: showImageFiles ? '#ffffff' : 'var(--btn-text, inherit)',
+                        border: `1px solid ${showImageFiles ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-border, var(--card-border, rgba(120, 120, 120, 0.25)))'}`,
+                        borderRadius: '0px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        letterSpacing: '0.2px',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        userSelect: 'none',
+                        transition: 'background 0.15s, border-color 0.15s, color 0.15s'
+                      }}
+                    >
+                      <ImageIcon size={13} style={{ color: showImageFiles ? '#ffffff' : 'currentColor', flexShrink: 0 }} />
+                      <span style={{ flexShrink: 0 }}>{lang === 'en' ? 'Img' : '画像'}</span>
+                      <span 
+                        style={{ 
+                          display: 'inline-block', 
+                          width: '24px', 
+                          textAlign: 'center', 
+                          fontWeight: 800,
+                          letterSpacing: '0.5px',
+                          flexShrink: 0
+                        }}
+                      >
+                        {showImageFiles ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
 
                     <button
                       className={`tool-btn ${!hasPrevFile ? 'disabled-nav' : ''}`}
@@ -1069,12 +1131,18 @@ export const MainContent = () => {
               </div>
             </div>
 
-            {writingMode === 'vertical' && !isEditing ? (
-              <div className="vertical-content-wrapper-flex">
-                {renderContent()}
+            {isCurrentImage ? (
+              <div style={{ width: '100%', marginTop: '12px', border: '1px solid var(--panel-border)', borderRadius: '0px', overflow: 'hidden' }}>
+                <ImageViewer file={currentFileObj} lang={lang} />
               </div>
             ) : (
-              renderContent()
+              writingMode === 'vertical' && !isEditing ? (
+                <div className="vertical-content-wrapper-flex">
+                  {renderContent()}
+                </div>
+              ) : (
+                renderContent()
+              )
             )}
 
           </div>

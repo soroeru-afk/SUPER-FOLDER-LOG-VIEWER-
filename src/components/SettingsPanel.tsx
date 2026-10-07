@@ -5,7 +5,12 @@ import { applySettingsToDOM } from '../settingsSync';
 import { loadFolderVisualSettings, saveFolderVisualSettings, FolderVisualSettings, FolderCoverStyle, FolderCoverLayout, FolderCoverPosition, parsePositionPercent, getCategoryTheme } from '../folderVisuals';
 
 export const SettingsPanel = () => {
-  const { settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, ttsSettings, updateTtsSettings, voiceRates, voices, paperMode, setPaperMode, paperColor, setPaperColor, loadPaperForTheme, sidebarPosition, setSidebarPosition } = useAppContext();
+  const { 
+    settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, 
+    ttsSettings, updateTtsSettings, voiceRates, voices, paperMode, setPaperMode, 
+    paperColor, setPaperColor, loadPaperForTheme, sidebarPosition, setSidebarPosition,
+    showThumbnails, setShowThumbnails
+  } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'folder' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -272,6 +277,59 @@ export const SettingsPanel = () => {
                 >
                   OFF
                 </button>
+              </div>
+            </div>
+            <div className="setting-row">
+              <div className="setting-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span>{lang === 'en' ? 'Image Thumbnails' : '画像サムネイル表示'}</span>
+                  <div style={{ fontSize: '10px', opacity: 0.65, fontWeight: 400 }}>
+                    {lang === 'en' ? 'Turn OFF for high-speed lightweight loading with Google Drive' : 'OFFにするとGoogle Drive等の画像読み込みをスキップして高速化'}
+                  </div>
+                </div>
+                <div style={{
+                  display: 'inline-flex',
+                  background: 'var(--panel-item-bg)',
+                  border: '1px solid var(--panel-item-border)',
+                  borderRadius: '0px',
+                  padding: '2px',
+                  gap: '2px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowThumbnails(true)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: showThumbnails ? 'var(--panel-tab-active)' : 'transparent',
+                      color: showThumbnails ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                  >
+                    ON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowThumbnails(false)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: !showThumbnails ? 'var(--panel-tab-active)' : 'transparent',
+                      color: !showThumbnails ? 'var(--panel-bg)' : 'var(--panel-muted)',
+                    }}
+                  >
+                    OFF
+                  </button>
+                </div>
               </div>
             </div>
             <div className="setting-row">

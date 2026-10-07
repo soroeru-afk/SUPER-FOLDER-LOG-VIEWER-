@@ -52,6 +52,28 @@ export const ExternalLinkIcon = ({ size = 12 }: { size?: number } = {}) => (
   </svg>
 );
 
+export const ImageIcon = ({ size = 16, className, style }: { size?: number; className?: string; style?: React.CSSProperties } = {}) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle', ...style }}
+  >
+    {/* シャープな正方形フレーム枠 */}
+    <rect x="3" y="3" width="18" height="18" rx="0" fill="none" />
+    {/* 太陽 / 月 */}
+    <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+    {/* 山並みライン */}
+    <polyline points="21 15 16 10 5 21" fill="none" />
+  </svg>
+);
+
 export const SolidSeriesIcon = ({ size = 32 }: { size?: number }) => (
   <div 
     className="solid-series-icon"
@@ -96,25 +118,6 @@ export const SideChangeIcon = ({ size = 12 }: { size?: number } = {}) => (
     {/* 下の右向き矢印 → */}
     <line x1="2" y1="11" x2="13.5" y2="11" />
     <polyline points="10 7.5 13.5 11 10 14.5" />
-  </svg>
-);
-
-export const ImageIcon = ({ size = 14, className, style }: { size?: number; className?: string; style?: React.CSSProperties } = {}) => (
-  <svg 
-    className={className} 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2.2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-    style={{ flexShrink: 0, ...style }}
-  >
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-    <circle cx="8.5" cy="8.5" r="1.5"/>
-    <polyline points="21 15 16 10 5 21"/>
   </svg>
 );
 
