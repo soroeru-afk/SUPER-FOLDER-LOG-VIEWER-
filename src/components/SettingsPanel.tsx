@@ -9,10 +9,13 @@ export const SettingsPanel = () => {
     settingsOpen, toggleSettings, t, lang, speakerModeEnabled, setSpeakerMode, 
     ttsSettings, updateTtsSettings, voiceRates, voices, paperMode, setPaperMode, 
     paperColor, setPaperColor, loadPaperForTheme, sidebarPosition, setSidebarPosition,
-    showThumbnails, setShowThumbnails
+    showThumbnails, setShowThumbnails,
+    dirHandle, fileShortcuts, exportShortcutsJson, importShortcuts, syncShortcutsToFolder, showToast
   } = useAppContext();
   const [tab, setTab] = useState<'text' | 'layout' | 'theme' | 'folder' | 'audio'>('text');
   const panelRef = useRef<HTMLDivElement>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
 
   const [visualSettings, setVisualSettings] = useState<FolderVisualSettings>(loadFolderVisualSettings);
 
@@ -971,6 +974,108 @@ export const SettingsPanel = () => {
                 />
               </div>
             </div>
+
+            {/* ショートカットデータの同期・バックアップ管理 */}
+            <div className="setting-row" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--panel-item-border)' }}>
+              <div className="setting-label" style={{ marginBottom: '4px', fontWeight: 700 }}>
+                {lang === 'en' ? 'FOLDER SHORTCUTS DATA SYNC' : 'ショートカットデータの同期・バックアップ'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--panel-muted)', opacity: 0.85, lineHeight: 1.5, marginBottom: '10px' }}>
+                {lang === 'en'
+                  ? 'Manage virtual shortcut mappings. Sync directly with _shortcuts.json in Google Drive / local directory or copy JSON between PWA and web.'
+                  : 'フォルダー間のショートカット関連付けデータです。Google Driveのフォルダー直下の _shortcuts.json と手動同期したり、PWA版とWeb版の間でJSONデータをコピー＆ペーストして移行できます。'}
+              </div>
+
+              <div style={{
+                padding: '8px 12px',
+                background: 'var(--panel-item-bg)',
+                border: '1px solid var(--panel-item-border)',
+                marginBottom: '10px',
+                fontSize: '11px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span>{lang === 'en' ? 'Registered Shortcuts:' : 'ショートカット登録数:'}</span>
+                <span style={{ fontWeight: 800, fontFamily: 'monospace', fontSize: '12px' }}>
+                  {Object.keys(fileShortcuts).length} 件
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await syncShortcutsToFolder();
+                  }}
+                  disabled={!dirHandle}
+                  style={{
+                    padding: '8px 12px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    border: '1px solid var(--sb-accent, #3b82f6)',
+                    background: dirHandle ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
+                    color: dirHandle ? 'var(--sb-accent, #3b82f6)' : 'var(--panel-muted)',
+                    cursor: dirHandle ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    opacity: dirHandle ? 1 : 0.5,
+                    borderRadius: '0px'
+                  }}
+                  title={lang === 'en' ? 'Write current shortcuts to _shortcuts.json in root folder' : '現在開いているフォルダー直下の _shortcuts.json へ強制書き込み保存'}
+                >
+                  <span>💾</span>
+                  <span>{lang === 'en' ? 'Sync to Root Folder (_shortcuts.json)' : 'フォルダー直下の _shortcuts.json へ書き込み同期'}</span>
+                </button>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const json = exportShortcutsJson();
+                      navigator.clipboard.writeText(json);
+                      showToast(lang === 'en' ? '✓ Shortcuts JSON copied to clipboard' : '✓ ショートカットデータをクリップボードにコピーしました', 'success');
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '7px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: '1px solid var(--panel-item-border)',
+                      background: 'var(--panel-item-bg)',
+                      color: 'var(--panel-text)',
+                      cursor: 'pointer',
+                      borderRadius: '0px'
+                    }}
+                  >
+                    📋 {lang === 'en' ? 'Copy JSON' : 'JSONコピー'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportJsonText('');
+                      setIsImportModalOpen(true);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '7px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: '1px solid var(--panel-item-border)',
+                      background: 'var(--panel-item-bg)',
+                      color: 'var(--panel-text)',
+                      cursor: 'pointer',
+                      borderRadius: '0px'
+                    }}
+                  >
+                    📥 {lang === 'en' ? 'Paste / Import' : '貼り付け復元'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1126,6 +1231,133 @@ export const SettingsPanel = () => {
         )}
 
       </div>
+
+      {/* ショートカットJSON貼り付け・復元モーダル */}
+      {isImportModalOpen && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.65)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          onClick={() => setIsImportModalOpen(false)}
+        >
+          <div 
+            style={{
+              width: '480px',
+              maxWidth: '92vw',
+              background: 'var(--panel-bg, #1a1a1a)',
+              border: '1px solid var(--panel-item-border, rgba(120,120,120,0.4))',
+              borderRadius: '0px',
+              padding: '18px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 800, fontSize: '13px', letterSpacing: '0.5px' }}>
+                {lang === 'en' ? 'IMPORT SHORTCUTS (JSON)' : 'ショートカットデータの復元・インポート'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--panel-muted, inherit)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ fontSize: '11px', color: 'var(--panel-muted, #aaa)', lineHeight: 1.5 }}>
+              {lang === 'en'
+                ? 'Paste shortcut JSON data exported from PWA or backup below:'
+                : 'PWA版で「JSONコピー」したショートカットデータ、または保存したテキストを下記に貼り付けてください。'}
+            </div>
+
+            <textarea
+              rows={8}
+              value={importJsonText}
+              onChange={e => setImportJsonText(e.target.value)}
+              placeholder='{\n  "00_AI-SEARCH::filename.txt": ["TargetFolder"]\n}'
+              style={{
+                width: '100%',
+                background: 'rgba(0,0,0,0.25)',
+                border: '1px solid var(--panel-item-border, rgba(120,120,120,0.3))',
+                borderRadius: '0px',
+                color: 'var(--panel-text, #eee)',
+                fontFamily: 'monospace',
+                fontSize: '11px',
+                padding: '8px',
+                boxSizing: 'border-box',
+                outline: 'none',
+                resize: 'vertical'
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '11px',
+                  border: '1px solid var(--panel-item-border, rgba(120,120,120,0.4))',
+                  background: 'transparent',
+                  color: 'var(--panel-text, inherit)',
+                  cursor: 'pointer',
+                  borderRadius: '0px'
+                }}
+              >
+                {lang === 'en' ? 'Cancel' : 'キャンセル'}
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!importJsonText.trim()) return;
+                  const res = await importShortcuts(importJsonText.trim());
+                  if (res.success) {
+                    setIsImportModalOpen(false);
+                  } else {
+                    alert(res.error || 'JSONパースに失敗しました');
+                  }
+                }}
+                disabled={!importJsonText.trim()}
+                style={{
+                  padding: '6px 16px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  border: '1px solid var(--sb-accent, #3b82f6)',
+                  background: 'var(--sb-accent, #3b82f6)',
+                  color: '#ffffff',
+                  cursor: importJsonText.trim() ? 'pointer' : 'not-allowed',
+                  opacity: importJsonText.trim() ? 1 : 0.5,
+                  borderRadius: '0px'
+                }}
+              >
+                {lang === 'en' ? 'Apply & Restore' : '反映・復元する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

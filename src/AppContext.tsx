@@ -27,7 +27,7 @@ export interface AppState {
   settingsOpen: boolean;
   isHighlightOff: boolean;
   categoryOpenState: Record<string, boolean>;
-  movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', mode?: 'move'|'shortcut'|'duplicate', triggerRect?: any } | null;
+  movePanelState: { isOpen: boolean, type: 'single'|'bulk'|'folder', mode?: 'move'|'shortcut'|'duplicate', triggerRect?: any, targetFiles?: FileObj[] } | null;
   setMovePanelMode: (mode: 'move'|'shortcut'|'duplicate') => void;
   loading: boolean;
   refreshing: boolean;
@@ -74,7 +74,7 @@ export interface AppState {
   expandAllGroups: () => void;
   collapseAllGroups: () => void;
   
-  openMovePanel: (e: React.MouseEvent, type: 'single'|'bulk'|'folder', defaultMode?: 'move'|'shortcut'|'duplicate') => void;
+  openMovePanel: (e: React.MouseEvent, type: 'single'|'bulk'|'folder', defaultMode?: 'move'|'shortcut'|'duplicate', targetFiles?: FileObj[]) => void;
   closeMovePanels: () => void;
   execBulkMove: (files: FileObj[], destHandle: any | null, destCatName: string | null) => Promise<void>;
   moveToNewFolder: (folderName: string, isBulk: boolean) => Promise<void>;
@@ -84,6 +84,9 @@ export interface AppState {
   duplicateFile: (file: FileObj, destCatName?: string | null) => Promise<void>;
   execBulkDuplicate: (files: FileObj[], destHandle: any | null, destCatName: string | null) => Promise<void>;
   fileShortcuts: Record<string, string[]>;
+  exportShortcutsJson: () => string;
+  importShortcuts: (jsonStr: string) => Promise<{ success: boolean; count: number; error?: string }>;
+  syncShortcutsToFolder: () => Promise<boolean>;
   toast: ToastMessage | null;
   showToast: (message: string, type?: 'success' | 'info' | 'warn') => void;
   bulkDeleteFiles: () => Promise<void>;
@@ -168,7 +171,26 @@ import { translations, Language } from './i18n';
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dirHandle, setDirHandle] = useState<any | null>(null);
-  const [rawFiles, setRawFiles] = useState<FileObj[]>([]);
+  const [rawFiles, setRawFilesState] = useState<FileObj[]>([]);
+  const rawFilesRef = useRef<FileObj[]>([]);
+  const setRawFiles = (updater: FileObj[] | ((prev: FileObj[]) => FileObj[])) => {
+    setRawFilesState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      rawFilesRef.current = next;
+      return next;
+    });
+  };
+
+  const [physicalFolders, setPhysicalFoldersState] = useState<PhysicalFolder[]>([]);
+  const physicalFoldersRef = useRef<PhysicalFolder[]>([]);
+  const setPhysicalFolders = (updater: PhysicalFolder[] | ((prev: PhysicalFolder[]) => PhysicalFolder[])) => {
+    setPhysicalFoldersState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      physicalFoldersRef.current = next;
+      return next;
+    });
+  };
+
   const [fileShortcuts, setFileShortcutsState] = useState<Record<string, string[]>>(() => {
     try {
       const saved = localStorage.getItem('lv_file_shortcuts');
@@ -193,10 +215,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const virtualShortcuts: FileObj[] = [];
 
     physical.forEach(rf => {
-      const key = (rf.category || '') + '::' + rf.filename;
-      const targets = shortcuts[key] || [];
-      targets.forEach(targetCat => {
-        if (targetCat === (rf.category || '')) return;
+      const origCat = rf.category || '';
+      const key1 = origCat + '::' + rf.filename;
+      const key2 = rf.filename;
+      const key3 = origCat ? `${origCat}/${rf.filename}` : rf.filename;
+      const key4 = origCat ? `${origCat}::${rf.filename}` : `__root__::${rf.filename}`;
+
+      // 各種フォーマット互換のショートカット先を抽出
+      const targets1 = shortcuts[key1] || [];
+      const targets4 = shortcuts[key4] || [];
+      const targets2 = (origCat === '' && shortcuts[key2]) ? shortcuts[key2] : [];
+      const targets3 = shortcuts[key3] || [];
+      const combinedTargets = Array.from(new Set([...targets1, ...targets4, ...targets2, ...targets3]));
+
+      combinedTargets.forEach(targetCat => {
+        if (targetCat === origCat) return;
         virtualShortcuts.push({
           filename: rf.filename,
           handle: rf.handle,
@@ -209,7 +242,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           content: rf.content,
           isShortcut: true,
           originalCategory: rf.category,
-          originalFilename: rf.filename
+          originalFilename: rf.filename,
+          isImage: rf.isImage,
+          imageUrl: rf.imageUrl
         });
       });
     });
@@ -219,7 +254,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const [allFiles, setAllFiles] = useState<FileObj[]>([]);
   const [allCategories, setAllCategories] = useState<CategoryObj[]>([]);
-  const [physicalFolders, setPhysicalFolders] = useState<PhysicalFolder[]>([]);
   const [searchQueries, setSearchQueries] = useState<string[]>([]);
   
   const [currentFileObj, setCurrentFileObj] = useState<FileObj | null>(null);
@@ -504,9 +538,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // キーボードショートカット（Alt+←で戻る、Alt+→で進む）
+  // キーボードショートカット（Alt+←で戻る、Alt+→で進む、Ctrl+Sで保存）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S / Cmd+S で保存
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('requestSaveCurrentFile'));
+        return;
+      }
+
+      // Escape でパネルや選択モードの解除
+      if (e.key === 'Escape') {
+        closeMovePanels();
+        setIsNewFileModalOpen(false);
+        setIsNewFolderModalOpen(false);
+      }
+
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
@@ -960,8 +1008,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             name: pf.name,
             handle: null
           }));
+          const shortcutsFromCache = (metaCache.shortcuts && Object.keys(metaCache.shortcuts).length > 0)
+            ? metaCache.shortcuts
+            : fileShortcutsRef.current;
+          if (metaCache.shortcuts && Object.keys(metaCache.shortcuts).length > 0) {
+            setFileShortcuts(metaCache.shortcuts);
+            fileShortcutsRef.current = metaCache.shortcuts;
+          }
           setRawFiles(cachedFiles);
-          const merged = buildAllFiles(cachedFiles, fileShortcutsRef.current, cachedPFolders);
+          const merged = buildAllFiles(cachedFiles, shortcutsFromCache, cachedPFolders);
           setAllFiles(merged);
           setPhysicalFolders(cachedPFolders);
           updateFilter(merged, cachedPFolders, searchQueries);
@@ -1016,10 +1071,15 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
       if (!window.showDirectoryPicker) {
         if (fallbackData) {
+          const fallbackShortcuts = fallbackData.shortcuts || fileShortcutsRef.current;
+          if (fallbackData.shortcuts) {
+            setFileShortcuts(fallbackData.shortcuts);
+            fileShortcutsRef.current = fallbackData.shortcuts;
+          }
           setDirHandle({ name: fallbackData.rootFolderName, isFallback: true });
           setIsFallbackMode(true);
           setRawFiles(fallbackData.fileObjs);
-          const merged = buildAllFiles(fallbackData.fileObjs, fileShortcuts, fallbackData.pFolders);
+          const merged = buildAllFiles(fallbackData.fileObjs, fallbackShortcuts, fallbackData.pFolders);
           setAllFiles(merged);
           setPhysicalFolders(fallbackData.pFolders);
           updateFilter(merged, fallbackData.pFolders, searchQueries);
@@ -1054,6 +1114,30 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
             setIsResuming(false);
           }
         }
+      }
+
+      // PWA アプリショートカットアクションの検出・実行（?action=new-file, open-folder, all-data）
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const action = params.get('action');
+        if (action) {
+          if (action === 'new-file') {
+            setTimeout(() => {
+              openNewFileDialog(null);
+            }, 350);
+          } else if (action === 'open-folder') {
+            setTimeout(() => {
+              openFolder();
+            }, 350);
+          } else if (action === 'explorer' || action === 'all-data') {
+            setTimeout(() => {
+              openExplorer(null);
+            }, 100);
+          }
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (e) {
+        console.warn('PWA URL shortcut handling error:', e);
       }
     };
     init();
@@ -1156,20 +1240,51 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
     setRawFiles(initialFiles);
     
-    // ディスク上の _shortcuts.json が存在する場合は読み込み同期
+    // ディスク上の _shortcuts.json が存在する場合は読み込み・双方向統合同期
     let shortcutsToUse = overrideShortcuts || fileShortcutsRef.current;
     try {
       if (handle && !isFallbackMode) {
-        const sf = await handle.getFileHandle('_shortcuts.json', { create: false });
-        const file = await sf.getFile();
-        const text = await file.text();
-        if (text) {
-          const parsed = JSON.parse(text);
-          if (parsed && typeof parsed === 'object') {
-            shortcutsToUse = { ...shortcutsToUse, ...parsed };
-            localStorage.setItem('lv_file_shortcuts', JSON.stringify(shortcutsToUse));
-            fileShortcutsRef.current = shortcutsToUse;
-            setFileShortcutsState(shortcutsToUse);
+        let diskData: Record<string, string[]> = {};
+        try {
+          const sf = await handle.getFileHandle('_shortcuts.json', { create: false });
+          const file = await sf.getFile();
+          const text = await file.text();
+          if (text) {
+            const parsed = JSON.parse(text);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              diskData = parsed;
+            }
+          }
+        } catch (e) {
+          // _shortcuts.json がまだ無い場合
+        }
+
+        // 双方向ユニオンマージ（ローカルとディスクのショートカット双方のデータを保持して合体）
+        const mergedShortcuts: Record<string, string[]> = {};
+        const allKeys = new Set([...Object.keys(shortcutsToUse), ...Object.keys(diskData)]);
+        allKeys.forEach(key => {
+          const targets = Array.from(new Set([
+            ...(shortcutsToUse[key] || []),
+            ...(diskData[key] || [])
+          ]));
+          if (targets.length > 0) {
+            mergedShortcuts[key] = targets;
+          }
+        });
+
+        shortcutsToUse = mergedShortcuts;
+        localStorage.setItem('lv_file_shortcuts', JSON.stringify(shortcutsToUse));
+        fileShortcutsRef.current = shortcutsToUse;
+        setFileShortcutsState(shortcutsToUse);
+
+        // ディスク上の内容と差分がある場合（ローカル側の最新ショートカットがディスクに未反映の場合など）、直ちにディスクへ書き込み同期
+        const diskStr = JSON.stringify(diskData);
+        const mergedStr = JSON.stringify(shortcutsToUse);
+        if (diskStr !== mergedStr && Object.keys(shortcutsToUse).length > 0) {
+          try {
+            await syncShortcutsToDisk(shortcutsToUse, handle);
+          } catch (syncErr) {
+            console.warn('Auto sync shortcuts to disk failed:', syncErr);
           }
         }
       }
@@ -1260,7 +1375,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
             rootName: handle.name || 'Root',
             pFolders: pFolders.map(pf => ({ name: pf.name })),
             files: cacheFiles,
-            savedAt: Date.now()
+            savedAt: Date.now(),
+            shortcuts: shortcutsToUse
           });
         } catch(e) {
           console.warn('Failed to save metadata cache:', e);
@@ -1723,8 +1839,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     setCategoryOpenState(newState);
   };
 
-  const openMovePanel = (e: React.MouseEvent, type: 'single'|'bulk'|'folder', defaultMode: 'move'|'shortcut'|'duplicate' = 'move') => {
-    setMovePanelState({ isOpen: true, type, mode: defaultMode, triggerRect: e.currentTarget.getBoundingClientRect() });
+  const openMovePanel = (e: React.MouseEvent, type: 'single'|'bulk'|'folder', defaultMode: 'move'|'shortcut'|'duplicate' = 'move', targetFiles?: FileObj[]) => {
+    setMovePanelState({ isOpen: true, type, mode: defaultMode, triggerRect: e.currentTarget.getBoundingClientRect(), targetFiles });
     e.stopPropagation();
   };
   const closeMovePanels = () => setMovePanelState(null);
@@ -1739,20 +1855,27 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       return;
     }
 
-    setFileShortcuts(prev => {
-      const current = prev[key] || [];
-      if (current.includes(dest)) {
-        showToast(lang === 'en' ? 'Shortcut already exists in target folder' : '指定フォルダーには既にショートカットが存在します', 'info');
-        return prev;
-      }
-      const next = { ...prev, [key]: [...current, dest] };
-      localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
-      const merged = buildAllFiles(rawFiles, next, physicalFolders);
-      setAllFiles(merged);
-      updateFilter(merged, physicalFolders, searchQueries);
-      showToast(lang === 'en' ? `✓ Created shortcut in 「${dest || 'Root'}」` : `✓ 「${dest || 'ALL DATA (ルート)'}」にショートカットを作成しました`, 'success');
-      return next;
-    });
+    const currentShortcuts = fileShortcutsRef.current;
+    const current = currentShortcuts[key] || [];
+    if (current.includes(dest)) {
+      showToast(lang === 'en' ? 'Shortcut already exists in target folder' : '指定フォルダーには既にショートカットが存在します', 'info');
+      return;
+    }
+    const next = { ...currentShortcuts, [key]: [...current, dest] };
+    localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
+    fileShortcutsRef.current = next;
+    setFileShortcuts(next);
+
+    const merged = buildAllFiles(rawFilesRef.current, next, physicalFoldersRef.current);
+    setAllFiles(merged);
+    updateFilter(merged, physicalFoldersRef.current, searchQueries);
+    showToast(lang === 'en' ? `✓ Created shortcut in 「${dest || 'Root'}」` : `✓ 「${dest || 'ALL DATA (ルート)'}」にショートカットを作成しました`, 'success');
+
+    // ディスクの _shortcuts.json と IndexedDB フォールバックへ同期永続化
+    await syncShortcutsToDisk(next);
+    if (isFallbackMode) {
+      await saveFallbackData({ fileObjs: rawFilesRef.current, pFolders: physicalFoldersRef.current, rootFolderName: dirHandle?.name || 'Local Logs', shortcuts: next });
+    }
   };
 
   const removeShortcut = async (file: FileObj) => {
@@ -1762,22 +1885,29 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     const key = origCat + '::' + origName;
     const currentCat = file.category || '';
 
-    setFileShortcuts(prev => {
-      const current = prev[key] || [];
-      const updated = current.filter(c => c !== currentCat);
-      const next = { ...prev };
-      if (updated.length > 0) {
-        next[key] = updated;
-      } else {
-        delete next[key];
-      }
-      localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
-      const merged = buildAllFiles(rawFiles, next, physicalFolders);
-      setAllFiles(merged);
-      updateFilter(merged, physicalFolders, searchQueries);
-      showToast(lang === 'en' ? '✓ Shortcut removed (Original preserved)' : '✓ ショートカットを解除しました（原本は安全に残っています）', 'info');
-      return next;
-    });
+    const currentShortcuts = fileShortcutsRef.current;
+    const current = currentShortcuts[key] || [];
+    const updated = current.filter(c => c !== currentCat);
+    const next = { ...currentShortcuts };
+    if (updated.length > 0) {
+      next[key] = updated;
+    } else {
+      delete next[key];
+    }
+    localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
+    fileShortcutsRef.current = next;
+    setFileShortcuts(next);
+
+    const merged = buildAllFiles(rawFilesRef.current, next, physicalFoldersRef.current);
+    setAllFiles(merged);
+    updateFilter(merged, physicalFoldersRef.current, searchQueries);
+    showToast(lang === 'en' ? '✓ Shortcut removed (Original preserved)' : '✓ ショートカットを解除しました（原本は安全に残っています）', 'info');
+
+    // ディスクの _shortcuts.json と IndexedDB フォールバックへ同期永続化
+    await syncShortcutsToDisk(next);
+    if (isFallbackMode) {
+      await saveFallbackData({ fileObjs: rawFilesRef.current, pFolders: physicalFoldersRef.current, rootFolderName: dirHandle?.name || 'Local Logs', shortcuts: next });
+    }
 
     if (currentFileObj && currentFileObj.filename === file.filename && currentFileObj.category === file.category) {
       setCurrentFileObj(null);
@@ -1787,27 +1917,34 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
   const execBulkShortcut = async (files: FileObj[], destCatName: string | null) => {
     let addedCount = 0;
-    setFileShortcuts(prev => {
-      const next = { ...prev };
-      files.forEach(f => {
-        const origCat = f.isShortcut ? (f.originalCategory || '') : (f.category || '');
-        const origName = f.isShortcut ? (f.originalFilename || f.filename) : f.filename;
-        const key = origCat + '::' + origName;
-        const dest = destCatName || '';
-        if (dest === origCat) return;
-        const current = next[key] || [];
-        if (!current.includes(dest)) {
-          next[key] = [...current, dest];
-          addedCount++;
-        }
-      });
-      localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
-      const merged = buildAllFiles(rawFiles, next, physicalFolders);
-      setAllFiles(merged);
-      updateFilter(merged, physicalFolders, searchQueries);
-      showToast(lang === 'en' ? `✓ Created ${addedCount} shortcut(s) in 「${destCatName || 'Root'}」` : `✓ 「${destCatName || 'ALL DATA (ルート)'}」に${addedCount}件のショートカットを作成しました`, 'success');
-      return next;
+    const next = { ...fileShortcutsRef.current };
+    files.forEach(f => {
+      const origCat = f.isShortcut ? (f.originalCategory || '') : (f.category || '');
+      const origName = f.isShortcut ? (f.originalFilename || f.filename) : f.filename;
+      const key = origCat + '::' + origName;
+      const dest = destCatName || '';
+      if (dest === origCat) return;
+      const current = next[key] || [];
+      if (!current.includes(dest)) {
+        next[key] = [...current, dest];
+        addedCount++;
+      }
     });
+    localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
+    fileShortcutsRef.current = next;
+    setFileShortcuts(next);
+
+    const merged = buildAllFiles(rawFilesRef.current, next, physicalFoldersRef.current);
+    setAllFiles(merged);
+    updateFilter(merged, physicalFoldersRef.current, searchQueries);
+    showToast(lang === 'en' ? `✓ Created ${addedCount} shortcut(s) in 「${destCatName || 'Root'}」` : `✓ 「${destCatName || 'ALL DATA (ルート)'}」に${addedCount}件のショートカットを作成しました`, 'success');
+
+    // ディスクの _shortcuts.json と IndexedDB フォールバックへ同期永続化
+    await syncShortcutsToDisk(next);
+    if (isFallbackMode) {
+      await saveFallbackData({ fileObjs: rawFilesRef.current, pFolders: physicalFoldersRef.current, rootFolderName: dirHandle?.name || 'Local Logs', shortcuts: next });
+    }
+
     if (isSelectMode) toggleSelectMode();
     else clearFileSelection();
   };
@@ -1971,6 +2108,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
       setFileShortcuts(nextShortcuts);
       fileShortcutsRef.current = nextShortcuts;
+      await syncShortcutsToDisk(nextShortcuts);
     }
 
     // 3. 実体ファイルの移動処理（楽観的即時更新）
@@ -2032,7 +2170,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
   const bulkDeleteFiles = async () => {
     if(!selectedFileMap.size || !confirm(`${selectedFileMap.size}${t.main.confirmDeleteBulk}`)) return;
     let dc = false;
-    const nextShortcuts = { ...fileShortcuts };
+    const nextShortcuts = { ...fileShortcutsRef.current };
     let shortcutsChanged = false;
 
     for (const f of selectedFileMap.values()) {
@@ -2062,6 +2200,8 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     if (shortcutsChanged) {
       localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
       setFileShortcuts(nextShortcuts);
+      fileShortcutsRef.current = nextShortcuts;
+      await syncShortcutsToDisk(nextShortcuts);
     }
 
     if (dc) setCurrentFileObj(null);
@@ -2095,11 +2235,13 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       else await dirHandle.removeEntry(currentFileObj.filename);
       
       const origKey = (currentFileObj.category || '') + '::' + currentFileObj.filename;
-      if (fileShortcuts[origKey]) {
-        const nextShortcuts = { ...fileShortcuts };
+      if (fileShortcutsRef.current[origKey]) {
+        const nextShortcuts = { ...fileShortcutsRef.current };
         delete nextShortcuts[origKey];
         localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
         setFileShortcuts(nextShortcuts);
+        fileShortcutsRef.current = nextShortcuts;
+        await syncShortcutsToDisk(nextShortcuts);
       }
       setCurrentFileObj(null);
       await loadFiles(dirHandle);
@@ -2130,6 +2272,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
         setFileShortcuts(nextShortcuts);
         fileShortcutsRef.current = nextShortcuts;
+        await syncShortcutsToDisk(nextShortcuts);
       }
 
       setCurrentFileObj({...currentFileObj, filename: newName, handle: nf});
@@ -2305,6 +2448,53 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       await writable.close();
     } catch(e) {
       console.warn('Could not sync _shortcuts.json to disk', e);
+    }
+  };
+
+  const exportShortcutsJson = (): string => {
+    return JSON.stringify(fileShortcutsRef.current, null, 2);
+  };
+
+  const importShortcuts = async (jsonStr: string): Promise<{ success: boolean; count: number; error?: string }> => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { success: false, count: 0, error: 'JSON形式が不正です（オブジェクト形式である必要があります）' };
+      }
+      const next = { ...fileShortcutsRef.current, ...parsed };
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(next));
+      fileShortcutsRef.current = next;
+      setFileShortcuts(next);
+
+      const merged = buildAllFiles(rawFilesRef.current, next, physicalFoldersRef.current);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFoldersRef.current, searchQueries);
+
+      await syncShortcutsToDisk(next);
+      if (isFallbackMode) {
+        await saveFallbackData({ fileObjs: rawFilesRef.current, pFolders: physicalFoldersRef.current, rootFolderName: dirHandle?.name || 'Local Logs', shortcuts: next });
+      }
+
+      const totalItems = Object.keys(next).length;
+      showToast(lang === 'en' ? `✓ Imported shortcuts (${totalItems} items)` : `✓ ショートカット設定を反映しました（全${totalItems}件）`, 'success');
+      return { success: true, count: totalItems };
+    } catch (err: any) {
+      return { success: false, count: 0, error: err.message };
+    }
+  };
+
+  const syncShortcutsToFolder = async (): Promise<boolean> => {
+    if (!dirHandle || isFallbackMode) {
+      showToast(lang === 'en' ? 'Folder not opened or in fallback mode' : 'フォルダーが開かれていないかフォールバックモードです', 'warn');
+      return false;
+    }
+    try {
+      await syncShortcutsToDisk(fileShortcutsRef.current, dirHandle);
+      showToast(lang === 'en' ? '✓ Synced _shortcuts.json to folder' : '✓ フォルダー直下の _shortcuts.json へ書き込み同期しました', 'success');
+      return true;
+    } catch (e: any) {
+      showToast(`同期エラー: ${e.message}`, 'warn');
+      return false;
     }
   };
 
@@ -2665,6 +2855,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       toggleSettings, setCategoryOpen, expandAllGroups, collapseAllGroups,
       openMovePanel, closeMovePanels, setMovePanelMode, execBulkMove, moveToNewFolder,
       createShortcut, removeShortcut, execBulkShortcut, duplicateFile, execBulkDuplicate, fileShortcuts,
+      exportShortcutsJson, importShortcuts, syncShortcutsToFolder,
       toast, showToast,
       bulkDeleteFiles, deleteCurrentFile,
       renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,

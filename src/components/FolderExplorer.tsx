@@ -1140,8 +1140,7 @@ export const FolderExplorer: React.FC = () => {
               title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
               onClick={(e) => {
                 e.stopPropagation();
-                selectFile(f);
-                openMovePanel(e, 'single', 'shortcut');
+                openMovePanel(e, 'single', 'shortcut', [f]);
               }}
               style={{
                 background: 'transparent',
@@ -1379,8 +1378,7 @@ export const FolderExplorer: React.FC = () => {
               title={lang === 'en' ? 'Add shortcut to another folder' : '別フォルダーにショートカット作成'}
               onClick={(e) => {
                 e.stopPropagation();
-                selectFile(f);
-                openMovePanel(e, 'single', 'shortcut');
+                openMovePanel(e, 'single', 'shortcut', [f]);
               }}
               style={{
                 background: 'transparent',

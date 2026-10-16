@@ -1196,7 +1196,9 @@ export const MainContent = () => {
           {movePanelState.type === 'single' || movePanelState.type === 'bulk' ? (() => {
             const currentMode = movePanelState.mode || 'move';
             const isBulk = movePanelState.type === 'bulk';
-            const targetFiles = isBulk ? Array.from(selectedFileMap.values()) : (currentFileObj ? [currentFileObj] : []);
+            const targetFiles = (movePanelState.targetFiles && movePanelState.targetFiles.length > 0)
+              ? movePanelState.targetFiles
+              : (isBulk ? Array.from(selectedFileMap.values()) : (currentFileObj ? [currentFileObj] : []));
 
             const handleFolderAction = async (targetHandle: any | null, targetCatName: string | null) => {
               if (targetFiles.length === 0) return;

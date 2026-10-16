@@ -40,6 +40,7 @@ export interface FileMetadataCache {
   pFolders: { name: string }[];
   files: CachedFileMeta[];
   savedAt: number;
+  shortcuts?: Record<string, string[]>;
 }
 
 export async function saveFileMetaCache(cache: FileMetadataCache) {
@@ -59,7 +60,8 @@ export async function saveFileMetaCache(cache: FileMetadataCache) {
       rootName: cache.rootName || '',
       pFolders: cache.pFolders || [],
       files: sanitizedFiles,
-      savedAt: Date.now()
+      savedAt: Date.now(),
+      shortcuts: cache.shortcuts || {}
     };
     db.transaction(IDB_STORE_FILE_CACHE, 'readwrite').objectStore(IDB_STORE_FILE_CACHE).put(sanitizedCache, IDB_KEY_METADATA);
   } catch(e) {
