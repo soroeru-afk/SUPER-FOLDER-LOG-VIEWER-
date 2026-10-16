@@ -28,5 +28,43 @@
       "type": "image/svg+xml",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "新規ログ作成",
+      "short_name": "新規作成",
+      "description": "新しいテキストログを作成して編集",
+      "url": "/?action=new-file",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "フォルダーを開く",
+      "short_name": "開く",
+      "description": "ローカルフォルダーを選択して読み込み",
+      "url": "/?action=open-folder",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "ALL DATA エクスプローラー",
+      "short_name": "全一覧",
+      "description": "全フォルダー・ファイルの一覧を表示",
+      "url": "/?action=explorer",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }
