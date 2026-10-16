@@ -1,4 +1,3 @@
-import React from 'react';
 import { escHtml, highlightTextSafe, linkifyUrls } from './utils';
 
 export interface TableBlock {

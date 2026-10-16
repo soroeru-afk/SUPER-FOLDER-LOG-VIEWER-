@@ -157,17 +157,97 @@ export function linkifyUrls(s: string) {
   return escHtml(s).replace(/(https?:\/\/[^\s&"<>]+)/g, '<a href="$1" target="_blank" style="color:var(--sb-accent);text-decoration:underline;">$1</a>');
 }
 
-const UI_NOISE_LINES = /^(コピー|Copy|copied|コピーしました|👍|👎|Like|Dislike|再生成|Regenerate|編集|Edit|削除|Delete|Share|シェア|Report|報告|Follow up|フォローアップ)$/i;
+// チャットログ保存時に混入するUIノイズ（コピーボタン、トーストメッセージ等）の判定パターン
+export const UI_NOISE_PATTERNS = [
+  /^(クリップボードにコピーしました|クリップボードにコピーできませんでした|しばらくしてからもう一度お試しください|コピーしました|コピーできませんでした)+[。.]?$/i,
+  /^(コピー|Copy|copied|コピーしました|👍|👎|Like|Dislike|再生成|Regenerate|編集|Edit|削除|Delete|Share|シェア|Report|報告|Follow up|フォローアップ)$/i,
+];
+
+// 行全体がUIノイズかどうかを判定
+export function isNoiseLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  // 1. 基本パターン
+  for (const pat of UI_NOISE_PATTERNS) {
+    if (pat.test(trimmed)) return true;
+  }
+
+  // 2. 結合されたノイズ文言（例:「クリップボードにコピーしましたクリップボードにコピーできませんでした。しばらくしてからもう一度お試しください。コピーしましたコピーできませんでした」）
+  // 句読点やスペースを除去した上で、ノイズ語句のみで構成されているかを検証
+  const stripped = trimmed.replace(/[ 　\n\r。、,.]/g, '');
+  if (!stripped) return false;
+
+  const noisePhrases = [
+    'クリップボードにコピーしました',
+    'クリップボードにコピーできませんでした',
+    'しばらくしてからもう一度お試しください',
+    'コピーしました',
+    'コピーできませんでした',
+    'コピー',
+    '再生成',
+    '編集',
+    '削除',
+    'シェア',
+    '報告',
+    'フォローアップ'
+  ];
+
+  let testStr = stripped;
+  for (const phrase of noisePhrases) {
+    while (testStr.includes(phrase)) {
+      testStr = testStr.replace(phrase, '');
+    }
+  }
+
+  // ノイズ語句を取り除いて空になれば、行全体がノイズ
+  return testStr.length === 0;
+}
+
+// 文末や段落末尾に付着したノイズ（インライン・サフィックス）も含めて完全に除去
+export function cleanChatNoise(text: string): string {
+  if (!text) return '';
+
+  // 1. 特定の複合ノイズ文字列（完全一致またはインライン）の除去
+  let cleaned = text.replace(
+    /(?:クリップボードにコピー(?:しました|できませんでした)[ 　\n]*)+(?:[。.]?[ 　\n]*しばらくしてからもう一度お試しください[。.]?)?(?:[ 　\n]*(?:コピーしました|コピーできませんでした))+/g,
+    ''
+  );
+
+  // 2. 「しばらくしてからもう一度お試しください」の単独や残余
+  cleaned = cleaned.replace(/しばらくしてからもう一度お試しください[。.]?/g, '');
+  cleaned = cleaned.replace(/クリップボードにコピー(?:しました|できませんでした)[。.]?/g, '');
+  cleaned = cleaned.replace(/コピー(?:しました|できませんでした)/g, '');
+
+  // 3. 行単位でのフィルタリング
+  const lines = cleaned.split('\n');
+  const filteredLines: string[] = [];
+  for (const line of lines) {
+    if (!isNoiseLine(line)) {
+      filteredLines.push(line);
+    }
+  }
+
+  return filteredLines.join('\n');
+}
+
+// 音声読み上げ対象外のノイズか判定
+export function isAudioNoise(text: string): boolean {
+  if (!text || !text.trim()) return true;
+  return isNoiseLine(text);
+}
+
 const HEADING_MIN_CHARS = 15;
 
 export function extractFirstSentence(text: string) {
   if (!text) return null;
-  const lines = text.split('\n');
+  const cleaned = cleanChatNoise(text);
+  const lines = cleaned.split('\n');
   let firstRaw: string | null = null;
   for (const line of lines) {
     const withSpeaker = line.match(/^[^:：]{1,10}[:：]\s*(.+)$/);
     const raw = withSpeaker ? withSpeaker[1].trim() : line.trim();
-    if (raw && !UI_NOISE_LINES.test(raw)) { firstRaw = raw; break; }
+    if (raw && !isNoiseLine(raw)) { firstRaw = raw; break; }
   }
   if (!firstRaw) return null;
 

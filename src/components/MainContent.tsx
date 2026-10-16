@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
 import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, CopyIcon, ShortcutIcon, UnlinkIcon, ImageIcon } from './Icons';
 import { ChevronsLeft, ChevronLeft, ChevronsRight, ChevronRight } from 'lucide-react';
-import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, getDirectoryHandleByPath, isImageFilename } from '../utils';
+import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, getDirectoryHandleByPath, isImageFilename, cleanChatNoise, isNoiseLine, isAudioNoise } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
 import { MarkdownView } from './MarkdownView';
 import { FolderExplorer } from './FolderExplorer';
@@ -276,31 +276,21 @@ export const MainContent = () => {
   const [editValue, setEditValue] = useState("");
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 表示・読み上げ用にUIノイズ文言（クリップボードコピー失敗等の混入文）をクリーンアップしたテキスト
+  const displayContent = React.useMemo(() => {
+    return cleanChatNoise(currentContent || '');
+  }, [currentContent]);
+
   useEffect(() => {
-    setEditValue(currentContent);
+    setEditValue(currentContent || "");
   }, [currentContent, isEditing]);
 
-  // 編集モード時：枠が画面下まで自然に広がり、確実にカーソルが入るようフォーカス
+  // 編集モード開始時の初期フォーカス（DOMの高さをJavaScriptで直接書き換えないことでガタつきやスクロール跳ねを完全防止）
   useEffect(() => {
-    if (isEditing) {
-      const focusAndExpand = () => {
-        if (editTextareaRef.current) {
-          const el = editTextareaRef.current;
-          el.style.height = 'auto';
-          const minViewportH = Math.max(500, window.innerHeight - 280);
-          const calculatedH = Math.max(minViewportH, el.scrollHeight + 32);
-          el.style.height = `${calculatedH}px`;
-          el.focus();
-          const len = el.value.length;
-          el.setSelectionRange(len, len);
-        }
-      };
-      focusAndExpand();
-      const t1 = setTimeout(focusAndExpand, 40);
-      const t2 = setTimeout(focusAndExpand, 120);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+    if (isEditing && editTextareaRef.current) {
+      editTextareaRef.current.focus();
     }
-  }, [isEditing, editValue]);
+  }, [isEditing]);
 
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   useEffect(() => {
@@ -324,7 +314,7 @@ export const MainContent = () => {
       contentAreaEl.scrollTop = 0;
       contentAreaEl.scrollLeft = 0;
     }
-  }, [writingMode, currentFileObj, isEditing, speakerModeEnabled]);
+  }, [writingMode, currentFileObj, speakerModeEnabled]);
 
   const stopAudio = () => {
     window.speechSynthesis.cancel();
@@ -335,8 +325,12 @@ export const MainContent = () => {
     window.speechSynthesis.cancel();
     const validTexts: string[] = [];
     for (let i = startIndex; i < texts.length; i++) {
-      if (texts[i].trim()) {
-        validTexts.push(texts[i]);
+      const raw = texts[i];
+      if (raw && raw.trim() && !isAudioNoise(raw)) {
+        const cleaned = cleanChatNoise(raw).trim();
+        if (cleaned && !isAudioNoise(cleaned)) {
+          validTexts.push(cleaned);
+        }
       }
     }
     if (validTexts.length === 0) {
@@ -377,31 +371,41 @@ export const MainContent = () => {
         <textarea 
           id="edit-area" 
           ref={editTextareaRef}
-          style={{display: 'block'}}
           value={editValue} 
           onChange={e => {
+            // JSによるDOM高さ変更（scrollHeight加算等）を廃止し、文字入力・改行時の画面ガタつき・上部スクロール跳ねを完全解消
             setEditValue(e.target.value);
-            if (editTextareaRef.current) {
-              const el = editTextareaRef.current;
-              el.style.height = 'auto';
-              const minViewportH = Math.max(500, window.innerHeight - 280);
-              const calculatedH = Math.max(minViewportH, el.scrollHeight + 32);
-              el.style.height = `${calculatedH}px`;
+          }}
+          onKeyDown={e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+              e.preventDefault();
+              saveFile(editValue);
             }
           }}
+          placeholder={lang === 'en' ? 'Type content here...' : 'テキストを入力してください...'}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
         />
       );
     }
 
     const msgs: {speaker: string, text: string}[] = [];
-    currentContent.split('\n').forEach(line => {
+    displayContent.split('\n').forEach(line => {
       const t = line.trim();
-      if (/^(コピー|Copy|copied|コピーしました|👍|👎|Like|Dislike|再生成|Regenerate|編集|Edit|削除|Delete|Share|シェア|Report|報告|Follow up|フォローアップ)$/i.test(t)) return;
+      if (!t || isNoiseLine(t)) return;
       const m = line.match(/^([^:：]{1,10})[:：]\s*(.*)$/);
-      if (m) msgs.push({ speaker: m[1].trim(), text: m[2].trim() });
-      else if (t) {
-        if (msgs.length) msgs[msgs.length-1].text += '\n'+t;
-        else msgs.push({ speaker: '—', text: t });
+      if (m) {
+        const textPart = cleanChatNoise(m[2]).trim();
+        if (textPart) {
+          msgs.push({ speaker: m[1].trim(), text: textPart });
+        }
+      } else {
+        const cleanedLine = cleanChatNoise(line).trim();
+        if (cleanedLine) {
+          if (msgs.length) msgs[msgs.length - 1].text += '\n' + cleanedLine;
+          else msgs.push({ speaker: '—', text: cleanedLine });
+        }
       }
     });
 
@@ -507,7 +511,7 @@ export const MainContent = () => {
       );
     }
 
-    const lines = currentContent ? currentContent.split('\n') : [];
+    const lines = displayContent ? displayContent.split('\n') : [];
     if (writingMode === 'vertical') {
       return (
         <div className="vertical-card-fixed">
@@ -533,7 +537,7 @@ export const MainContent = () => {
                 }}
               >
                 <MarkdownView
-                  content={currentContent}
+                  content={displayContent}
                   searchQueries={searchQueries}
                   writingMode="vertical"
                   isPlayingAudio={isPlayingAudio}
@@ -563,7 +567,7 @@ export const MainContent = () => {
         }}
       >
         <MarkdownView
-          content={currentContent}
+          content={displayContent}
           searchQueries={searchQueries}
           writingMode="horizontal"
           isPlayingAudio={isPlayingAudio}
@@ -1067,7 +1071,7 @@ export const MainContent = () => {
                         if (isSpeaking) {
                           stopAudio();
                         } else {
-                          const lines = currentContent ? currentContent.split('\n') : [];
+                          const lines = displayContent ? displayContent.split('\n') : [];
                           playFromIndex(lines, 0);
                         }
                       }}

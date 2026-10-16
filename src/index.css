@@ -659,11 +659,12 @@ body.highlight-off mark {
 
 #edit-area {
   width: 100%;
-  min-height: calc(100vh - 280px);
-  padding: var(--card-padding-v, 28px) var(--card-padding-h, 28px);
-  border: 2px solid var(--card-border);
-  border-radius: var(--card-radius, 0px);
-  font-family: monospace;
+  height: calc(100vh - 280px);
+  min-height: 480px;
+  padding: 24px 28px;
+  border: 1px solid var(--card-border);
+  border-radius: 0px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: var(--text-font-size, 14px);
   font-weight: var(--text-font-weight, 400);
   line-height: var(--text-line-height, 1.7);
@@ -675,7 +676,11 @@ body.highlight-off mark {
   box-sizing: border-box;
   background: var(--card-bg);
   color: var(--main-text);
-  margin-bottom: 48px;
+  margin-bottom: 32px;
+  overflow-y: auto;
+  scroll-behavior: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 #edit-area:focus { border-color: var(--sb-accent); }
 
