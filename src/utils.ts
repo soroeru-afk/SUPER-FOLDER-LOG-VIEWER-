@@ -247,7 +247,13 @@ export function extractFirstSentence(text: string) {
   for (const line of lines) {
     const withSpeaker = line.match(/^[^:：]{1,10}[:：]\s*(.+)$/);
     const raw = withSpeaker ? withSpeaker[1].trim() : line.trim();
-    if (raw && !isNoiseLine(raw)) { firstRaw = raw; break; }
+    if (raw && !isNoiseLine(raw)) {
+      firstRaw = raw
+        .replace(/^(#{1,6})[\s　]*/, '')
+        .replace(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*/, '')
+        .trim();
+      break;
+    }
   }
   if (!firstRaw) return null;
 

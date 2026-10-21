@@ -1756,13 +1756,18 @@ body.select-mode .file-item.selected .file-title { color: var(--sb-accent); }
 }
 
 .markdown-table th {
-  background: var(--sb-item-hover);
+  background: var(--table-header-bg, rgba(148, 163, 184, 0.12));
   font-weight: 700;
   color: var(--heading-color, var(--main-text));
 }
 
-.markdown-table tr:hover td {
-  background: var(--sb-item-hover);
+.markdown-table-row-alt {
+  background: var(--table-row-alt, rgba(148, 163, 184, 0.05));
+}
+
+.markdown-table tr:hover td,
+.markdown-table tr:hover th {
+  background: var(--table-row-hover, rgba(59, 130, 246, 0.12));
 }
 
 .markdown-table.vertical-table {
@@ -3953,19 +3958,30 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
 }
 
 /* ── テーブル ── */
-[data-main-white="true"] table th {
+[data-main-white="true"] table th,
+[data-main-white="true"] .markdown-table th {
   background-color: #F1F5F9 !important;
   color: #0F172A !important;
   border-color: #E2E8F0 !important;
 }
 
-[data-main-white="true"] table td {
+[data-main-white="true"] table td,
+[data-main-white="true"] .markdown-table td {
   border-color: #E2E8F0 !important;
   color: #1E293B !important;
 }
 
-[data-main-white="true"] table tbody tr:nth-child(even) {
+[data-main-white="true"] table tbody tr:nth-child(even),
+[data-main-white="true"] .markdown-table-row-alt {
   background-color: #F8FAFC !important;
+}
+
+[data-main-white="true"] table tr:hover td,
+[data-main-white="true"] table tr:hover th,
+[data-main-white="true"] .markdown-table tr:hover td,
+[data-main-white="true"] .markdown-table tr:hover th {
+  background-color: #E2E8F0 !important;
+  color: #0F172A !important;
 }
 
 [data-main-white="true"] .msg-body {

@@ -589,7 +589,13 @@ export const MainContent = () => {
       return highlightText(currentFileObj.title || currentFileObj.filename, searchQueries);
     }
     const firstSentence = extractFirstSentence(currentContent);
-    const displayTitle = (firstSentence && firstSentence.length > 2) ? firstSentence : currentFileObj.title;
+    let displayTitle = (firstSentence && firstSentence.length > 2) ? firstSentence : currentFileObj.title;
+    if (displayTitle) {
+      displayTitle = displayTitle
+        .replace(/^(#{1,6})[\s　]*/, '')
+        .replace(/^([*\-+]|\u2022|\u2013|\u2014)[\s{]*/, '')
+        .trim();
+    }
     return highlightText(displayTitle, searchQueries);
   };
 

@@ -166,22 +166,24 @@ export function parseMarkdown(text: string): MarkdownBlock[] {
       continue;
     }
 
-    // 4. 見出し (# H1, ## H2, ### H3...)
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    // 4. 見出し (# H1, ## H2, ### H3... インデントやスペース欠落にも完全対応)
+    const headingMatch = trimmed.match(/^(#{1,6})[\s　]*(.+)$/);
     if (headingMatch) {
+      // テキスト先頭に万が一残った # 記号を除去
+      const cleanHeadingText = headingMatch[2].replace(/^(#{1,6})[\s　]*/, '').trim();
       blocks.push({
         type: 'heading',
         level: headingMatch[1].length,
-        text: headingMatch[2].trim(),
+        text: cleanHeadingText,
         rawLine: line
       });
       i++;
       continue;
     }
 
-    // 5. 引用 (> quote)
-    if (line.startsWith('>')) {
-      const quoteText = line.replace(/^>\s?/, '');
+    // 5. 引用 (> quote インデント対応)
+    if (trimmed.startsWith('>')) {
+      const quoteText = trimmed.replace(/^>[\s　]?/, '');
       blocks.push({
         type: 'quote',
         text: quoteText,
@@ -191,9 +193,9 @@ export function parseMarkdown(text: string): MarkdownBlock[] {
       continue;
     }
 
-    // 6. 箇条書きリスト (Ordered or Unordered)
-    const ulMatch = line.match(/^([*\-+]|\u2022)\s+(.+)$/);
-    const olMatch = line.match(/^(\d+)[.)]\s+(.+)$/);
+    // 6. 箇条書きリスト (インデント付き - / * / + / 数字リストに対応)
+    const ulMatch = trimmed.match(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*(.+)$/);
+    const olMatch = trimmed.match(/^(\d+)[.・)][\s　]*(.+)$/);
     if (ulMatch || olMatch) {
       const isOrdered = Boolean(olMatch);
       const startNumber = olMatch ? parseInt(olMatch[1], 10) : undefined;
@@ -201,17 +203,18 @@ export function parseMarkdown(text: string): MarkdownBlock[] {
 
       while (i < lines.length) {
         const currentLine = lines[i];
-        const mUl = currentLine.match(/^([*\-+]|\u2022)\s+(.+)$/);
-        const mOl = currentLine.match(/^(\d+)[.)]\s+(.+)$/);
+        const currentTrimmed = currentLine.trim();
+        const mUl = currentTrimmed.match(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*(.+)$/);
+        const mOl = currentTrimmed.match(/^(\d+)[.・)][\s　]*(.+)$/);
         if (isOrdered && mOl) {
           items.push({ 
-            text: mOl[2], 
+            text: mOl[2].trim(), 
             rawLine: currentLine,
             number: parseInt(mOl[1], 10)
           });
           i++;
         } else if (!isOrdered && mUl) {
-          items.push({ text: mUl[2], rawLine: currentLine });
+          items.push({ text: mUl[2].trim(), rawLine: currentLine });
           i++;
         } else {
           break;
