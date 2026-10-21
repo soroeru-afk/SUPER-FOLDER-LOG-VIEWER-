@@ -926,7 +926,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {}
   }, [categoryOpenState]);
   
-  const [movePanelState, setMovePanelState] = useState<{isOpen: boolean, type: 'single'|'bulk'|'folder', mode?: 'move'|'shortcut'|'duplicate', triggerRect?: any} | null>(null);
+  const [movePanelState, setMovePanelState] = useState<{isOpen: boolean, type: 'single'|'bulk'|'folder', mode?: 'move'|'shortcut'|'duplicate', triggerRect?: any, targetFiles?: FileObj[]} | null>(null);
   const setMovePanelMode = (mode: 'move'|'shortcut'|'duplicate') => {
     setMovePanelState(prev => prev ? { ...prev, mode } : null);
   };

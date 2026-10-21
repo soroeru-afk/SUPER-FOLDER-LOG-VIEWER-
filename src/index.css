@@ -59,6 +59,27 @@
   --heading-letter-spacing: -1px;
 }
 
+/* Thin Scrollbar from Calendar */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150, 150, 150, 0.3) transparent;
+}
+.thin-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+  display: block;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.3);
+  border-radius: 4px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.6);
+}
+
 /* ─── アプリブランド ─── */
 #app-brand {
   display: flex;
@@ -1668,7 +1689,6 @@ body.select-mode .file-item.selected .file-title { color: var(--sb-accent); }
   border-radius: var(--card-radius, 0px);
   padding: var(--card-padding-v, 28px) var(--card-padding-h, 28px);
   line-height: var(--text-line-height, 1.8);
-  white-space: pre-wrap;
   font-size: var(--text-font-size, 15px);
   font-weight: var(--text-font-weight, 400);
   letter-spacing: var(--text-letter-spacing, 0px);
@@ -1805,22 +1825,20 @@ body.select-mode .file-item.selected .file-title { color: var(--sb-accent); }
 }
 
 .markdown-list {
-  padding-inline-start: 1.6em;
+  padding: 0;
+  margin: 10px 0;
 }
 .markdown-list li {
   line-height: var(--text-line-height, 1.8);
   font-size: var(--text-font-size, 15px);
-  margin-bottom: 4px;
 }
 .markdown-list.vertical-list {
   writing-mode: vertical-rl;
-  margin: 0 16px;
-  padding-block-start: 1em;
-  padding-inline-start: 0;
+  margin: 0 10px;
+  padding: 0;
 }
 .markdown-list.vertical-list li {
-  margin-inline-start: 6px;
-  margin-bottom: 0;
+  margin: 0;
 }
 
 .markdown-quote {
@@ -3962,12 +3980,12 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
 [data-main-white="true"] .markdown-table th {
   background-color: #F1F5F9 !important;
   color: #0F172A !important;
-  border-color: #E2E8F0 !important;
+  border-color: #CBD5E1 !important;
 }
 
 [data-main-white="true"] table td,
 [data-main-white="true"] .markdown-table td {
-  border-color: #E2E8F0 !important;
+  border-color: #CBD5E1 !important;
   color: #1E293B !important;
 }
 

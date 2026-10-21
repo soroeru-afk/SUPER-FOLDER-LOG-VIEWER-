@@ -238,6 +238,7 @@ export function isAudioNoise(text: string): boolean {
 }
 
 const HEADING_MIN_CHARS = 15;
+const KNOWN_SPEAKERS = /^(User|Human|Assistant|AI|System|ユーザー|アシスタント|質問|回答|Bot|Me|You)[:：]\s*(.+)$/i;
 
 export function extractFirstSentence(text: string) {
   if (!text) return null;
@@ -245,10 +246,11 @@ export function extractFirstSentence(text: string) {
   const lines = cleaned.split('\n');
   let firstRaw: string | null = null;
   for (const line of lines) {
-    const withSpeaker = line.match(/^[^:：]{1,10}[:：]\s*(.+)$/);
-    const raw = withSpeaker ? withSpeaker[1].trim() : line.trim();
+    const knownSpeakerMatch = line.match(KNOWN_SPEAKERS);
+    const raw = knownSpeakerMatch ? knownSpeakerMatch[2].trim() : line.trim();
     if (raw && !isNoiseLine(raw)) {
       firstRaw = raw
+        .replace(/^(\d+[.・)][\s　]*)?(#{1,6})[\s　]*/, '$1')
         .replace(/^(#{1,6})[\s　]*/, '')
         .replace(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*/, '')
         .trim();
@@ -268,8 +270,8 @@ export function extractFirstSentence(text: string) {
 
   let combined = sentence;
   for (const line of lines) {
-    const withSpeaker = line.match(/^[^:：]{1,10}[:：]\s*(.+)$/);
-    const raw = withSpeaker ? withSpeaker[1].trim() : line.trim();
+    const knownSpeakerMatch = line.match(KNOWN_SPEAKERS);
+    const raw = knownSpeakerMatch ? knownSpeakerMatch[2].trim() : line.trim();
     if (!raw || raw === firstRaw) continue;
     combined = (combined + '　' + raw);
     if (combined.length >= HEADING_MIN_CHARS) break;

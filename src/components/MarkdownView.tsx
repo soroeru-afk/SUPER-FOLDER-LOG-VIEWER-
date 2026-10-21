@@ -126,8 +126,11 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
         if (block.type === 'heading') {
           const lineIdx = currentLineIndex++;
           const tag = `h${Math.min(block.level, 6)}`;
-          // 見出しテキスト先頭に万が一残っている # 記号を徹底削除
-          const cleanHeadingText = block.text.replace(/^(#{1,6})[\s　]*/, '').trim();
+          // 見出しテキスト先頭に万が一残っている # 記号を徹底削除（"1. # " や "2. ## " にも完全対応）
+          const cleanHeadingText = block.text
+            .replace(/^(\d+[.・)][\s　]*)?(#{1,6})[\s　]*/, '$1')
+            .replace(/^(#{1,6})[\s　]*/, '')
+            .trim();
 
           const headingStyles: React.CSSProperties = {
             fontWeight: block.level === 1 ? 800 : block.level === 2 ? 700 : 600,
@@ -185,13 +188,15 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
           const ListTag = block.ordered ? 'ol' : 'ul';
           const listProps: React.OlHTMLAttributes<HTMLOListElement> & React.HTMLAttributes<HTMLUListElement> = {
             className: `markdown-list ${block.ordered ? 'ordered' : 'unordered'} ${
-              isVertical ? 'vertical-list' : ''
+              isVertical ? 'vertical-list' : 'horizontal-list'
             }`,
             style: {
-              margin: isVertical ? '0 20px' : '14px 0',
-              paddingLeft: isVertical ? '0' : '28px',
-              paddingTop: isVertical ? '14px' : '0',
-              listStyleType: block.ordered ? 'decimal' : 'disc',
+              margin: isVertical ? '0 10px' : '12px 0',
+              padding: 0,
+              paddingLeft: 0,
+              paddingTop: 0,
+              listStyle: 'none',
+              listStyleType: 'none',
               lineHeight: 'var(--text-line-height, 1.8)',
               fontSize: 'var(--text-font-size, 15px)',
               fontFamily: 'var(--font-body)'
@@ -209,21 +214,57 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
             >
               {block.items.map((item, idx) => {
                 const itemLine = listStart + idx;
-                // リストアイテム先頭に残った - / * 記号を綺麗に排除
-                const cleanItemText = item.text.replace(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*/, '').trim();
+                const level = item.level || 0;
+
+                // 1. リスト先頭の既存箇条書き記号を除去
+                // ※「**太字**」のアスタリスクを誤って削らないよう、空白付きの箇条書き記号または中黒・数字リストのみを除去
+                let cleanItemText = item.text
+                  .replace(/^[・\u30FB•]\s*/, '')
+                  .replace(/^\d+[.・)]\s*/, '')
+                  .replace(/^[-+*]\s+/, '')
+                  .trim();
+
+                // 1.5 見出しやコロン前ラベル末尾の単独飾り「*」があればクリーンアップ（"定義*：" -> "定義："、"科学的探索*" -> "科学的探索"）
+                // ※「**太字**」のペアは壊さずに保持する
+                if (!cleanItemText.startsWith('**') || !cleanItemText.includes('**', 2)) {
+                  cleanItemText = cleanItemText
+                    .replace(/(\S)\*+([：:])/g, '$1$2')
+                    .replace(/(\S)\*+$/g, '$1');
+                }
+
+                // 2. マーカーをテキスト先頭にインライン配置
+                // これにより、縦書きでテキストが1段下がった際にも丸（・）が確実にテキストと一緒に下がり追従する
+                let textToRender = cleanItemText;
+                if (!block.ordered) {
+                  // 無順序リスト：中黒「・」を先頭に付与
+                  textToRender = `・${cleanItemText}`;
+                } else {
+                  // 順序付きリスト：番号を先頭に付与
+                  const num = item.number !== undefined ? item.number : (idx + (block.start ?? 1));
+                  textToRender = `${num}. ${cleanItemText}`;
+                }
+
+                // 階層レベル（level 0: 親大項目, level 1: 子項目（1段下げ）, level 2: 孫項目）に応じたインデントオフセット
+                const itemStyles: React.CSSProperties = {
+                  listStyle: 'none',
+                  listStyleType: 'none',
+                  marginBottom: isVertical ? '0' : (level === 0 ? '6px' : '4px'),
+                  marginLeft: isVertical ? '0' : (level === 0 ? '0' : `${level * 22}px`),
+                  paddingTop: isVertical ? (level === 0 ? '4px' : `${level * 28}px`) : '2px',
+                  paddingLeft: isVertical ? '0' : '2px',
+                  cursor: 'pointer',
+                  borderRadius: '0px',
+                  fontFamily: 'var(--font-body)',
+                  fontWeight: 400, // 重要：li全体を太字にしない！見出しやコロン前ラベル（「定義：」等）のみformatInlineMarkdownで太字化
+                  fontSize: 'var(--text-font-size, 15px)'
+                };
+
                 return (
                   <li
                     key={idx}
                     value={item.number}
-                    className="markdown-list-item"
-                    style={{
-                      marginBottom: isVertical ? '0' : '8px',
-                      marginLeft: isVertical ? '8px' : '0',
-                      cursor: 'pointer',
-                      borderRadius: '0px',
-                      padding: '2px 4px',
-                      fontFamily: 'var(--font-body)'
-                    }}
+                    className={`markdown-list-item level-${level}`}
+                    style={itemStyles}
                     onClick={(e) => {
                       if (window.getSelection()?.toString().length) return;
                       e.stopPropagation();
@@ -231,7 +272,7 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
                     }}
                     title={tooltipText}
                     dangerouslySetInnerHTML={{
-                      __html: formatInlineMarkdown(cleanItemText, searchQueries)
+                      __html: formatInlineMarkdown(textToRender, searchQueries)
                     }}
                   />
                 );
@@ -310,10 +351,12 @@ export const MarkdownView: React.FC<MarkdownViewProps> = ({
           );
         }
 
-        // 段落行で万が一残っている先頭の見出し記号 (#) や箇条書き記号 (-) を二重保護トリム
+        // 段落行で万が一残っている先頭の見出し記号 (#) や箇条書き記号 (-, *, +) を二重保護トリム（中黒・は保持）
         let cleanParagraphLine = line
           .replace(/^(#{1,6})[\s　]*/, '')
-          .replace(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*/, '');
+          .replace(/^([\-+])[\s　]*/, '')
+          .replace(/(\S)\*+([：:])/g, '$1$2')
+          .replace(/^([・*-]\s*[^：:\n<*]{1,20})\*+\s*$/g, '$1');
 
         return (
           <span

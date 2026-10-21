@@ -19,7 +19,7 @@ export interface ListBlock {
   type: 'list';
   ordered: boolean;
   start?: number;
-  items: { text: string; rawLine: string; number?: number }[];
+  items: { text: string; rawLine: string; number?: number; level?: number }[];
 }
 
 export interface HrBlock {
@@ -45,19 +45,19 @@ export function formatInlineMarkdown(text: string, searchQueries: string[] = [])
   // まず特殊文字をエスケープ
   let html = escHtml(text);
 
+  // シャープマーク（#）の徹底除去（"1. # " や "## " などの残余）
+  html = html.replace(/^(\d+[.・)][\s　]*)?(#{1,6})[\s　]*/, '$1');
+  html = html.replace(/^(#{1,6})[\s　]*/, '');
+
   // インラインコード `code`
   html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
 
   // 太字 **text** または __text__
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-
-  // 斜体 *text* または _text_
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__([^_\n]+)__/g, '<strong>$1</strong>');
 
   // 打ち消し ~~text~~
-  html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  html = html.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
 
   // URLのリンク化 (HTMLエスケープ済み前提)
   html = html.replace(
@@ -74,6 +74,20 @@ export function formatInlineMarkdown(text: string, searchQueries: string[] = [])
     /(\[\s*(?:NODE:|SOURCE|[A-Z0-9_-]*NODE)[^\]]*\])/gi,
     '<span class="md-node-tag">$1</span>'
   );
+
+  // 冒頭キーフレーズ・コロン前ラベル自動太字化（斜体処理より前に実行し、見出し末尾の飾り「*」を除去して確実に太字化）
+  // 1. コロン付きキーフレーズ (例: "・定義*：説明" -> "・<strong>定義：</strong> 説明", "- id: 識別子" -> "- <strong>id:</strong> 識別子")
+  html = html.replace(/^([・*-]\s*|^\s*)([^：:\n<*]{1,25})\*?([：:])\s*/gm, '$1<strong>$2$3</strong> ');
+
+  // 2. コロンなしの中黒・ハイフン見出しフレーズ (例: "・科学的探索*" や "・文化的表象*" -> "・<strong>科学的探索</strong>")
+  html = html.replace(/^([・*-]\s*)([^：:\n<*]{1,20})\*?\s*$/gm, '$1<strong>$2</strong>');
+
+  // 3. 角括弧セクション見出し (例: "[ 02_DATA_GRID ]", "[ 03STRATEGICOVERVIEW ]")
+  html = html.replace(/^(\[\s*[A-Z0-9_ -]{2,30}\s*\])$/gm, '<strong>$1</strong>');
+
+  // 斜体 *text* または _text_ (※改行をまたがず、前後に空白がないインライン単語のみ対象)
+  html = html.replace(/(?<!\*)\*([^*\s\n](?:[^*\n]*[^*\s\n])?)\*(?!\*)/g, '<em>$1</em>');
+  html = html.replace(/(?<!_)_([^_\s\n](?:[^_\n]*[^_\s\n])?)_(?!_)/g, '<em>$1</em>');
 
   // 検索語ハイライト
   html = highlightTextSafe(html, searchQueries);
@@ -166,14 +180,20 @@ export function parseMarkdown(text: string): MarkdownBlock[] {
       continue;
     }
 
-    // 4. 見出し (# H1, ## H2, ### H3... インデントやスペース欠落にも完全対応)
-    const headingMatch = trimmed.match(/^(#{1,6})[\s　]*(.+)$/);
+    // 4. 見出し (# H1, ## H2, ### H3... "1. # " や "2. ## " などの番号付き見出し、インデントやスペース欠落にも完全対応)
+    const headingMatch = trimmed.match(/^(\d+[.・)][\s　]*)?(#{1,6})[\s　]*(.+)$/);
     if (headingMatch) {
-      // テキスト先頭に万が一残った # 記号を除去
-      const cleanHeadingText = headingMatch[2].replace(/^(#{1,6})[\s　]*/, '').trim();
+      const numPrefix = headingMatch[1] || '';
+      const hashes = headingMatch[2];
+      const headingBody = headingMatch[3];
+      // テキスト先頭に残っている # 記号を完全に除去
+      const cleanHeadingText = (numPrefix + headingBody)
+        .replace(/^(\d+[.・)][\s　]*)?(#{1,6})[\s　]*/, '$1')
+        .replace(/^(#{1,6})[\s　]*/, '')
+        .trim();
       blocks.push({
         type: 'heading',
-        level: headingMatch[1].length,
+        level: hashes.length,
         text: cleanHeadingText,
         rawLine: line
       });
@@ -193,28 +213,48 @@ export function parseMarkdown(text: string): MarkdownBlock[] {
       continue;
     }
 
-    // 6. 箇条書きリスト (インデント付き - / * / + / 数字リストに対応)
-    const ulMatch = trimmed.match(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*(.+)$/);
+    // 6. 箇条書きリスト (インデント・階層付き - / * / + / • / ・ / 数字リストに対応)
+    // ※「*」「-」「+」は直後に空白を必須とし、「**太字**」などのマークダウン構文を壊さないようにする
+    const ulMatch = trimmed.match(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]+(.+)$/) || trimmed.match(/^([•・\u30FB])[\s　]*(.+)$/);
     const olMatch = trimmed.match(/^(\d+)[.・)][\s　]*(.+)$/);
     if (ulMatch || olMatch) {
       const isOrdered = Boolean(olMatch);
       const startNumber = olMatch ? parseInt(olMatch[1], 10) : undefined;
-      const items: { text: string; rawLine: string; number?: number }[] = [];
+      const items: { text: string; rawLine: string; number?: number; level?: number }[] = [];
+
+      let currentHasParent = false;
 
       while (i < lines.length) {
         const currentLine = lines[i];
         const currentTrimmed = currentLine.trim();
-        const mUl = currentTrimmed.match(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]*(.+)$/);
+        const mUl = currentTrimmed.match(/^([*\-+]|\u2022|\u2013|\u2014)[\s　]+(.+)$/) || currentTrimmed.match(/^([•・\u30FB])[\s　]*(.+)$/);
         const mOl = currentTrimmed.match(/^(\d+)[.・)][\s　]*(.+)$/);
-        if (isOrdered && mOl) {
+
+        if ((isOrdered && mOl) || (!isOrdered && mUl)) {
+          const match = isOrdered ? mOl : mUl;
+          const rawItemText = match[2].trim();
+          
+          // インデント幅の判定（タブはスペース2文字換算）
+          const indentStr = (currentLine.match(/^([ \t]*)/) || ['', ''])[1];
+          const indentSpaces = indentStr.replace(/\t/g, '  ').length;
+          const hasColon = /[：:]/.test(rawItemText);
+
+          let level = 0;
+          if (indentSpaces >= 2) {
+            level = Math.min(2, Math.floor(indentSpaces / 2));
+          } else if (hasColon && currentHasParent) {
+            level = 1; // 親項目の下にある詳細説明項目は1段下げ（子項目）へ
+          } else if (!hasColon) {
+            currentHasParent = true;
+            level = 0; // 大項目
+          }
+
           items.push({ 
-            text: mOl[2].trim(), 
+            text: rawItemText, 
             rawLine: currentLine,
-            number: parseInt(mOl[1], 10)
+            number: isOrdered ? parseInt(mOl[1], 10) : undefined,
+            level
           });
-          i++;
-        } else if (!isOrdered && mUl) {
-          items.push({ text: mUl[2].trim(), rawLine: currentLine });
           i++;
         } else {
           break;

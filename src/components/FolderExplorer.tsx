@@ -2066,7 +2066,7 @@ export const FolderExplorer: React.FC = () => {
                               deleteFolder(cat.name, cat.handle);
                             }}
                           >
-                            <DeleteIcon size={12} />
+                            <DeleteIcon />
                           </button>
                           <span className="folder-card-open-arrow">
                             {lang === 'en' ? 'Open ➔' : '開く ➔'}
