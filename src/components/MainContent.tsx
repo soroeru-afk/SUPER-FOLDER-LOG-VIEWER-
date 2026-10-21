@@ -341,6 +341,182 @@ export const MainContent = () => {
     setIsSplitPreview(prev => !prev);
   };
 
+  const splitScrollAnimationFrameRef = useRef<number | null>(null);
+  const splitLongPressTimerRef = useRef<number | null>(null);
+
+  const startSplitScrolling = (direction: 'left' | 'right') => {
+    if (splitScrollAnimationFrameRef.current) return;
+    const speed = direction === 'left' ? -8 : 8;
+    const step = () => {
+      if (splitVerticalScrollRef.current) {
+        splitVerticalScrollRef.current.scrollLeft += speed;
+        splitScrollAnimationFrameRef.current = requestAnimationFrame(step);
+      }
+    };
+    splitScrollAnimationFrameRef.current = requestAnimationFrame(step);
+  };
+
+  const stopSplitScrolling = () => {
+    if (splitScrollAnimationFrameRef.current) {
+      cancelAnimationFrame(splitScrollAnimationFrameRef.current);
+      splitScrollAnimationFrameRef.current = null;
+    }
+  };
+
+  const splitScrollToStart = () => {
+    const el = splitVerticalScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ left: 0, behavior: 'auto' });
+    setTimeout(() => {
+      if (el.scrollLeft < 0) {
+        el.scrollTo({ left: 0, behavior: 'auto' });
+      }
+    }, 20);
+  };
+
+  const splitScrollToEnd = () => {
+    const el = splitVerticalScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ left: -el.scrollWidth, behavior: 'auto' });
+    setTimeout(() => {
+      if (el.scrollLeft === 0 && el.scrollWidth > el.clientWidth) {
+        el.scrollTo({ left: -(el.scrollWidth - el.clientWidth), behavior: 'auto' });
+      }
+    }, 20);
+  };
+
+  const splitStepScroll = (direction: 'left' | 'right') => {
+    const el = splitVerticalScrollRef.current;
+    if (!el) return;
+    const delta = direction === 'left' ? -70 : 70;
+    el.scrollBy({ left: delta, behavior: 'smooth' });
+  };
+
+  const handleSplitArrowMouseDown = (direction: 'left' | 'right') => {
+    splitStepScroll(direction);
+    splitLongPressTimerRef.current = window.setTimeout(() => {
+      startSplitScrolling(direction);
+    }, 220);
+  };
+
+  const handleSplitArrowMouseUp = () => {
+    if (splitLongPressTimerRef.current) {
+      clearTimeout(splitLongPressTimerRef.current);
+      splitLongPressTimerRef.current = null;
+    }
+    stopSplitScrolling();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (splitScrollAnimationFrameRef.current) {
+        cancelAnimationFrame(splitScrollAnimationFrameRef.current);
+      }
+      if (splitLongPressTimerRef.current) {
+        clearTimeout(splitLongPressTimerRef.current);
+      }
+    };
+  }, []);
+
+  const renderSplitVerticalNavArrows = () => (
+    <>
+      <div className="vertical-scroll-nav-group split-nav-group left-group">
+        <button
+          type="button"
+          className="scroll-arrow-btn split-arrow-btn"
+          onClick={splitScrollToEnd}
+          title={lang === 'en' ? 'Jump to end (last page)' : '一番後ろ（末尾）へジャンプ'}
+          aria-label="Jump to end"
+        >
+          <ChevronsLeft size={16} strokeWidth={2.4} />
+        </button>
+        <button
+          type="button"
+          className="scroll-arrow-btn split-arrow-btn"
+          onMouseDown={() => handleSplitArrowMouseDown('left')}
+          onMouseUp={handleSplitArrowMouseUp}
+          onMouseLeave={handleSplitArrowMouseUp}
+          onTouchStart={() => handleSplitArrowMouseDown('left')}
+          onTouchEnd={handleSplitArrowMouseUp}
+          title={lang === 'en' ? 'Scroll left' : '左へスクロール'}
+          aria-label="Scroll left"
+        >
+          <ChevronLeft size={16} strokeWidth={2.4} />
+        </button>
+      </div>
+
+      <div className="vertical-scroll-nav-group split-nav-group right-group">
+        <button
+          type="button"
+          className="scroll-arrow-btn split-arrow-btn"
+          onClick={splitScrollToStart}
+          title={lang === 'en' ? 'Jump to beginning (first page)' : '一番前（先頭）へジャンプ'}
+          aria-label="Jump to start"
+        >
+          <ChevronsRight size={16} strokeWidth={2.4} />
+        </button>
+        <button
+          type="button"
+          className="scroll-arrow-btn split-arrow-btn"
+          onMouseDown={() => handleSplitArrowMouseDown('right')}
+          onMouseUp={handleSplitArrowMouseUp}
+          onMouseLeave={handleSplitArrowMouseUp}
+          onTouchStart={() => handleSplitArrowMouseDown('right')}
+          onTouchEnd={handleSplitArrowMouseUp}
+          title={lang === 'en' ? 'Scroll right' : '右へスクロール'}
+          aria-label="Scroll right"
+        >
+          <ChevronRight size={16} strokeWidth={2.4} />
+        </button>
+      </div>
+    </>
+  );
+
+  const [splitScrollPercent, setSplitScrollPercent] = useState(0);
+
+  // 縦書きプレビューのスクロール位置（先頭0% 〜 末尾100%）をリアルタイムに追従
+  useEffect(() => {
+    if (!isSplitPreview || !isEditing || previewWritingMode !== 'vertical') return;
+    const el = splitVerticalScrollRef.current;
+    if (!el) return;
+
+    const updateProgress = () => {
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      if (maxScroll <= 0) {
+        setSplitScrollPercent(0);
+        return;
+      }
+      const cur = Math.abs(el.scrollLeft);
+      const pct = Math.min(100, Math.max(0, (cur / maxScroll) * 100));
+      setSplitScrollPercent(pct);
+    };
+
+    el.addEventListener('scroll', updateProgress, { passive: true });
+    updateProgress();
+    return () => el.removeEventListener('scroll', updateProgress);
+  }, [isSplitPreview, isEditing, previewWritingMode, editValue]);
+
+  // 下部スクラバーバーのクリックによる任意位置へのスムーズジャンプ
+  const handleScrubberClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = splitVerticalScrollRef.current;
+    const track = e.currentTarget;
+    if (!el || !track) return;
+
+    const rect = track.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    // 右側が先頭(0%)、左側が末尾(100%)
+    const pct = Math.min(1, Math.max(0, (rect.width - clickX) / rect.width));
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) return;
+
+    el.scrollTo({ left: - (pct * maxScroll), behavior: 'smooth' });
+    setTimeout(() => {
+      if (el.scrollLeft === 0 && pct > 0) {
+        el.scrollTo({ left: (1 - pct) * maxScroll, behavior: 'smooth' });
+      }
+    }, 20);
+  };
+
   // 表示・読み上げ用にUIノイズ文言（クリップボードコピー失敗等の混入文）をクリーンアップしたテキスト
   const displayContent = React.useMemo(() => {
     return cleanChatNoise(currentContent || '');
@@ -487,6 +663,26 @@ export const MainContent = () => {
                     >
                       VERT
                     </button>
+                    {previewWritingMode === 'vertical' && (
+                      <div className="split-quick-jump-group" style={{ display: 'inline-flex', gap: '2px', marginLeft: '6px' }}>
+                        <button
+                          type="button"
+                          className="tool-btn-mini"
+                          onClick={splitScrollToEnd}
+                          title={lang === 'en' ? 'Jump to end (last page / left)' : '一番後ろ（末尾）へジャンプ'}
+                        >
+                          {lang === 'en' ? '|◀ END' : '|◀ 末尾'}
+                        </button>
+                        <button
+                          type="button"
+                          className="tool-btn-mini"
+                          onClick={splitScrollToStart}
+                          title={lang === 'en' ? 'Jump to beginning (first page / right)' : '一番前（先頭）へジャンプ'}
+                        >
+                          {lang === 'en' ? '先頭 ▶|' : '先頭 ▶|'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <span className="split-pane-meta status-badge">
                     PREVIEW MODE: ON
@@ -495,6 +691,7 @@ export const MainContent = () => {
               </div>
               {previewWritingMode === 'vertical' ? (
                 <div className="split-preview-body mode-vertical">
+                  {renderSplitVerticalNavArrows()}
                   <div 
                     ref={splitVerticalScrollRef}
                     className="vertical-scroll-content split-vertical-scroll"
@@ -505,8 +702,41 @@ export const MainContent = () => {
                         searchQueries={[]}
                         writingMode="vertical"
                         lang={lang}
+                        isPlayingAudio={isPlayingAudio}
+                        onPlayFromLine={i => {
+                          handleLinePlayOrStop(editValue.split('\n'), i);
+                        }}
                       />
                     </div>
+                  </div>
+                  {/* 下部に常時視認可能な細身のスクロールバー・スクラバー */}
+                  <div className="split-preview-scrubber-container">
+                    <span 
+                      className="split-scrubber-label end-label"
+                      onClick={splitScrollToEnd}
+                      title={lang === 'en' ? 'Jump to end (last page / left)' : '一番後ろ（末尾）へジャンプ'}
+                    >
+                      |◀ 末尾
+                    </span>
+                    <div 
+                      className="split-preview-scrubber-track"
+                      onClick={handleScrubberClick}
+                      title={lang === 'en' ? 'Click to jump in document' : 'クリックで任意位置へジャンプ'}
+                    >
+                      <div 
+                        className="split-preview-scrubber-thumb" 
+                        style={{ 
+                          right: `calc(${splitScrollPercent}% - ${(splitScrollPercent / 100) * 32}px)`
+                        }}
+                      />
+                    </div>
+                    <span 
+                      className="split-scrubber-label start-label"
+                      onClick={splitScrollToStart}
+                      title={lang === 'en' ? 'Jump to beginning (first page / right)' : '一番前（先頭）へジャンプ'}
+                    >
+                      先頭 ▶|
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -519,6 +749,10 @@ export const MainContent = () => {
                     searchQueries={[]}
                     writingMode="horizontal"
                     lang={lang}
+                    isPlayingAudio={isPlayingAudio}
+                    onPlayFromLine={i => {
+                      handleLinePlayOrStop(editValue.split('\n'), i);
+                    }}
                   />
                 </div>
               )}
