@@ -4,8 +4,8 @@ import { MarkdownBlock, parseMarkdown, formatInlineMarkdown } from '../markdownP
 interface MarkdownViewProps {
   content: string;
   searchQueries: string[];
-  writingMode: 'horizontal' | 'vertical';
-  isPlayingAudio: boolean;
+  writingMode?: 'horizontal' | 'vertical';
+  isPlayingAudio?: boolean;
   onPlayFromLine?: (lineIndex: number) => void;
   onDoubleClickToEdit?: () => void;
   lang: 'en' | 'ja';
@@ -14,8 +14,8 @@ interface MarkdownViewProps {
 export const MarkdownView: React.FC<MarkdownViewProps> = ({
   content,
   searchQueries,
-  writingMode,
-  isPlayingAudio,
+  writingMode = 'horizontal',
+  isPlayingAudio = false,
   onPlayFromLine,
   onDoubleClickToEdit,
   lang

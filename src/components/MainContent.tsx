@@ -276,6 +276,71 @@ export const MainContent = () => {
   const [editValue, setEditValue] = useState("");
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // プレビューモード（2分割リアルタイムプレビュー）のフラグ
+  // 編集モード開始時は常に何も加工していない原稿編集画面（全画面）から開始する
+  const [isSplitPreview, setIsSplitPreview] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setIsSplitPreview(false);
+    }
+  }, [isEditing]);
+
+  // プレビューペイン独自の縦横表示切り替え（HORIZ / VERT）
+  const [previewWritingMode, setPreviewWritingMode] = useState<'horizontal' | 'vertical'>(() => writingMode);
+
+  useEffect(() => {
+    setPreviewWritingMode(writingMode);
+  }, [writingMode]);
+
+  const splitVerticalScrollRef = useRef<HTMLDivElement>(null);
+  const splitHorizontalScrollRef = useRef<HTMLDivElement>(null);
+
+  // 二分割プレビューエリア内でのホイールスクロール時に、外側ページ（#content-area）が縦に上下動してしまうのを完全に防ぐ
+  useEffect(() => {
+    if (!isSplitPreview || !isEditing) return;
+
+    if (previewWritingMode === 'vertical') {
+      const el = splitVerticalScrollRef.current;
+      if (!el) return;
+
+      const handleWheel = (e: WheelEvent) => {
+        // 外側の縦スクロールへの連動・伝播を完全に遮断
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+        el.scrollLeft -= delta;
+      };
+
+      el.addEventListener('wheel', handleWheel, { passive: false });
+      return () => {
+        el.removeEventListener('wheel', handleWheel);
+      };
+    } else {
+      const el = splitHorizontalScrollRef.current;
+      if (!el) return;
+
+      const handleWheel = (e: WheelEvent) => {
+        // 横書きプレビューでスクロール時に外側の縦スクロールが連動してしまうのを防止
+        const isAtTop = el.scrollTop <= 0 && e.deltaY < 0;
+        const isAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 1 && e.deltaY > 0;
+        if (isAtTop || isAtBottom) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+
+      el.addEventListener('wheel', handleWheel, { passive: false });
+      return () => {
+        el.removeEventListener('wheel', handleWheel);
+      };
+    }
+  }, [isSplitPreview, isEditing, previewWritingMode]);
+
+  const toggleSplitPreview = () => {
+    setIsSplitPreview(prev => !prev);
+  };
+
   // 表示・読み上げ用にUIノイズ文言（クリップボードコピー失敗等の混入文）をクリーンアップしたテキスト
   const displayContent = React.useMemo(() => {
     return cleanChatNoise(currentContent || '');
@@ -367,26 +432,122 @@ export const MainContent = () => {
     if (!currentFileObj) return null;
     
     if (isEditing) {
+      if (isSplitPreview) {
+        return (
+          <div className="split-editor-wrapper">
+            <div className="split-editor-pane left-pane">
+              <div className="split-pane-header">
+                <span className="split-pane-title">
+                  <EditIcon /> {lang === 'en' ? 'RAW SOURCE CODE (UNTOUCHED)' : '編集画面（原本コード：# 記号・HTMLタグそのまま）'}
+                </span>
+                <span className="split-pane-meta">
+                  CHARS: {editValue.length.toLocaleString()} | LINES: {editValue.split('\n').length.toLocaleString()}
+                </span>
+              </div>
+              <textarea 
+                id="edit-area" 
+                className="split-textarea"
+                ref={editTextareaRef}
+                value={editValue} 
+                onChange={e => {
+                  setEditValue(e.target.value);
+                }}
+                onKeyDown={e => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveFile(editValue);
+                  }
+                }}
+                placeholder={lang === 'en' ? 'Type content here...' : 'テキスト、Markdown（#等）、HTMLを入力してください...'}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+              />
+            </div>
+            <div className="split-editor-pane right-pane">
+              <div className="split-pane-header">
+                <span className="split-pane-title">
+                  <ReadIcon /> {lang === 'en' ? 'REALTIME PREVIEW' : 'リアルタイムプレビュー'}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="layout-toggle-group" style={{ display: 'inline-flex', gap: '2px' }}>
+                    <button
+                      type="button"
+                      className={`tool-btn-mini ${previewWritingMode === 'horizontal' ? 'primary' : ''}`}
+                      onClick={() => setPreviewWritingMode('horizontal')}
+                      title={lang === 'en' ? 'Horizontal Preview' : 'プレビューを横書きに切り替え'}
+                    >
+                      HORIZ
+                    </button>
+                    <button
+                      type="button"
+                      className={`tool-btn-mini ${previewWritingMode === 'vertical' ? 'primary' : ''}`}
+                      onClick={() => setPreviewWritingMode('vertical')}
+                      title={lang === 'en' ? 'Vertical Preview' : 'プレビューを縦書きに切り替え'}
+                    >
+                      VERT
+                    </button>
+                  </div>
+                  <span className="split-pane-meta status-badge">
+                    PREVIEW MODE: ON
+                  </span>
+                </div>
+              </div>
+              {previewWritingMode === 'vertical' ? (
+                <div className="split-preview-body mode-vertical">
+                  <div 
+                    ref={splitVerticalScrollRef}
+                    className="vertical-scroll-content split-vertical-scroll"
+                  >
+                    <div className="vertical-writing-text-inner" style={{ minHeight: '100%' }}>
+                      <MarkdownView
+                        content={editValue}
+                        searchQueries={[]}
+                        writingMode="vertical"
+                        lang={lang}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  ref={splitHorizontalScrollRef}
+                  className="split-preview-body mode-horizontal"
+                >
+                  <MarkdownView
+                    content={editValue}
+                    searchQueries={[]}
+                    writingMode="horizontal"
+                    lang={lang}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
       return (
-        <textarea 
-          id="edit-area" 
-          ref={editTextareaRef}
-          value={editValue} 
-          onChange={e => {
-            // JSによるDOM高さ変更（scrollHeight加算等）を廃止し、文字入力・改行時の画面ガタつき・上部スクロール跳ねを完全解消
-            setEditValue(e.target.value);
-          }}
-          onKeyDown={e => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-              e.preventDefault();
-              saveFile(editValue);
-            }
-          }}
-          placeholder={lang === 'en' ? 'Type content here...' : 'テキストを入力してください...'}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-        />
+        <div className="full-editor-wrapper">
+          <textarea 
+            id="edit-area" 
+            ref={editTextareaRef}
+            value={editValue} 
+            onChange={e => {
+              setEditValue(e.target.value);
+            }}
+            onKeyDown={e => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveFile(editValue);
+              }
+            }}
+            placeholder={lang === 'en' ? 'Type content here...' : 'テキストを入力してください...'}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+        </div>
       );
     }
 
@@ -696,9 +857,21 @@ export const MainContent = () => {
                       {isEditing ? <><SaveIcon /> {t.main.save}</> : <><EditIcon /> {t.main.edit}</>}
                     </button>
                     {isEditing && (
-                      <button className="tool-btn" onClick={toggleEdit}>
-                        <ReadIcon /> {t.main.read}
-                      </button>
+                      <>
+                        <button 
+                          className={`tool-btn ${isSplitPreview ? 'active-split-btn' : ''}`}
+                          onClick={toggleSplitPreview}
+                          title={isSplitPreview ? (lang === 'en' ? 'Switch to Full Raw Editor' : '全画面の原稿編集に戻す') : (lang === 'en' ? 'Open 2-Split Realtime Preview' : '左右2分割リアルタイムプレビューを開く')}
+                        >
+                          {isSplitPreview 
+                            ? (lang === 'en' ? '✏️ Raw Editor' : '✏️ 原稿編集（全画面）') 
+                            : (lang === 'en' ? '👁️ 2-Split Preview' : '👁️ 2分割プレビュー')
+                          }
+                        </button>
+                        <button className="tool-btn" onClick={toggleEdit}>
+                          <ReadIcon /> {t.main.read}
+                        </button>
+                      </>
                     )}
                   </>
                 )}

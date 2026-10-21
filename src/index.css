@@ -705,6 +705,278 @@ body.highlight-off mark {
 }
 #edit-area:focus { border-color: var(--sb-accent); }
 
+/* 左右2分割リアルタイムプレビューエディタ (Side-by-Side Split Realtime Preview) */
+.split-editor-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  height: calc(100vh - 260px);
+  min-height: 520px;
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 900px) {
+  .split-editor-wrapper {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+.split-editor-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: border-color 0.2s;
+  overscroll-behavior: contain;
+}
+
+.split-editor-pane:focus-within {
+  border-color: var(--sb-accent, #3b82f6);
+}
+
+.split-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.40);
+  border-bottom: 1px solid var(--card-border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #FFFFFF;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.split-pane-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #FFFFFF;
+}
+
+.split-pane-meta {
+  opacity: 0.85;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #E2E8F0;
+}
+
+.split-pane-meta.status-badge {
+  background: #2563EB;
+  color: #FFFFFF;
+  padding: 2px 8px;
+  font-weight: 900;
+  opacity: 1;
+  letter-spacing: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.split-textarea,
+.split-editor-pane #edit-area.split-textarea {
+  flex: 1;
+  width: 100%;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 18px 22px;
+  border: none !important;
+  border-radius: 0px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: var(--text-font-size, 14px);
+  font-weight: var(--text-font-weight, 400);
+  line-height: var(--text-line-height, 1.7);
+  letter-spacing: var(--text-letter-spacing, 0px);
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  background: transparent !important;
+  color: inherit;
+  margin-bottom: 0 !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.split-preview-body {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  height: calc(100% - 35px);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  overscroll-behavior: contain;
+}
+
+.split-preview-body.mode-vertical {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.split-preview-body.mode-horizontal {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 24px;
+  background: var(--card-bg);
+  overscroll-behavior: contain;
+}
+
+.split-vertical-scroll {
+  width: 100% !important;
+  height: 100% !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  writing-mode: vertical-rl !important;
+  box-sizing: border-box !important;
+  padding: 0 0 10px 0 !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 140, 140, 0.55) rgba(120, 120, 120, 0.12);
+  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: contain;
+}
+
+.split-vertical-scroll::-webkit-scrollbar {
+  height: 7px;
+  width: 7px;
+  display: block;
+}
+
+.split-vertical-scroll::-webkit-scrollbar-track {
+  background: rgba(120, 120, 120, 0.12);
+  border-radius: 0px;
+}
+
+.split-vertical-scroll::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.5);
+  border-radius: 0px;
+  transition: background 0.2s;
+}
+
+.split-vertical-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.85);
+}
+
+.split-vertical-scroll .vertical-writing-text-inner {
+  border: none !important;
+  padding: 20px 24px !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.tool-btn-mini {
+  background: rgba(255, 255, 255, 0.08);
+  color: #F8FAFC;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: 0px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  transition: all 0.12s ease;
+}
+
+.tool-btn-mini:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.tool-btn-mini.primary {
+  background: #2563EB !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid #60A5FA !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.5);
+}
+
+/* ネイビー (Midnight) テーマでの視認性強化: ボタンの輪郭とアクティブ状態を鮮明化 */
+[data-theme-key="midnight"] .split-pane-header {
+  background: #0D1624;
+  border-bottom: 1.5px solid #1E3557;
+  color: #FFFFFF;
+}
+[data-theme-key="midnight"] .split-pane-header .split-pane-title {
+  color: #F8FAFC;
+}
+[data-theme-key="midnight"] .split-pane-header .split-pane-meta:not(.status-badge) {
+  color: #A8C5E5;
+}
+[data-theme-key="midnight"] .tool-btn-mini {
+  background: rgba(143, 175, 207, 0.14);
+  color: #E2E8F0;
+  border: 1.5px solid rgba(143, 175, 207, 0.60);
+}
+[data-theme-key="midnight"] .tool-btn-mini:hover {
+  background: rgba(143, 175, 207, 0.28);
+  color: #FFFFFF;
+  border-color: #8FAFCF;
+}
+[data-theme-key="midnight"] .tool-btn-mini.primary {
+  background: #2563EB !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid #93C5FD !important;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.6);
+}
+
+/* ブラック (Black) テーマでの視認性強化: ソリッドな白黒ハイコントラスト */
+[data-theme-key="black"] .split-pane-header {
+  background: #0B0C0D;
+  border-bottom: 1.5px solid #323742;
+  color: #FFFFFF;
+}
+[data-theme-key="black"] .split-pane-header .split-pane-title {
+  color: #FFFFFF;
+}
+[data-theme-key="black"] .split-pane-header .split-pane-meta:not(.status-badge) {
+  color: #CBD5E1;
+}
+[data-theme-key="black"] .tool-btn-mini {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  border: 1.5px solid rgba(255, 255, 255, 0.50);
+}
+[data-theme-key="black"] .tool-btn-mini:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  border-color: #FFFFFF;
+}
+[data-theme-key="black"] .tool-btn-mini.primary {
+  background: #FFFFFF !important;
+  color: #000000 !important;
+  border: 1.5px solid #FFFFFF !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+.full-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.active-split-btn {
+  background: var(--sb-accent, #3b82f6) !important;
+  color: #ffffff !important;
+  border-color: var(--sb-accent, #3b82f6) !important;
+  font-weight: 800 !important;
+}
+
 #summary-box {
   border-left: 4px solid var(--summary-border);
   background: var(--summary-bg);
@@ -4499,6 +4771,148 @@ body.paper-mode.paper-mode-white .explorer-bulk-mark-popup {
   background-color: rgba(0, 0, 0, 0.38) !important;
 }
 
+/* メイン画面ホワイト背景モード ([data-main-white="true"]) 時の二分割プレビュー・エディタ */
+[data-main-white="true"] .split-editor-pane,
+[data-main-white="true"] #edit-area,
+[data-main-white="true"] .split-preview-body.mode-horizontal {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #E2E8F0 !important;
+}
 
+[data-main-white="true"] .split-textarea,
+[data-main-white="true"] .split-editor-pane #edit-area.split-textarea {
+  background: transparent !important;
+  color: #0F172A !important;
+}
 
+[data-main-white="true"] .split-pane-header {
+  background: #F1F5F9 !important;
+  border-bottom: 1.5px solid #CBD5E1 !important;
+  color: #0F172A !important;
+}
 
+[data-main-white="true"] .split-pane-title {
+  color: #0F172A !important;
+}
+
+[data-main-white="true"] .split-pane-meta:not(.status-badge) {
+  color: #475569 !important;
+}
+
+[data-main-white="true"] .split-pane-meta.status-badge {
+  background: #0F172A !important;
+  color: #FFFFFF !important;
+  border-color: #0F172A !important;
+}
+
+[data-main-white="true"] .tool-btn-mini {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1.5px solid #94A3B8 !important;
+}
+
+[data-main-white="true"] .tool-btn-mini:hover {
+  background: #E2E8F0 !important;
+  border-color: #475569 !important;
+  color: #000000 !important;
+}
+
+[data-main-white="true"] .tool-btn-mini.primary {
+  background: #0F172A !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid #0F172A !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ペーパーモード（ベージュ）での二分割エディタ・プレビュー同調 */
+body.paper-mode:not(.paper-mode-white) .split-editor-pane,
+body.paper-mode:not(.paper-mode-white) #edit-area,
+body.paper-mode:not(.paper-mode-white) .split-preview-body.mode-horizontal {
+  background: #FBFBF8 !important;
+  color: #2A241F !important;
+  border-color: #DED5C2 !important;
+}
+
+body.paper-mode:not(.paper-mode-white) .split-textarea,
+body.paper-mode:not(.paper-mode-white) .split-editor-pane #edit-area.split-textarea {
+  background: transparent !important;
+  color: #2A241F !important;
+}
+
+body.paper-mode:not(.paper-mode-white) .split-pane-header {
+  background: #F5EFE0 !important;
+  border-bottom: 1.5px solid #DED5C2 !important;
+  color: #2A241F !important;
+}
+
+body.paper-mode:not(.paper-mode-white) .split-pane-title {
+  color: #2A241F !important;
+}
+
+body.paper-mode:not(.paper-mode-white) .split-pane-meta:not(.status-badge) {
+  color: #6A5B4D !important;
+}
+
+body.paper-mode:not(.paper-mode-white) .tool-btn-mini {
+  background: #FBFBF8 !important;
+  color: #2A241F !important;
+  border: 1.5px solid #C4B9A3 !important;
+}
+
+body.paper-mode:not(.paper-mode-white) .tool-btn-mini:hover {
+  background: #EAE2D0 !important;
+  border-color: #8C7B65 !important;
+}
+
+body.paper-mode:not(.paper-mode-white) .tool-btn-mini.primary {
+  background: #3B2F23 !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid #3B2F23 !important;
+}
+
+/* ペーパーモード（ホワイト）での二分割エディタ・プレビュー同調 */
+body.paper-mode.paper-mode-white .split-editor-pane,
+body.paper-mode.paper-mode-white #edit-area,
+body.paper-mode.paper-mode-white .split-preview-body.mode-horizontal {
+  background: #FFFFFF !important;
+  color: #111111 !important;
+  border-color: #E2E8F0 !important;
+}
+
+body.paper-mode.paper-mode-white .split-textarea,
+body.paper-mode.paper-mode-white .split-editor-pane #edit-area.split-textarea {
+  background: transparent !important;
+  color: #111111 !important;
+}
+
+body.paper-mode.paper-mode-white .split-pane-header {
+  background: #F8FAFC !important;
+  border-bottom: 1.5px solid #E2E8F0 !important;
+  color: #111111 !important;
+}
+
+body.paper-mode.paper-mode-white .split-pane-title {
+  color: #111111 !important;
+}
+
+body.paper-mode.paper-mode-white .split-pane-meta:not(.status-badge) {
+  color: #64748B !important;
+}
+
+body.paper-mode.paper-mode-white .tool-btn-mini {
+  background: #FFFFFF !important;
+  color: #111111 !important;
+  border: 1.5px solid #CBD5E1 !important;
+}
+
+body.paper-mode.paper-mode-white .tool-btn-mini:hover {
+  background: #F1F5F9 !important;
+  border-color: #64748B !important;
+}
+
+body.paper-mode.paper-mode-white .tool-btn-mini.primary {
+  background: #111111 !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid #111111 !important;
+}
