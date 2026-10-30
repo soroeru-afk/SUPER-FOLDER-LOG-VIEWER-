@@ -373,6 +373,115 @@ export const Sidebar = () => {
     );
   };
 
+  const renderSidebarTopPinnedControls = () => {
+    let filtered = allFiles;
+    if (!showImageFiles) {
+      filtered = filtered.filter(f => !isImageFilename(f.filename));
+    }
+    if (searchQueries.length > 0) {
+      filtered = filtered.filter(f => {
+        const target = (f.title + ' ' + f.filename + ' ' + (f.category||'') + ' ' + (f.date||'') + ' ' + f.content).toLowerCase();
+        return searchQueries.every(q => target.includes(q.toLowerCase()));
+      });
+    }
+    const rootFiles = filtered.filter(f => !f.category);
+    const archiveCount = archiveScope === 'root' ? rootFiles.length : visibleSidebarFiles.length;
+    const isRootExplorerActive = viewMode === 'explorer' && !explorerCategory;
+
+    return (
+      <div className="sidebar-pinned-tabs-wrapper" style={{ flexShrink: 0, paddingBottom: '2px' }}>
+        {/* 最上部（ルート）の ALL DATA ホームボタン */}
+        <div className="category-group" data-group-key="root:all_data" key="root:all_data" style={{ margin: '0 10px 4px 10px' }}>
+          <button
+            className={`category-header root-all-data-header ${isRootExplorerActive ? 'open' : ''}`}
+            style={{
+              paddingLeft: '10px',
+              background: isRootExplorerActive ? 'var(--sb-item-active, rgba(255,255,255,0.12))' : 'transparent',
+              color: isRootExplorerActive ? 'var(--sb-accent)' : 'var(--sb-text)',
+              borderLeft: isRootExplorerActive ? '3px solid var(--sb-accent)' : '3px solid transparent',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px'
+            }}
+            onClick={() => {
+              openExplorer(null);
+            }}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('drag-over'); }}
+            onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
+            onDrop={async e => {
+              e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+              if (!window.__draggedFiles) return;
+              await execBulkMove(window.__draggedFiles, dirHandle, null);
+            }}
+            title={lang === 'en' ? 'Open Root Directory / All Data (Home)' : '最上位階層（ホーム / ALL DATA）を開く'}
+          >
+            <span className="category-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <FoldersStackIcon size={15} />
+            </span>
+            <span className="category-name" style={{ fontWeight: 700, letterSpacing: '0.4px' }}>
+              ALL DATA
+            </span>
+            <span className="category-count" style={{ marginLeft: 'auto' }}>
+              {visibleSidebarFiles.length}
+            </span>
+          </button>
+        </div>
+
+        {/* ALL DATA の直下に配置する「カテゴリー」と「アーカイブ」の切り替えタブ（常時固定表示） */}
+        <div className="sidebar-tabs-container" key="sidebar-tabs">
+          <button
+            type="button"
+            className={`sidebar-tab-btn ${sidebarTab === 'categories' ? 'active' : ''}`}
+            onClick={() => handleSelectSidebarTab('categories')}
+            title={lang === 'en' ? 'Switch to Category Directory' : 'カテゴリー（フォルダー）ツリーを表示'}
+          >
+            <span className="sidebar-tab-icon">📁</span>
+            <span className="sidebar-tab-label">{lang === 'en' ? 'Categories' : 'カテゴリー'}</span>
+            <span className="sidebar-tab-badge">{allCategories.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`sidebar-tab-btn ${sidebarTab === 'archive' ? 'active' : ''}`}
+            onClick={() => handleSelectSidebarTab('archive')}
+            title={lang === 'en' ? 'Switch to Date Log Archive' : '日付順のログアーカイブ（年月・日別）を表示'}
+          >
+            <span className="sidebar-tab-icon">📅</span>
+            <span className="sidebar-tab-label">{lang === 'en' ? 'Archive' : 'アーカイブ'}</span>
+            <span className="sidebar-tab-badge">{archiveCount}</span>
+          </button>
+        </div>
+
+        {/* アーカイブタブ選択時：表示範囲切り替えバー（直下のみ／全階層）も常駐 */}
+        {sidebarTab === 'archive' && (
+          <div className="sidebar-archive-scope-bar" key="archive-scope-bar">
+            <span className="sidebar-archive-scope-label">
+              {lang === 'en' ? 'SCOPE:' : '表示範囲:'}
+            </span>
+            <div style={{ display: 'inline-flex', gap: '3px' }}>
+              <button
+                type="button"
+                className={`sidebar-archive-scope-btn ${archiveScope === 'root' ? 'active' : ''}`}
+                onClick={() => handleSelectArchiveScope('root')}
+                title={lang === 'en' ? 'Show root folder files only in archive' : 'ルート直下のファイルのみをアーカイブ表示'}
+              >
+                {lang === 'en' ? `Direct (${rootFiles.length})` : `直下のみ (${rootFiles.length})`}
+              </button>
+              <button
+                type="button"
+                className={`sidebar-archive-scope-btn ${archiveScope === 'all' ? 'active' : ''}`}
+                onClick={() => handleSelectArchiveScope('all')}
+                title={lang === 'en' ? 'Show all files across all folders in archive' : '全フォルダーの全ファイルをアーカイブ表示'}
+              >
+                {lang === 'en' ? `All (${visibleSidebarFiles.length})` : `全階層 (${visibleSidebarFiles.length})`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderList = () => {
     const today = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
     let filtered = allFiles;
@@ -428,7 +537,6 @@ export const Sidebar = () => {
     treeTop.forEach(node => computeTotalCount(node));
 
     // フォルダ並び順のソート連動対応 (日付順・名前順)
-    // 対象限定制御: 親フォルダが過去ログアーカイブ/AIエージェント関連、またはYYYY-MM等の年月名を持つフォルダ群に限定
     const isYearMonthName = (name: string) => /^\d{4}[-_./]\d{2}$/.test(name.trim());
     const isArchiveOrAiFolder = (name: string) => /過去ログ|アーカイブ|archive|agent|エージェント|ai/i.test(name);
 
@@ -459,7 +567,6 @@ export const Sidebar = () => {
             const isDateB = isYearMonthName(shortB);
 
             if (sortMode === 'date') {
-              // 日付順: 降順(desc)なら最新月が上 (例: 2026-08 -> 2026-07 -> 2026-06)
               if (isDateA && isDateB) {
                 return sortDirection === 'desc'
                   ? shortB.localeCompare(shortA, undefined, { numeric: true })
@@ -472,7 +579,6 @@ export const Sidebar = () => {
                 ? shortB.localeCompare(shortA, 'ja', { numeric: true })
                 : shortA.localeCompare(shortB, 'ja', { numeric: true });
             } else {
-              // 名前順: 昇順(asc)なら a->b、降順(desc)なら b->a
               return sortDirection === 'asc'
                 ? shortA.localeCompare(shortB, 'ja', { numeric: true })
                 : shortB.localeCompare(shortA, 'ja', { numeric: true });
@@ -481,91 +587,21 @@ export const Sidebar = () => {
         }
       }
 
-      // 再帰的に子階層も処理
       nodes.forEach(n => {
         if (n.children && n.children.length > 0) {
           sortCategoryNodes(n.children, n.name);
         }
       });
     };
-
     sortCategoryNodes(treeTop);
 
-    const buildCategoryTree = (node: CategoryNode, depth: number): React.ReactNode => {
+    const buildCategoryTree = (node: CategoryNode, depth: number = 0): React.ReactNode => {
       const shortName = node.name.split('/').pop() || node.name;
       const childNodes = node.children.map(child => buildCategoryTree(child, depth + 1));
       return renderCategoryGroup(shortName, depth === 0 ? <FolderIcon /> : null, node.files, 'cat:'+node.name, null, false, depth, childNodes, node.totalCount);
     };
 
     const elements: React.ReactNode[] = [];
-
-    // 最上部（ルート）の ALL DATA ホームボタン
-    const isRootExplorerActive = viewMode === 'explorer' && !explorerCategory;
-    elements.push(
-      <div className="category-group" data-group-key="root:all_data" key="root:all_data" style={{ marginBottom: '4px' }}>
-        <button
-          className={`category-header root-all-data-header ${isRootExplorerActive ? 'open' : ''}`}
-          style={{
-            paddingLeft: '10px',
-            background: isRootExplorerActive ? 'var(--sb-item-active, rgba(255,255,255,0.12))' : 'transparent',
-            color: isRootExplorerActive ? 'var(--sb-accent)' : 'var(--sb-text)',
-            borderLeft: isRootExplorerActive ? '3px solid var(--sb-accent)' : '3px solid transparent',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '7px'
-          }}
-          onClick={() => {
-            openExplorer(null);
-          }}
-          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('drag-over'); }}
-          onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
-          onDrop={async e => {
-            e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-            if (!window.__draggedFiles) return;
-            await execBulkMove(window.__draggedFiles, dirHandle, null);
-          }}
-          title={lang === 'en' ? 'Open Root Directory / All Data (Home)' : '最上位階層（ホーム / ALL DATA）を開く'}
-        >
-          <span className="category-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
-            <FoldersStackIcon size={15} />
-          </span>
-          <span className="category-name" style={{ fontWeight: 700, letterSpacing: '0.4px' }}>
-            ALL DATA
-          </span>
-          <span className="category-count" style={{ marginLeft: 'auto' }}>
-            {visibleSidebarFiles.length}
-          </span>
-        </button>
-      </div>
-    );
-
-    // ALL DATA の直下に配置する「カテゴリー」と「アーカイブ」の切り替えタブ
-    const archiveCount = archiveScope === 'root' ? rootFiles.length : visibleSidebarFiles.length;
-    elements.push(
-      <div className="sidebar-tabs-container" key="sidebar-tabs">
-        <button
-          type="button"
-          className={`sidebar-tab-btn ${sidebarTab === 'categories' ? 'active' : ''}`}
-          onClick={() => handleSelectSidebarTab('categories')}
-          title={lang === 'en' ? 'Switch to Category Directory' : 'カテゴリー（フォルダー）ツリーを表示'}
-        >
-          <span className="sidebar-tab-icon">📁</span>
-          <span className="sidebar-tab-label">{lang === 'en' ? 'Categories' : 'カテゴリー'}</span>
-          <span className="sidebar-tab-badge">{allCategories.length}</span>
-        </button>
-        <button
-          type="button"
-          className={`sidebar-tab-btn ${sidebarTab === 'archive' ? 'active' : ''}`}
-          onClick={() => handleSelectSidebarTab('archive')}
-          title={lang === 'en' ? 'Switch to Date Log Archive' : '日付順のログアーカイブ（年月・日別）を表示'}
-        >
-          <span className="sidebar-tab-icon">📅</span>
-          <span className="sidebar-tab-label">{lang === 'en' ? 'Archive' : 'アーカイブ'}</span>
-          <span className="sidebar-tab-badge">{archiveCount}</span>
-        </button>
-      </div>
-    );
 
     // =========================================================================
     // 01. 「カテゴリー」タブ：フォルダー階層ツリーを表示
@@ -614,33 +650,6 @@ export const Sidebar = () => {
     // =========================================================================
     if (sidebarTab === 'archive') {
       const targetArchiveFiles = archiveScope === 'root' ? rootFiles : visibleSidebarFiles;
-
-      // アーカイブの対象範囲（直下のみ / 全階層）切り替えバー
-      elements.push(
-        <div className="sidebar-archive-scope-bar" key="archive-scope-bar">
-          <span className="sidebar-archive-scope-label">
-            {lang === 'en' ? 'SCOPE:' : '表示範囲:'}
-          </span>
-          <div style={{ display: 'inline-flex', gap: '3px' }}>
-            <button
-              type="button"
-              className={`sidebar-archive-scope-btn ${archiveScope === 'root' ? 'active' : ''}`}
-              onClick={() => handleSelectArchiveScope('root')}
-              title={lang === 'en' ? 'Show root folder files only in archive' : 'ルート直下のファイルのみをアーカイブ表示'}
-            >
-              {lang === 'en' ? `Direct (${rootFiles.length})` : `直下のみ (${rootFiles.length})`}
-            </button>
-            <button
-              type="button"
-              className={`sidebar-archive-scope-btn ${archiveScope === 'all' ? 'active' : ''}`}
-              onClick={() => handleSelectArchiveScope('all')}
-              title={lang === 'en' ? 'Show all files across all folders in archive' : '全フォルダーの全ファイルをアーカイブ表示'}
-            >
-              {lang === 'en' ? `All (${visibleSidebarFiles.length})` : `全階層 (${visibleSidebarFiles.length})`}
-            </button>
-          </div>
-        </div>
-      );
 
       if (targetArchiveFiles.length === 0) {
         elements.push(
@@ -1117,6 +1126,8 @@ export const Sidebar = () => {
           </button>
         </div>
       )}
+
+      {dirHandle && renderSidebarTopPinnedControls()}
 
       <div id="file-list">
         {!dirHandle && <div id="empty-msg" style={{whiteSpace:'pre-wrap'}}>{t.sidebar.selectFolderToView}</div>}
