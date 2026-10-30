@@ -668,7 +668,7 @@ export const Sidebar = () => {
           <span id="file-count" style={{textTransform:'uppercase', fontSize: '11px', fontWeight: 'bold', opacity: 0.85, letterSpacing: '0.5px'}}>
             {visibleSidebarFiles.length} FILES
           </span>
-          <div style={{display: 'inline-flex', borderRadius: '0px', overflow: 'hidden', border: '1px solid var(--sb-border)', background: 'var(--sb-item-hover)'}}>
+          <div className="nav-history-group" style={{display: 'inline-flex', borderRadius: '0px', overflow: 'hidden', border: '1px solid var(--sb-border)', background: 'var(--sb-item-hover)'}}>
             <button 
               className="nav-history-btn"
               disabled={!canGoBack}
@@ -723,9 +723,7 @@ export const Sidebar = () => {
             <button 
               className={`sort-btn ${sortMode === 'date' ? 'active' : ''}`}
               style={{
-                background: sortMode === 'date' ? 'var(--sb-item-active)' : 'transparent', 
                 border: '1px solid var(--sb-border)', 
-                color: sortMode === 'date' ? 'var(--sb-accent)' : 'var(--sb-text)', 
                 padding: '3px 7px', fontSize: '10px', borderRadius: '0px', cursor: 'pointer',
                 fontWeight: sortMode === 'date' ? 'bold' : '600',
                 display: 'flex', alignItems: 'center', gap: '2px'
@@ -740,9 +738,7 @@ export const Sidebar = () => {
             <button 
               className={`sort-btn ${sortMode === 'name' ? 'active' : ''}`}
               style={{
-                background: sortMode === 'name' ? 'var(--sb-item-active)' : 'transparent', 
                 border: '1px solid var(--sb-border)', 
-                color: sortMode === 'name' ? 'var(--sb-accent)' : 'var(--sb-text)', 
                 padding: '3px 7px', fontSize: '10px', borderRadius: '0px', cursor: 'pointer',
                 fontWeight: sortMode === 'name' ? 'bold' : '600',
                 display: 'flex', alignItems: 'center', gap: '2px'
@@ -757,9 +753,7 @@ export const Sidebar = () => {
             <button 
               className={`sort-btn ${sortMode === 'custom' ? 'active' : ''}`}
               style={{
-                background: sortMode === 'custom' ? 'var(--sb-item-active)' : 'transparent', 
                 border: '1px solid var(--sb-border)', 
-                color: sortMode === 'custom' ? 'var(--sb-accent)' : 'var(--sb-text)', 
                 padding: '3px 7px', fontSize: '10px', borderRadius: '0px', cursor: 'pointer',
                 fontWeight: sortMode === 'custom' ? 'bold' : '600',
                 display: 'flex', alignItems: 'center', gap: '2px'
@@ -777,11 +771,10 @@ export const Sidebar = () => {
           <div style={{display:'flex', gap:'4px', alignItems:'center'}}>
             <button 
               onClick={() => setIsAddMode(!isAddMode)}
-              className={isAddMode ? 'active' : ''}
+              className={`sidebar-tool-btn ${isAddMode ? 'active' : ''}`}
               style={{
-                background: isAddMode ? 'var(--sb-item-active)' : 'transparent',
                 border: '1px solid var(--sb-border)', 
-                color: 'var(--sb-text)', opacity: 1, fontSize: '10px', fontWeight: 'bold', 
+                opacity: 1, fontSize: '10px', fontWeight: 'bold', 
                 letterSpacing: '1px', padding: '3px 6px', borderRadius: '0px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'
               }}
@@ -789,10 +782,10 @@ export const Sidebar = () => {
             >
               ＋ <FolderIcon />
             </button>
-            <button id="select-mode-btn" className={isSelectMode ? 'active' : ''} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? (lang === 'en' ? 'Done' : '終了') : t.sidebar.selectMode}</button>
+            <button id="select-mode-btn" className={`sidebar-tool-btn ${isSelectMode ? 'active' : ''}`} onClick={toggleSelectMode} title={t.sidebar.selectMode}>{isSelectMode ? (lang === 'en' ? 'Done' : '終了') : t.sidebar.selectMode}</button>
             <button 
               id="highlight-toggle-btn" 
-              className={isHighlightOff ? 'off' : ''} 
+              className={`sidebar-tool-btn ${isHighlightOff ? 'off' : ''}`} 
               onClick={toggleHighlight} 
               title={lang === 'en' ? 'Toggle Keyword Highlight (ON/OFF)' : '本文ハイライト表示切替（ON/OFF）'}
             >
@@ -801,7 +794,7 @@ export const Sidebar = () => {
             <button 
               onClick={handleToggleAllGroups} 
               title={isAnyGroupOpen() ? (lang === 'en' ? 'Collapse all folders' : '全て折りたたむ') : (lang === 'en' ? 'Expand all folders' : '全て展開')} 
-              className="header-icon-btn"
+              className="header-icon-btn sidebar-tool-btn"
               style={{
                 fontSize: '13px',
                 fontWeight: 'bold',
@@ -812,13 +805,12 @@ export const Sidebar = () => {
                 justifyContent: 'center',
                 border: '1px solid var(--sb-border)',
                 borderRadius: '0px',
-                color: 'var(--sb-text)',
                 opacity: 0.85
               }}
             >
               {isAnyGroupOpen() ? '－' : '＋'}
             </button>
-            <button id="refresh-btn" onClick={refreshFolder} title={lang === 'en' ? 'Refresh' : '更新'}>
+            <button id="refresh-btn" className="sidebar-tool-btn" onClick={refreshFolder} title={lang === 'en' ? 'Refresh' : '更新'}>
               <RefreshIcon className={refreshing ? 'spin' : ''} />
             </button>
           </div>
@@ -992,9 +984,6 @@ export const Sidebar = () => {
             maxWidth: '92px',
             padding: '0 8px',
             boxSizing: 'border-box',
-            background: 'none',
-            color: 'var(--sb-muted)',
-            border: '1px solid var(--sb-border)',
             borderRadius: '0px',
             fontSize: '11px',
             fontWeight: 'bold',
@@ -1006,7 +995,7 @@ export const Sidebar = () => {
             transition: 'all 0.15s'
           }}
         >
-          <ImageIcon size={13} style={{ color: 'currentColor', flexShrink: 0 }} />
+          <ImageIcon size={13} style={{ flexShrink: 0 }} />
           <span style={{ flexShrink: 0 }}>{lang === 'en' ? 'Img' : '画像'}</span>
           <span 
             style={{ 

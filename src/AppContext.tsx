@@ -585,17 +585,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getActiveThemeKey = () => {
-    const t = localStorage.getItem('lv_theme');
-    return (t === 'ocean' || t === 'dark' ? 'black' : t) || 'mono';
+    let t = localStorage.getItem('lv_theme');
+    if (t === 'ocean' || t === 'dark') t = 'black';
+    if (t === 'sepia' || t === 'paper') {
+      t = 'peper';
+      localStorage.setItem('lv_theme', 'peper');
+    }
+    return t || 'mono';
   };
 
   const [paperMode, setPaperModeState] = useState<boolean>(() => {
-    const theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
+    let theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
+    if (theme === 'sepia' || theme === 'paper') theme = 'peper';
     return getPaperSettingsForTheme(theme).mode;
   });
 
   const [paperColor, setPaperColorState] = useState<'beige' | 'white'>(() => {
-    const theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
+    let theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
+    if (theme === 'sepia' || theme === 'paper') theme = 'peper';
     return getPaperSettingsForTheme(theme).color;
   });
 
@@ -627,7 +634,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const [mainBgWhite, setMainBgWhiteState] = useState<boolean>(() => {
-    const theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
+    let theme = (localStorage.getItem('lv_theme') === 'ocean' || localStorage.getItem('lv_theme') === 'dark' ? 'black' : localStorage.getItem('lv_theme')) || 'mono';
+    if (theme === 'sepia' || theme === 'paper') theme = 'peper';
     return getMainBgWhiteForTheme(theme);
   });
 
@@ -651,7 +659,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentTheme, setCurrentThemeState] = useState<string>(() => getActiveThemeKey());
 
   const setTheme = (themeKey: string) => {
-    const finalKey = (themeKey === 'ocean' || themeKey === 'dark' ? 'black' : themeKey) || 'mono';
+    let finalKey = (themeKey === 'ocean' || themeKey === 'dark' ? 'black' : themeKey) || 'mono';
+    if (finalKey === 'sepia' || finalKey === 'paper') finalKey = 'peper';
     localStorage.setItem('lv_theme', finalKey);
     setCurrentThemeState(finalKey);
     const ps = getPaperSettingsForTheme(finalKey);

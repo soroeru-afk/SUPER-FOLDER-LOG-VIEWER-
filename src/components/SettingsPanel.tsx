@@ -171,7 +171,7 @@ export const SettingsPanel = () => {
                   {k: 'system', n: lang === 'en' ? 'System' : 'システム', s: lang === 'en' ? 'Default' : '既定'},
                 ].map(f => (
                   <button key={f.k} className={`font-btn ${vals.font === f.k ? 'active' : ''}`} onClick={() => updateSetting('font', f.k)}>
-                    {f.n}<br/><span style={{fontSize:'9px',opacity:0.6}}>{f.s}</span>
+                    {f.n}<br/><span className="font-sub-label" style={{fontSize:'9px', fontWeight: 600}}>{f.s}</span>
                   </button>
                 ))}
               </div>
@@ -456,7 +456,7 @@ export const SettingsPanel = () => {
                 {Object.entries(THEMES).map(([key, t]) => (
                   <button key={key} className={`theme-btn ${vals.theme === key ? 'active' : ''}`} onClick={() => updateSetting('theme', key)}>
                     <div className="theme-preview">
-                      <div className="theme-preview-sb" style={{background: t.sbBg}}></div>
+                      <div className="theme-preview-sb" style={{background: key === 'peper' ? '#D95430' : t.sbBg}}></div>
                       <div className="theme-preview-main" style={{background: (vals.theme === key ? vals.mainBgWhite : getMainBgWhiteForTheme(key)) ? '#FFFFFF' : t.mainBg}}></div>
                     </div>
                     <div className="theme-preview-label">{t.label}</div>

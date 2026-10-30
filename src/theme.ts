@@ -37,7 +37,43 @@ export const THEMES: Record<string, any> = {
     defaultFolderColor: '#8FAFCF' 
   },
   light: { label: 'LIGHT', sbBg: '#0F172A', sbMain: '#F8FAFC', mainBg: '#F8FAFC', mainCard: '#FFFFFF', mainText: '#1E293B', cardBorder: '#E2E8F0', sbAccent: '#3B82F6', dateAccent: '#60A5FA', footerBg: 'rgba(255,255,255,0.7)', footerBorder: '#E2E8F0', scrollbar: 'rgba(0,0,0,0.22)', summaryBg: '#EFF6FF', summaryBorder: '#3B82F6', summaryText: '#1E3A8A', summaryLabel: '#1D4ED8', btnBg: '#FFFFFF', btnText: '#1E293B', btnBorder: 'rgba(0,0,0,0.12)', btnHover: '#F1F5F9', panelBg: '#FFFFFF', panelBorder: 'rgba(0,0,0,0.10)', panelText: 'rgba(30,41,59,0.85)', panelMuted: 'rgba(30,41,59,0.4)', panelTabActive: '#1E293B', panelTabBorder: 'rgba(0,0,0,0.07)', panelItemBg: 'rgba(0,0,0,0.04)', panelItemBorder: 'rgba(0,0,0,0.09)', panelSliderBg: 'rgba(0,0,0,0.10)', panelScrollbar: 'rgba(0,0,0,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#94A3B8', isDark: false, defaultFolderColor: '#3B82F6' },
-  sepia: { label: 'SEPIA', sbBg: '#29170B', sbMain: '#F5ECD7', mainBg: '#FBF5E6', mainCard: '#FFF8EC', mainText: '#311B0D', cardBorder: '#DFD0B5', sbAccent: '#C0853A', dateAccent: '#C0853A', footerBg: 'rgba(251,245,230,0.8)', footerBorder: '#DFD0B5', scrollbar: 'rgba(49,27,13,0.22)', summaryBg: '#F4E8D0', summaryBorder: '#C0853A', summaryText: '#5C3D18', summaryLabel: '#8B5A2B', btnBg: '#FFF8EC', btnText: '#311B0D', btnBorder: '#DFD0B5', btnHover: '#F4E8D0', panelBg: '#FFF8EC', panelBorder: 'rgba(49,27,13,0.15)', panelText: 'rgba(49,27,13,0.85)', panelMuted: 'rgba(49,27,13,0.4)', panelTabActive: '#311B0D', panelTabBorder: 'rgba(49,27,13,0.10)', panelItemBg: 'rgba(49,27,13,0.05)', panelItemBorder: 'rgba(49,27,13,0.10)', panelSliderBg: 'rgba(49,27,13,0.12)', panelScrollbar: 'rgba(49,27,13,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#C4A882', isDark: false, defaultFolderColor: '#C0853A' },
+  peper: { 
+    label: 'PEPER', 
+    sbBg: '#EBE4D5', 
+    sbMain: '#40352A', 
+    mainBg: '#F2EFE6', 
+    mainCard: '#FFFFFF', 
+    mainText: '#40352A', 
+    cardBorder: '#DDD5C7', 
+    sbAccent: '#D95430', 
+    dateAccent: '#D95430', 
+    footerBg: 'rgba(235, 228, 213, 0.95)', 
+    footerBorder: '#DDD5C7', 
+    scrollbar: 'rgba(115, 99, 79, 0.30)', 
+    summaryBg: '#EBE4D5', 
+    summaryBorder: '#D95430', 
+    summaryText: '#40352A', 
+    summaryLabel: '#D95430', 
+    btnBg: '#FFFFFF', 
+    btnText: '#73634F', 
+    btnBorder: '#73634F', 
+    btnHover: '#EBE4D5', 
+    panelBg: '#F2EFE6', 
+    panelBorder: '#DDD5C7', 
+    panelText: '#40352A', 
+    panelMuted: '#73634F', 
+    panelTabActive: '#D95430', 
+    panelTabBorder: '#DDD5C7', 
+    panelItemBg: '#EBE4D5', 
+    panelItemBorder: '#DDD5C7', 
+    panelSliderBg: 'rgba(115, 99, 79, 0.20)', 
+    panelScrollbar: 'rgba(115, 99, 79, 0.20)', 
+    sbItemOpacity: '1', 
+    sbCategoryOpacity: '0.9', 
+    sbMutedOverride: '#73634F', 
+    isDark: false, 
+    defaultFolderColor: '#D95430' 
+  },
   red: { label: 'RED', sbBg: '#0A0101', sbMain: '#FFFFFF', mainBg: '#140202', mainCard: '#210404', mainText: '#CCCCCC', cardBorder: '#380A0A', sbAccent: '#EF4444', dateAccent: '#FCA5A5', footerBg: 'rgba(20,2,2,0.9)', footerBorder: '#380A0A', scrollbar: 'rgba(255,255,255,0.22)', summaryBg: '#210404', summaryBorder: '#5C1010', summaryText: '#FCA5A5', summaryLabel: '#EF4444', btnBg: '#210404', btnText: '#FFFFFF', btnBorder: '#380A0A', btnHover: '#2D0606', panelBg: '#0A0101', panelBorder: 'rgba(255,255,255,0.1)', panelText: 'rgba(255,255,255,0.9)', panelMuted: 'rgba(255,255,255,0.45)', panelTabActive: '#FFFFFF', panelTabBorder: 'rgba(255,255,255,0.1)', panelItemBg: 'rgba(255,255,255,0.05)', panelItemBorder: 'rgba(255,255,255,0.1)', panelSliderBg: 'rgba(255,255,255,0.15)', panelScrollbar: 'rgba(255,255,255,0.15)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#FCA5A5', isDark: true, defaultFolderColor: '#EF4444' },
   mono: { label: 'MONO', sbBg: '#0A0A0A', sbMain: '#CCCCCC', mainBg: '#F3F4F6', mainCard: '#FFFFFF', mainText: '#111827', cardBorder: '#E5E7EB', sbAccent: '#888888', dateAccent: '#6B7280', footerBg: 'rgba(243,244,246,0.8)', footerBorder: '#E5E7EB', scrollbar: 'rgba(0,0,0,0.22)', summaryBg: '#F9FAFB', summaryBorder: '#E5E7EB', summaryText: '#111827', summaryLabel: '#4B5563', btnBg: '#FFFFFF', btnText: '#111827', btnBorder: '#E5E7EB', btnHover: '#F3F4F6', panelBg: '#FFFFFF', panelBorder: 'rgba(0,0,0,0.10)', panelText: 'rgba(17,24,39,0.85)', panelMuted: 'rgba(17,24,39,0.4)', panelTabActive: '#111827', panelTabBorder: 'rgba(0,0,0,0.07)', panelItemBg: 'rgba(0,0,0,0.04)', panelItemBorder: 'rgba(0,0,0,0.09)', panelSliderBg: 'rgba(0,0,0,0.10)', panelScrollbar: 'rgba(0,0,0,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#999999', isDark: false, defaultFolderColor: '#9CA3AF' },
   rose: { label: 'ROSE', sbBg: '#1A0A10', sbMain: '#FFE4EE', mainBg: '#FFF1F5', mainCard: '#FFFFFF', mainText: '#3D0017', cardBorder: '#FBCFE8', sbAccent: '#F43F5E', dateAccent: '#FB7185', footerBg: 'rgba(255,241,245,0.8)', footerBorder: '#FBCFE8', scrollbar: 'rgba(61,0,23,0.20)', summaryBg: '#FFE4EE', summaryBorder: '#F43F5E', summaryText: '#881337', summaryLabel: '#BE123C', btnBg: '#FFFFFF', btnText: '#3D0017', btnBorder: '#FBCFE8', btnHover: '#FFE4EE', panelBg: '#FFF1F5', panelBorder: 'rgba(244,63,94,0.15)', panelText: 'rgba(61,0,23,0.85)', panelMuted: 'rgba(61,0,23,0.4)', panelTabActive: '#3D0017', panelTabBorder: 'rgba(61,0,23,0.08)', panelItemBg: 'rgba(61,0,23,0.04)', panelItemBorder: 'rgba(61,0,23,0.09)', panelSliderBg: 'rgba(61,0,23,0.10)', panelScrollbar: 'rgba(61,0,23,0.10)', sbItemOpacity: '0.9', sbCategoryOpacity: '0.85', sbMutedOverride: '#F4A7BC', isDark: false, defaultFolderColor: '#F43F5E' },
@@ -115,8 +151,16 @@ export const THEMES: Record<string, any> = {
     sbCategoryOpacity: '1',
     isDark: false,
     defaultFolderColor: '#64748B'
-  },
+  }
 };
+
+// paperエイリアスを列挙対象外として定義（UIの重複を防ぎつつ安全参照を保証）
+Object.defineProperty(THEMES, 'paper', {
+  value: THEMES.peper,
+  enumerable: false,
+  configurable: true,
+  writable: true
+});
 
 export const FONT_MAP: Record<string, string> = {
   hiragino: "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif",
@@ -135,6 +179,7 @@ export function hexToRgba(hex: string, alpha: number) {
 
 export function getFolderColorForTheme(themeKey: string): string {
   if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  if (themeKey === 'sepia' || themeKey === 'paper') themeKey = 'peper';
   const saved = localStorage.getItem(`lv_folderColor_${themeKey}`);
   // blackテーマの場合、以前の青色(#60A5FA / #3B82F6)が残っていれば新しい白抜きデフォルト(#E2E8F0)に移行
   if (themeKey === 'black' && (saved === '#60A5FA' || saved === '#3B82F6')) {
@@ -148,17 +193,19 @@ export function getFolderColorForTheme(themeKey: string): string {
   }
   if (saved) return saved;
   const t = THEMES[themeKey] || THEMES.mono;
-  return t?.defaultFolderColor || localStorage.getItem('lv_folderColor') || (themeKey === 'black' ? '#E2E8F0' : '#FBBF24');
+  return t?.defaultFolderColor || localStorage.getItem('lv_folderColor') || (themeKey === 'black' ? '#E2E8F0' : themeKey === 'peper' ? '#D95430' : '#FBBF24');
 }
 
 export function setFolderColorForTheme(themeKey: string, color: string) {
   if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  if (themeKey === 'sepia' || themeKey === 'paper') themeKey = 'peper';
   localStorage.setItem(`lv_folderColor_${themeKey}`, color);
   localStorage.setItem('lv_folderColor', color);
 }
 
 export function getMainBgWhiteForTheme(themeKey: string): boolean {
   if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  if (themeKey === 'sepia' || themeKey === 'paper') themeKey = 'peper';
   const saved = localStorage.getItem(`lv_mainBgWhite_${themeKey}`);
   if (saved !== null) return saved === '1';
   // Whiteテーマは元々メイン背景が白
@@ -168,12 +215,14 @@ export function getMainBgWhiteForTheme(themeKey: string): boolean {
 
 export function setMainBgWhiteForTheme(themeKey: string, val: boolean) {
   if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  if (themeKey === 'sepia' || themeKey === 'paper') themeKey = 'peper';
   localStorage.setItem(`lv_mainBgWhite_${themeKey}`, val ? '1' : '0');
   localStorage.setItem('lv_mainBgWhite', val ? '1' : '0');
 }
 
 export function getPaperSettingsForTheme(themeKey: string): { mode: boolean; color: 'beige' | 'white' } {
   if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  if (themeKey === 'sepia' || themeKey === 'paper') themeKey = 'peper';
   const savedMode = localStorage.getItem(`lv_paperMode_${themeKey}`);
   const savedColor = localStorage.getItem(`lv_paperColor_${themeKey}`);
 
@@ -205,6 +254,7 @@ export function setPaperSettingsForTheme(themeKey: string, mode: boolean, color?
 
 export function resetThemeToDefault(themeKey: string) {
   if (themeKey === 'ocean' || themeKey === 'dark') themeKey = 'black';
+  if (themeKey === 'sepia' || themeKey === 'paper') themeKey = 'peper';
   const t = THEMES[themeKey] || THEMES.mono;
   localStorage.removeItem(`lv_mainBgWhite_${themeKey}`);
   if (themeKey === 'white') {
@@ -212,7 +262,7 @@ export function resetThemeToDefault(themeKey: string) {
   } else {
     localStorage.setItem(`lv_mainBgWhite_${themeKey}`, '0');
   }
-  const defaultFolder = t?.defaultFolderColor || (themeKey === 'black' ? '#E2E8F0' : themeKey === 'midnight' ? '#8FAFCF' : '#FBBF24');
+  const defaultFolder = t?.defaultFolderColor || (themeKey === 'black' ? '#E2E8F0' : themeKey === 'midnight' ? '#8FAFCF' : themeKey === 'peper' ? '#D95430' : '#FBBF24');
   localStorage.setItem(`lv_folderColor_${themeKey}`, defaultFolder);
   localStorage.setItem('lv_folderColor', defaultFolder);
   localStorage.removeItem(`lv_paperMode_${themeKey}`);
@@ -240,6 +290,7 @@ export function setAllThemesMainBgWhite(isWhite: boolean) {
 
 export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {
   if (key === 'ocean' || key === 'dark') key = 'black';
+  if (key === 'sepia' || key === 'paper') key = 'peper';
   const t = THEMES[key] || THEMES.mono;
   if (!t) return;
   const r = document.documentElement.style;
@@ -252,7 +303,17 @@ export function applyThemeStyle(key: string, isWhiteOverride?: boolean) {
   r.setProperty('--sb-folder-color', folderColor);
 
   r.setProperty('--sb-bg', t.sbBg); r.setProperty('--sb-text', t.sbMain); r.setProperty('--sb-accent', t.sbAccent);
-  if (key === 'white') {
+  if (key === 'peper') {
+    r.setProperty('--sb-border', '#DDD5C7');
+    r.setProperty('--sb-muted', '#73634F');
+    r.setProperty('--sb-item-hover', 'rgba(115, 99, 79, 0.08)');
+    r.setProperty('--sb-item-active', 'rgba(217, 84, 48, 0.12)');
+    r.setProperty('--sb-input-bg', '#FFFFFF');
+    r.setProperty('--sb-input-border', '#DDD5C7');
+    r.setProperty('--input-bg', '#FFFFFF');
+    r.setProperty('--input-border', '#DDD5C7');
+    r.setProperty('--input-placeholder', '#8C7D6B');
+  } else if (key === 'white') {
     r.setProperty('--sb-border', 'rgba(0,0,0,0.08)');
     r.setProperty('--sb-muted', '#4B5563');
     r.setProperty('--sb-item-hover', 'rgba(0,0,0,0.04)');

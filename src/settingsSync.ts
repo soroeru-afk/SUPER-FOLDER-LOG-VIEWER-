@@ -25,7 +25,11 @@ export function applySettingsToDOM() {
   document.documentElement.style.setProperty('--ui-radius', '0px');
   document.documentElement.style.setProperty('--msg-gap', mg + 'px');
 
-  const themeKey = localStorage.getItem('lv_theme') || 'mono';
+  let themeKey = localStorage.getItem('lv_theme') || 'mono';
+  if (themeKey === 'sepia' || themeKey === 'paper') {
+    themeKey = 'peper';
+    localStorage.setItem('lv_theme', 'peper');
+  }
   document.documentElement.style.setProperty('--sidebar-title-size', (localStorage.getItem('lv_sbTitleSize') || '13') + 'px');
   document.documentElement.style.setProperty('--sb-category-size', (localStorage.getItem('lv_sbCatSize') || '10') + 'px');
   document.documentElement.style.setProperty('--sb-folder-color', getFolderColorForTheme(themeKey));
@@ -45,7 +49,7 @@ export function applySettingsToDOM() {
   const sidebarPos = localStorage.getItem('lv_sidebarPosition') || 'left';
   document.documentElement.setAttribute('data-sidebar-pos', sidebarPos);
 
-  applyThemeStyle(localStorage.getItem('lv_theme') || 'mono');
+  applyThemeStyle(themeKey);
 }
 
 export function initSettings() {
