@@ -32,6 +32,38 @@ export const Sidebar = () => {
   const [bulkMarkOpen, setBulkMarkOpen] = useState(false);
   const bulkMarkRef = useRef<HTMLDivElement>(null);
 
+  // サイドバーの表示タブ（'categories': カテゴリー | 'archive': アーカイブ）
+  const [sidebarTab, setSidebarTab] = useState<'categories' | 'archive'>(() => {
+    try {
+      return (localStorage.getItem('sf_sidebar_tab') as 'categories' | 'archive') || 'categories';
+    } catch {
+      return 'categories';
+    }
+  });
+
+  const handleSelectSidebarTab = (tab: 'categories' | 'archive') => {
+    setSidebarTab(tab);
+    try {
+      localStorage.setItem('sf_sidebar_tab', tab);
+    } catch {}
+  };
+
+  // アーカイブタブの対象範囲（'root': 直下のみ | 'all': 全階層）
+  const [archiveScope, setArchiveScope] = useState<'root' | 'all'>(() => {
+    try {
+      return (localStorage.getItem('sf_sidebar_archive_scope') as 'root' | 'all') || 'root';
+    } catch {
+      return 'root';
+    }
+  });
+
+  const handleSelectArchiveScope = (scope: 'root' | 'all') => {
+    setArchiveScope(scope);
+    try {
+      localStorage.setItem('sf_sidebar_archive_scope', scope);
+    } catch {}
+  };
+
   const visibleSidebarFiles = React.useMemo(() => {
     let list = allFiles;
     if (!showImageFiles) {
@@ -508,59 +540,196 @@ export const Sidebar = () => {
       </div>
     );
 
-    if (allCategories.length > 0) {
-      elements.push(<div key="root-sep" style={{ height: '1px', background: 'var(--sb-border, rgba(255,255,255,0.06))', margin: '4px 8px 6px' }} />);
+    // ALL DATA の直下に配置する「カテゴリー」と「アーカイブ」の切り替えタブ
+    const archiveCount = archiveScope === 'root' ? rootFiles.length : visibleSidebarFiles.length;
+    elements.push(
+      <div className="sidebar-tabs-container" key="sidebar-tabs">
+        <button
+          type="button"
+          className={`sidebar-tab-btn ${sidebarTab === 'categories' ? 'active' : ''}`}
+          onClick={() => handleSelectSidebarTab('categories')}
+          title={lang === 'en' ? 'Switch to Category Directory' : 'カテゴリー（フォルダー）ツリーを表示'}
+        >
+          <span className="sidebar-tab-icon">📁</span>
+          <span className="sidebar-tab-label">{lang === 'en' ? 'Categories' : 'カテゴリー'}</span>
+          <span className="sidebar-tab-badge">{allCategories.length}</span>
+        </button>
+        <button
+          type="button"
+          className={`sidebar-tab-btn ${sidebarTab === 'archive' ? 'active' : ''}`}
+          onClick={() => handleSelectSidebarTab('archive')}
+          title={lang === 'en' ? 'Switch to Date Log Archive' : '日付順のログアーカイブ（年月・日別）を表示'}
+        >
+          <span className="sidebar-tab-icon">📅</span>
+          <span className="sidebar-tab-label">{lang === 'en' ? 'Archive' : 'アーカイブ'}</span>
+          <span className="sidebar-tab-badge">{archiveCount}</span>
+        </button>
+      </div>
+    );
+
+    // =========================================================================
+    // 01. 「カテゴリー」タブ：フォルダー階層ツリーを表示
+    // =========================================================================
+    if (sidebarTab === 'categories') {
+      if (allCategories.length > 0) {
+        treeTop.forEach(node => {
+          elements.push(buildCategoryTree(node, 0));
+        });
+
+        // ルート直下にもファイルがある場合、カテゴリータブの末尾にもアクセスできるようにグループ配置
+        if (rootFiles.length > 0) {
+          elements.push(
+            <div key="root-direct-sep" style={{ height: '1px', background: 'var(--sb-border, rgba(255,255,255,0.06))', margin: '8px 10px 6px' }} />
+          );
+          elements.push(
+            renderCategoryGroup(
+              lang === 'en' ? 'Direct Files (Root)' : 'ルート直下のファイル',
+              <FolderIcon />,
+              rootFiles,
+              'cat:__root_direct__',
+              null,
+              false,
+              0,
+              [],
+              rootFiles.length
+            )
+          );
+        }
+      } else {
+        // カテゴリーが存在しない場合
+        if (rootFiles.length > 0) {
+          rootFiles.forEach(f => elements.push(renderFileBtn(f)));
+        } else {
+          elements.push(
+            <div key="no-cat" id="empty-msg" style={{ padding: '12px 14px', fontSize: '11px', opacity: 0.7 }}>
+              {lang === 'en' ? 'No folder categories found.' : 'フォルダーカテゴリーがありません。'}
+            </div>
+          );
+        }
+      }
     }
 
-    treeTop.forEach(node => {
-      elements.push(buildCategoryTree(node, 0));
-    });
+    // =========================================================================
+    // 02. 「アーカイブ」タブ：日付順（年月・日別）アーカイブを最上部から表示
+    // =========================================================================
+    if (sidebarTab === 'archive') {
+      const targetArchiveFiles = archiveScope === 'root' ? rootFiles : visibleSidebarFiles;
 
-    if (rootFiles.length > 0) {
-      if (allCategories.length > 0) elements.push(<div key="sep" style={{height:'1px',background:'rgba(255,255,255,0.05)',margin:'6px 10px'}} />);
-      
-      const byMonth: Record<string, Record<string, FileObj[]>> = {};
-      rootFiles.forEach(f => {
-        const dKey = f.date || '__nodate__'; const mKey = dKey==='__nodate__' ? dKey : dKey.slice(0,7);
-        if(!byMonth[mKey]) byMonth[mKey] = {}; if(!byMonth[mKey][dKey]) byMonth[mKey][dKey] = []; byMonth[mKey][dKey].push(f);
-      });
-      if (byMonth['__nodate__']) byMonth['__nodate__']['__nodate__'].forEach(f => elements.push(renderFileBtn(f)));
-      
-      Object.keys(byMonth).filter(k=>k!=='__nodate__').sort((a,b) => {
-        if (sortMode === 'date') {
-          return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
-        } else {
-          return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
-        }
-      }).forEach(mKey => {
-        const isThisMonth = mKey === today.slice(0,7); const [my,mm] = mKey.split('-');
-        let mOpen = categoryOpenState['month:'+mKey] ?? isThisMonth;
-        if(searchQueries.length>0) mOpen=true;
-
-        elements.push(
-          <div className="category-group" data-group-key={'month:'+mKey} key={'month:'+mKey}>
-            <button className={`category-header ${mOpen?'open':''}`} onClick={() => setCategoryOpen('month:'+mKey, !mOpen)}>
-              <span className="category-icon">{isThisMonth?'🗓':'📅'}</span>
-              <span className="category-name">{isThisMonth?`${parseInt(mm)}${t.sidebar.thisMonth}`:`${my}.${mm}`}</span>
-              {isThisMonth && <span className="today-badge">THIS MONTH</span>}
-              <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
-              <span className="category-arrow">▶</span>
+      // アーカイブの対象範囲（直下のみ / 全階層）切り替えバー
+      elements.push(
+        <div className="sidebar-archive-scope-bar" key="archive-scope-bar">
+          <span className="sidebar-archive-scope-label">
+            {lang === 'en' ? 'SCOPE:' : '表示範囲:'}
+          </span>
+          <div style={{ display: 'inline-flex', gap: '3px' }}>
+            <button
+              type="button"
+              className={`sidebar-archive-scope-btn ${archiveScope === 'root' ? 'active' : ''}`}
+              onClick={() => handleSelectArchiveScope('root')}
+              title={lang === 'en' ? 'Show root folder files only in archive' : 'ルート直下のファイルのみをアーカイブ表示'}
+            >
+              {lang === 'en' ? `Direct (${rootFiles.length})` : `直下のみ (${rootFiles.length})`}
             </button>
-            <div className={`category-files ${mOpen?'open':''}`}>
-              {Object.keys(byMonth[mKey]).sort((a,b) => {
-                if (sortMode === 'date') {
-                  return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
-                } else {
-                  return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
-                }
-              }).map(dKey => {
-                const isToday = dKey === today; const [,,dd] = dKey.split('-');
-                return renderCategoryGroup(isToday?`${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})`:`${parseInt(mm)}/${parseInt(dd)}`, '', byMonth[mKey][dKey], 'date:'+dKey, isToday?'TODAY':null, isToday);
-              })}
-            </div>
+            <button
+              type="button"
+              className={`sidebar-archive-scope-btn ${archiveScope === 'all' ? 'active' : ''}`}
+              onClick={() => handleSelectArchiveScope('all')}
+              title={lang === 'en' ? 'Show all files across all folders in archive' : '全フォルダーの全ファイルをアーカイブ表示'}
+            >
+              {lang === 'en' ? `All (${visibleSidebarFiles.length})` : `全階層 (${visibleSidebarFiles.length})`}
+            </button>
+          </div>
+        </div>
+      );
+
+      if (targetArchiveFiles.length === 0) {
+        elements.push(
+          <div key="no-archive" id="empty-msg" style={{ padding: '16px 14px', fontSize: '11px', opacity: 0.7 }}>
+            {lang === 'en' ? 'No archived log files in this scope.' : '対象範囲にログファイルがありません。'}
           </div>
         );
-      });
+      } else {
+        const byMonth: Record<string, Record<string, FileObj[]>> = {};
+        targetArchiveFiles.forEach(f => {
+          const dKey = f.date || '__nodate__';
+          const mKey = dKey === '__nodate__' ? dKey : dKey.slice(0, 7);
+          if (!byMonth[mKey]) byMonth[mKey] = {};
+          if (!byMonth[mKey][dKey]) byMonth[mKey][dKey] = [];
+          byMonth[mKey][dKey].push(f);
+        });
+
+        // 日付なしファイルがある場合
+        if (byMonth['__nodate__']) {
+          const nodateFiles = byMonth['__nodate__']['__nodate__'] || [];
+          if (nodateFiles.length > 0) {
+            const isNoDateOpen = categoryOpenState['month:__nodate__'] ?? false;
+            elements.push(
+              <div className="category-group" data-group-key="month:__nodate__" key="month:__nodate__">
+                <button className={`category-header ${isNoDateOpen ? 'open' : ''}`} onClick={() => setCategoryOpen('month:__nodate__', !isNoDateOpen)}>
+                  <span className="category-icon">📄</span>
+                  <span className="category-name">{lang === 'en' ? 'NO DATE / UNKNOWN' : '日付なし・未分類'}</span>
+                  <span className="category-count">{nodateFiles.length}</span>
+                  <span className="category-arrow">▶</span>
+                </button>
+                <div className={`category-files ${isNoDateOpen ? 'open' : ''}`}>
+                  {nodateFiles.map(f => renderFileBtn(f))}
+                </div>
+              </div>
+            );
+          }
+        }
+
+        // 年月グループのソートと描画
+        Object.keys(byMonth)
+          .filter(k => k !== '__nodate__')
+          .sort((a, b) => {
+            if (sortMode === 'date') {
+              return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
+            } else {
+              return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+            }
+          })
+          .forEach(mKey => {
+            const isThisMonth = mKey === today.slice(0, 7);
+            const [my, mm] = mKey.split('-');
+            let mOpen = categoryOpenState['month:' + mKey] ?? isThisMonth;
+            if (searchQueries.length > 0) mOpen = true;
+
+            elements.push(
+              <div className="category-group" data-group-key={'month:' + mKey} key={'month:' + mKey}>
+                <button className={`category-header ${mOpen ? 'open' : ''}`} onClick={() => setCategoryOpen('month:' + mKey, !mOpen)}>
+                  <span className="category-icon">{isThisMonth ? '🗓' : '📅'}</span>
+                  <span className="category-name">{isThisMonth ? `${parseInt(mm)}${t.sidebar.thisMonth}` : `${my}.${mm}`}</span>
+                  {isThisMonth && <span className="today-badge">THIS MONTH</span>}
+                  <span className="category-count">{Object.values(byMonth[mKey]).flat().length}</span>
+                  <span className="category-arrow">▶</span>
+                </button>
+                <div className={`category-files ${mOpen ? 'open' : ''}`}>
+                  {Object.keys(byMonth[mKey])
+                    .sort((a, b) => {
+                      if (sortMode === 'date') {
+                        return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
+                      } else {
+                        return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+                      }
+                    })
+                    .map(dKey => {
+                      const isToday = dKey === today;
+                      const [, , dd] = dKey.split('-');
+                      return renderCategoryGroup(
+                        isToday ? `${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})` : `${parseInt(mm)}/${parseInt(dd)}`,
+                        '',
+                        byMonth[mKey][dKey],
+                        'date:' + dKey,
+                        isToday ? 'TODAY' : null,
+                        isToday
+                      );
+                    })}
+                </div>
+              </div>
+            );
+          });
+      }
     }
 
     return elements;

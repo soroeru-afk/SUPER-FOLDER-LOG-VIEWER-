@@ -120,6 +120,99 @@ export const FolderExplorer: React.FC = () => {
   const [isDraggingModalFile, setIsDraggingModalFile] = useState(false);
   const [draggingCardPath, setDraggingCardPath] = useState<string | null>(null);
 
+  // サブディレクトリ群（フォルダーカード）の折りたたみ状態（localStorageに記憶）
+  const [isSubDirsCollapsed, setIsSubDirsCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('sf_subdirs_collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSubDirsCollapsed = () => {
+    setIsSubDirsCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sf_subdirs_collapsed', next ? '1' : '0');
+      } catch {}
+      return next;
+    });
+  };
+
+  // サブディレクトリ群のカスタム上下幅（nullの場合は全表示で自動追従）
+  const [subDirsCustomHeight, setSubDirsCustomHeight] = useState<number | null>(() => {
+    try {
+      const saved = localStorage.getItem('sf_subdirs_custom_height');
+      if (saved && !isNaN(Number(saved)) && Number(saved) >= 100) {
+        return Number(saved);
+      }
+      return null; // デフォルトは全表示（制限なし・メニュー自動追従）
+    } catch {
+      return null;
+    }
+  });
+
+  const [isResizingSubDirs, setIsResizingSubDirs] = useState(false);
+  const subDirsAccordionRef = useRef<HTMLDivElement | null>(null);
+  const resizeStartYRef = useRef<number>(0);
+  const resizeStartHeightRef = useRef<number>(0);
+
+  const handleStartResizeSubDirs = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    resizeStartYRef.current = clientY;
+    const currentHeight = subDirsAccordionRef.current ? subDirsAccordionRef.current.getBoundingClientRect().height : (subDirsCustomHeight || 280);
+    resizeStartHeightRef.current = currentHeight;
+    setIsResizingSubDirs(true);
+
+    const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const deltaY = currentY - resizeStartYRef.current;
+      const newHeight = Math.max(100, Math.min(900, Math.round(resizeStartHeightRef.current + deltaY)));
+      setSubDirsCustomHeight(newHeight);
+    };
+
+    const onEnd = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+      setIsResizingSubDirs(false);
+      setSubDirsCustomHeight(prev => {
+        try {
+          if (prev) localStorage.setItem('sf_subdirs_custom_height', String(prev));
+        } catch {}
+        return prev;
+      });
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove);
+    window.addEventListener('touchend', onEnd);
+  };
+
+  const handleResetSubDirsFullHeight = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSubDirsCustomHeight(null);
+    try {
+      localStorage.removeItem('sf_subdirs_custom_height');
+    } catch {}
+  };
+
+  const handleToggleSubDirsCompact = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (subDirsCustomHeight !== null) {
+      handleResetSubDirsFullHeight();
+    } else {
+      setSubDirsCustomHeight(280);
+      try {
+        localStorage.setItem('sf_subdirs_custom_height', '280');
+      } catch {}
+    }
+  };
+
   // スクロールに応じた段階的読み込み（インフィニットスクロール / 表示件数制御）
   const PAGE_SIZE = 24;
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
@@ -1409,6 +1502,337 @@ export const FolderExplorer: React.FC = () => {
     );
   };
 
+  // ファイル操作・選択・並び替え等の常時固定メニューバー
+  const renderFileOperationsBar = () => (
+    <div 
+      className="explorer-section-title explorer-files-sticky-bar" 
+      style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        flexWrap: 'wrap', 
+        gap: '8px' 
+      }}
+    >
+      {/* 左側: 見出しタイトルと件数 & グループ表示切り替え */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span className="section-icon">{searchQueries.length > 0 ? '🔍' : '📄'}</span>
+          <span>
+            {searchQueries.length > 0 
+              ? (lang === 'en' ? `SEARCH RESULTS (${matchingFiles.length})` : `検索結果 (${matchingFiles.length}件)`)
+              : groupMode === 'by-category'
+              ? (!explorerCategory
+                  ? (lang === 'en' ? `ALL FOLDERS EXPANDED (${allFiles.length})` : `全フォルダー展開 (${allFiles.length}件)`)
+                  : (lang === 'en' ? `ALL SUB-FOLDERS EXPANDED (${categoryFileCounts.get(explorerCategory) || filesInCurrentFolder.length})` : `配下サブフォルダー展開 (${categoryFileCounts.get(explorerCategory) || filesInCurrentFolder.length}件)`))
+              : (!explorerCategory
+                  ? (lang === 'en' ? `ROOT DIRECT FILES (${filesInCurrentFolder.length})` : `ルート直下のファイル (${filesInCurrentFolder.length}件)`)
+                  : (lang === 'en' ? `LOGS / ARTICLES (${filesInCurrentFolder.length})` : `ログファイル・記事一覧 (${filesInCurrentFolder.length}件)`))}
+          </span>
+          {searchQueries.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilterText('')}
+              className="explorer-btn"
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                color: 'var(--danger-color, #ef4444)',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: '2px 8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="検索を解除して通常の一覧に戻る"
+            >
+              <span>✕</span>
+              <span>{lang === 'en' ? 'Clear' : '検索解除'}</span>
+            </button>
+          )}
+          {sortMode === 'custom' && searchQueries.length === 0 && (
+            <span 
+              style={{ 
+                fontSize: '9.5px', 
+                padding: '1px 6px', 
+                background: 'rgba(59, 130, 246, 0.12)', 
+                color: 'var(--sb-accent, #3b82f6)', 
+                border: '1px solid rgba(59, 130, 246, 0.3)', 
+                borderRadius: '0px', 
+                fontWeight: 700,
+                letterSpacing: '0.4px'
+              }}
+              title={lang === 'en' ? 'Custom ordering is active' : '手動で設定したカスタム並び順が適用されています'}
+            >
+              {lang === 'en' ? 'CUSTOM ORDER' : 'カスタム順'}
+            </span>
+          )}
+        </div>
+
+        {/* サブカテゴリー別グループ表示 vs 直下/フラット切り替えピル */}
+        <div className="explorer-layout-group" style={{ marginLeft: '4px' }}>
+          <button
+            type="button"
+            className={`explorer-layout-btn ${groupMode === 'standard' ? 'active' : ''}`}
+            onClick={() => handleSetGroupMode('standard')}
+            title={
+              searchQueries.length > 0
+                ? (lang === 'en' ? 'Flat search result list' : '全検索結果をフラットに一覧表示')
+                : (lang === 'en' ? 'Show only direct files in this folder' : 'このフォルダー直下のファイルのみ表示')
+            }
+            style={{ fontSize: '10.5px', padding: '2px 8px' }}
+          >
+            <span>📄</span>
+            <span>{searchQueries.length > 0 ? (lang === 'en' ? 'Flat List' : '全件一覧') : (lang === 'en' ? 'Direct Files' : '直下のみ')}</span>
+          </button>
+          <button
+            type="button"
+            className={`explorer-layout-btn ${groupMode === 'by-category' ? 'active' : ''}`}
+            onClick={() => handleSetGroupMode('by-category')}
+            title={
+              searchQueries.length > 0
+                ? (lang === 'en' ? 'Group search results by folder' : '検索結果をフォルダー（カテゴリー）別に整理して表示')
+                : (lang === 'en' ? 'Expand all sub-categories and their files' : 'サブカテゴリー別にフォルダーと配下ファイルを展開表示')
+            }
+            style={{ fontSize: '10.5px', padding: '2px 8px' }}
+          >
+            <span>📁</span>
+            <span>{lang === 'en' ? 'Group by Folder' : 'フォルダー別に整理'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 右側: ツールバー + 表示形式ピルを一番右寄りにまとめて配置 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
+        {/* 一括操作バー（選択モード・全選択・マーク・削除・移動） */}
+        <div className="explorer-bulk-toolbar">
+          {/* 選択モード切り替えボタン */}
+          <button
+            type="button"
+            className={`explorer-bulk-tool-btn select-mode ${isExplorerSelectMode ? 'active' : ''}`}
+            onClick={handleToggleExplorerSelect}
+            title={isExplorerSelectMode ? (lang === 'en' ? 'Exit selection mode' : '選択モードを終了') : (lang === 'en' ? 'Enter selection mode' : '選択モードを開始')}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{isExplorerSelectMode ? '✕' : '☑'}</span>
+            <span>{isExplorerSelectMode ? (lang === 'en' ? 'Exit' : '終了') : (lang === 'en' ? 'Select' : '選択')}</span>
+          </button>
+
+          {/* 全選択 / 全解除 */}
+          <button
+            type="button"
+            className={`explorer-bulk-tool-btn select-all ${isAllFolderSelected ? 'active' : ''}`}
+            onClick={handleToggleSelectAll}
+            disabled={activeDisplayedFiles.length === 0}
+            title={isAllFolderSelected ? (lang === 'en' ? 'Deselect all' : '全選択解除') : (lang === 'en' ? 'Select all' : 'すべて選択')}
+          >
+            <div className={`explorer-mini-checkbox ${isAllFolderSelected ? 'checked' : (isSomeFolderSelected ? 'indeterminate' : '')}`}>
+              {isAllFolderSelected && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="mini-check-svg">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+              {isSomeFolderSelected && <div className="mini-indeterminate-bar" />}
+            </div>
+            <span>{isAllFolderSelected ? (lang === 'en' ? 'Deselect All' : '全解除') : (lang === 'en' ? 'Select All' : '全選択')}</span>
+          </button>
+
+          {/* 選択件数カウンター */}
+          <span className={`explorer-bulk-count-badge ${totalSelectedCount > 0 ? 'highlight' : ''}`} title="選択中のファイル数">
+            {totalSelectedCount} {lang === 'en' ? 'selected' : '件選択中'}
+          </span>
+
+          {/* 並び順移動ボタン群（最上・上へ・下へ・最下）- ゲートエスケーパー連動方式 */}
+          <div className="explorer-reorder-group" title={lang === 'en' ? 'Reorder selected items' : '選択した項目の並び順を移動'}>
+            <button
+              type="button"
+              className="explorer-reorder-btn"
+              disabled={selectedInCurrentFolder.length === 0}
+              onClick={() => handleReorderFiles('top')}
+              title={
+                selectedInCurrentFolder.length > 0
+                  ? (lang === 'en' ? 'Move selected to top' : '選択した項目を一番上（最上部）へ移動')
+                  : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+              }
+            >
+              <span style={{ fontSize: '12px', lineHeight: 1 }}>⤒</span>
+              <span>{lang === 'en' ? 'Top' : '最上'}</span>
+            </button>
+            <button
+              type="button"
+              className="explorer-reorder-btn"
+              disabled={selectedInCurrentFolder.length === 0}
+              onClick={() => handleReorderFiles('up')}
+              title={
+                selectedInCurrentFolder.length > 0
+                  ? (lang === 'en' ? 'Move selected up' : '選択した項目を上へ移動')
+                  : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+              }
+            >
+              <span style={{ fontSize: '12px', lineHeight: 1 }}>↑</span>
+              <span>{lang === 'en' ? 'Up' : '上へ'}</span>
+            </button>
+            <button
+              type="button"
+              className="explorer-reorder-btn"
+              disabled={selectedInCurrentFolder.length === 0}
+              onClick={() => handleReorderFiles('down')}
+              title={
+                selectedInCurrentFolder.length > 0
+                  ? (lang === 'en' ? 'Move selected down' : '選択した項目を下へ移動')
+                  : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+              }
+            >
+              <span style={{ fontSize: '12px', lineHeight: 1 }}>↓</span>
+              <span>{lang === 'en' ? 'Down' : '下へ'}</span>
+            </button>
+            <button
+              type="button"
+              className="explorer-reorder-btn"
+              disabled={selectedInCurrentFolder.length === 0}
+              onClick={() => handleReorderFiles('bottom')}
+              title={
+                selectedInCurrentFolder.length > 0
+                  ? (lang === 'en' ? 'Move selected to bottom' : '選択した項目を一番下（最下部）へ移動')
+                  : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
+              }
+            >
+              <span style={{ fontSize: '12px', lineHeight: 1 }}>⤓</span>
+              <span>{lang === 'en' ? 'Bottom' : '最下'}</span>
+            </button>
+          </div>
+
+          {/* ☆ マーク ドロップダウン */}
+          <div style={{ position: 'relative', zIndex: 100 }} ref={bulkMarkRef}>
+            <button
+              type="button"
+              className="explorer-bulk-tool-btn mark"
+              onClick={() => setBulkMarkOpen(!bulkMarkOpen)}
+              title={lang === 'en' ? 'Set mark for selected files' : '選択したファイルにマークをつける'}
+            >
+              <span>☆ {lang === 'en' ? 'Mark' : 'マーク'}</span>
+              <span style={{ fontSize: '9px', opacity: 0.8 }}>▼</span>
+            </button>
+
+            {bulkMarkOpen && (
+              <div className="explorer-bulk-mark-popup" onClick={e => e.stopPropagation()}>
+                <div className="explorer-mark-popup-header">
+                  {lang === 'en' ? 'Mark selected files' : '選択したファイルにマーク'}
+                </div>
+                <div className="explorer-mark-popup-grid">
+                  {MARK_OPTIONS.map(opt => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      className="explorer-mark-item-btn"
+                      onClick={() => handleApplyBulkMark(opt.mark)}
+                    >
+                      <span className="mark-item-icon">{opt.icon}</span>
+                      <span className="mark-item-label">{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ショートカット作成... ボタン */}
+          <button
+            type="button"
+            className="explorer-bulk-tool-btn shortcut"
+            onClick={handleOpenBulkShortcut}
+            title={lang === 'en' ? 'Create shortcut for selected files in another folder' : '選択したファイルのショートカットを別フォルダーに作成'}
+          >
+            <ShortcutIcon size={12} />
+            <span>{lang === 'en' ? 'Shortcut...' : 'ショートカット...'}</span>
+          </button>
+
+          {/* 複製... ボタン */}
+          <button
+            type="button"
+            className="explorer-bulk-tool-btn copy"
+            onClick={handleOpenBulkDuplicate}
+            title={lang === 'en' ? 'Duplicate selected files' : '選択したファイルを複製（コピー）'}
+          >
+            <CopyIcon size={12} />
+            <span>{lang === 'en' ? 'Duplicate...' : '複製...'}</span>
+          </button>
+
+          {/* 移動先... ボタン */}
+          <button
+            type="button"
+            className="explorer-bulk-tool-btn move"
+            onClick={handleOpenBulkMove}
+            title={lang === 'en' ? 'Move selected files' : '選択したファイルを別のフォルダーへ移動'}
+          >
+            <MoveIcon />
+            <span>{t.main.moveTo || '移動先...'}</span>
+          </button>
+
+          {/* 削除ボタン */}
+          <button
+            type="button"
+            className="explorer-bulk-tool-btn delete"
+            onClick={handleBulkDelete}
+            title={lang === 'en' ? 'Delete selected files (or unlink shortcuts)' : '選択したファイルを削除（ショートカットの場合は解除）'}
+          >
+            <DeleteIcon />
+            <span>{t.main.delete || '削除'}</span>
+          </button>
+        </div>
+
+        {/* リスト表示時の行間隔調整ピル (カード/リストボタンの左隣に配置) */}
+        {layoutMode === 'list' && (
+          <div className="explorer-layout-group" title={lang === 'en' ? 'List spacing density' : 'リストの行間隔（密度）'}>
+            <button
+              className={`explorer-layout-btn ${listDensity === 'compact' ? 'active' : ''}`}
+              onClick={() => handleSetListDensity('compact')}
+              title="狭 (8px)"
+              style={{ fontSize: '10px', padding: '0 7px' }}
+            >
+              狭
+            </button>
+            <button
+              className={`explorer-layout-btn ${listDensity === 'standard' ? 'active' : ''}`}
+              onClick={() => handleSetListDensity('standard')}
+              title="標準 (14px)"
+              style={{ fontSize: '10px', padding: '0 7px' }}
+            >
+              標準
+            </button>
+            <button
+              className={`explorer-layout-btn ${listDensity === 'spacious' ? 'active' : ''}`}
+              onClick={() => handleSetListDensity('spacious')}
+              title="広 (22px)"
+              style={{ fontSize: '10px', padding: '0 7px' }}
+            >
+              広
+            </button>
+          </div>
+        )}
+
+        {/* カード型 / リスト型 切り替えピル (一番端っこに固定配置) */}
+        <div className="explorer-layout-group">
+          <button 
+            className={`explorer-layout-btn ${layoutMode === 'card' ? 'active' : ''}`}
+            onClick={() => handleSetLayoutMode('card')}
+            title={lang === 'en' ? 'Card / Grid view' : 'カード型グリッド表示'}
+          >
+            <span>⊞</span> {lang === 'en' ? 'Card' : 'カード'}
+          </button>
+          <button 
+            className={`explorer-layout-btn ${layoutMode === 'list' ? 'active' : ''}`}
+            onClick={() => handleSetLayoutMode('list')}
+            title={lang === 'en' ? 'List / Slim view' : 'リスト型表示'}
+          >
+            <span>☰</span> {lang === 'en' ? 'List' : 'リスト'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div id="explorer-view" className="explorer-container">
       {/* 01. 上部コントロール・パンくずナビゲーション */}
@@ -1519,57 +1943,6 @@ export const FolderExplorer: React.FC = () => {
 
             {/* テーマQuick切り替えボタン */}
             <ThemeQuickToggle />
-
-            {/* 画像ファイル表示 / 非表示トグル（テーマボタンの横に配置・固定幅で文字ズレ防止・落ち着いた統一カラー） */}
-            <button
-              type="button"
-              className="theme-quick-toggle-btn-mirror"
-              onClick={toggleShowImageFiles}
-              title={
-                showImageFiles 
-                  ? (lang === 'en' ? 'Image Files: ON (Showing image files. Click to hide)' : '画像ファイル表示: ON（画像ファイルを表示中。クリックで非表示）')
-                  : (lang === 'en' ? 'Image Files: OFF (Hiding image files for speed. Click to show)' : '画像ファイル表示: OFF（通常モード：画像ファイルを非表示。クリックで表示）')
-              }
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                height: '26px',
-                width: '88px',
-                minWidth: '88px',
-                maxWidth: '88px',
-                padding: '0 6px',
-                boxSizing: 'border-box',
-                background: 'var(--btn-bg, rgba(120, 120, 120, 0.08))',
-                color: 'var(--btn-text, inherit)',
-                border: '1px solid var(--btn-border, var(--card-border, rgba(120, 120, 120, 0.25)))',
-                borderRadius: '0px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                letterSpacing: '0.2px',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                userSelect: 'none',
-                transition: 'background 0.15s, border-color 0.15s, color 0.15s'
-              }}
-            >
-              <ImageIcon size={13} style={{ color: 'currentColor', flexShrink: 0 }} />
-              <span style={{ flexShrink: 0 }}>{lang === 'en' ? 'Img' : '画像'}</span>
-              <span 
-                style={{ 
-                  display: 'inline-block', 
-                  width: '24px', 
-                  textAlign: 'center', 
-                  fontWeight: 800,
-                  letterSpacing: '0.5px',
-                  flexShrink: 0
-                }}
-              >
-                {showImageFiles ? 'ON' : 'OFF'}
-              </span>
-            </button>
           </div>
         </div>
 
@@ -1765,11 +2138,20 @@ export const FolderExplorer: React.FC = () => {
         </div>
       </div>
 
-      <div className="explorer-scroll-area" ref={scrollAreaRef} onScroll={handleScrollArea}>
-        {/* 03. サブディレクトリ群のカード表示（存在する場合） */}
+      {/* 03. 常時固定コントロールブロック（サブディレクトリバー ＆ ファイル一覧操作メニューバー） */}
+      <div className="explorer-pinned-control-header">
+        {/* サブディレクトリ群の固定バー ＆ 展開時アコーディオン */}
         {subCategories.length > 0 && (
-          <section className="explorer-section">
-            <div className="explorer-section-title">
+          <div className={`explorer-subdirs-pinned-bar ${isSubDirsCollapsed ? 'is-collapsed' : 'is-expanded'}`}>
+            <div 
+              className="explorer-section-title explorer-subdirs-header"
+              onClick={toggleSubDirsCollapsed}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSubDirsCollapsed(); } }}
+              title={isSubDirsCollapsed ? (lang === 'en' ? 'Click to expand folders' : 'クリックしてフォルダーを展開') : (lang === 'en' ? 'Click to collapse folders' : 'クリックしてフォルダーを折りたたむ')}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span className="section-icon">📁</span>
                 <span>SUB-DIRECTORIES ({subCategories.length})</span>
@@ -1791,9 +2173,68 @@ export const FolderExplorer: React.FC = () => {
                   </span>
                 )}
               </div>
+
+              {/* 右側: 上下の幅調整切り替え ＆ 折りたたみトグルボタン */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {!isSubDirsCollapsed && (
+                  <button
+                    type="button"
+                    onClick={handleToggleSubDirsCompact}
+                    title={
+                      subDirsCustomHeight !== null
+                        ? (lang === 'en' ? 'Currently constrained. Click to show all folders without scroll' : '現在枠固定中。クリックで全フォルダーをそのまま全表示')
+                        : (lang === 'en' ? 'Currently full view. Click to constrain height (compact)' : '現在全表示中。クリックで枠固定（コンパクト表示）')
+                    }
+                    style={{
+                      background: subDirsCustomHeight !== null ? 'rgba(217, 84, 48, 0.12)' : 'transparent',
+                      border: subDirsCustomHeight !== null ? '1px solid #D95430' : '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                      color: subDirsCustomHeight !== null ? '#D95430' : 'inherit',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      padding: '2px 7px',
+                      borderRadius: '0px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      userSelect: 'none',
+                      lineHeight: '16px'
+                    }}
+                  >
+                    <span>↕</span>
+                    <span>{subDirsCustomHeight !== null ? (lang === 'en' ? `${subDirsCustomHeight}px` : `${subDirsCustomHeight}px`) : (lang === 'en' ? 'FULL' : '全表示')}</span>
+                  </button>
+                )}
+
+                <span 
+                  className="explorer-subdirs-toggle-badge"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '0px',
+                    letterSpacing: '0.4px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.12s ease'
+                  }}
+                >
+                  <span style={{ fontSize: '10px' }}>{isSubDirsCollapsed ? '▼' : '▲'}</span>
+                  <span>{isSubDirsCollapsed ? (lang === 'en' ? 'Expand Folders' : 'フォルダー展開') : (lang === 'en' ? 'Collapse' : '折りたたむ')}</span>
+                </span>
+              </div>
             </div>
-            <div className="explorer-folders-grid">
-              {subCategories.map(cat => {
+
+            {!isSubDirsCollapsed && (
+              <>
+                <div 
+                  ref={subDirsAccordionRef}
+                  className={`explorer-subdirs-accordion-scroll ${subDirsCustomHeight !== null ? 'is-custom-height' : ''}`}
+                  style={subDirsCustomHeight !== null ? { maxHeight: `${subDirsCustomHeight}px` } : undefined}
+                >
+                <div className="explorer-folders-grid">
+                {subCategories.map(cat => {
                 const isCoverOn = visualSettings.enabled;
                 const isBanner = isCoverOn && visualSettings.layout === 'banner';
                 const isCardBg = isCoverOn && visualSettings.layout === 'card-bg';
@@ -2077,11 +2518,30 @@ export const FolderExplorer: React.FC = () => {
                   </div>
                 );
               })}
-            </div>
-          </section>
+                </div>
+              </div>
+                {/* 工業デザイン調・上下の幅を伸縮できるリサイズハンドル */}
+                <div 
+                  className={`explorer-subdirs-resize-handle ${isResizingSubDirs ? 'is-active-dragging' : ''}`}
+                  onMouseDown={handleStartResizeSubDirs}
+                  onTouchStart={handleStartResizeSubDirs}
+                  onDoubleClick={handleResetSubDirsFullHeight}
+                  title={lang === 'en' ? 'Drag up/down to adjust folder height, double-click for full view' : 'ドラッグして上下の幅を自由に調整（ダブルクリックで全表示に戻す）'}
+                >
+                  <div className="explorer-subdirs-resize-grip" />
+                </div>
+              </>
+            )}
+          </div>
         )}
 
-        {/* 03-B. 検索時にフォルダー名がマッチしたサブカテゴリー一覧 */}
+        {/* ファイル操作・一括アクション固定メニューバー */}
+        {renderFileOperationsBar()}
+      </div>
+
+      {/* 04. スクロール領域（ファイルカード / リスト一覧のみが下部をスクロールする） */}
+      <div className="explorer-scroll-area" ref={scrollAreaRef} onScroll={handleScrollArea}>
+        {/* 04-A. 検索時にフォルダー名がマッチしたサブカテゴリー一覧 */}
         {searchQueries.length > 0 && matchingSubCategories.length > 0 && (
           <section className="explorer-section">
             <div className="explorer-section-title">
@@ -2134,326 +2594,7 @@ export const FolderExplorer: React.FC = () => {
         )}
 
         {/* 04. ログファイル・テキストの一覧（検索時 / 通常表示時 / サブカテゴリー展開） */}
-        <section className={`explorer-section ${isSelecting ? 'select-mode-active' : ''}`} style={{ position: 'relative', zIndex: 30 }}>
-          <div className="explorer-section-title" style={{ position: 'relative', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-            {/* 左側: 見出しタイトルと件数 & グループ表示切り替え */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="section-icon">{searchQueries.length > 0 ? '🔍' : '📄'}</span>
-                <span>
-                  {searchQueries.length > 0 
-                    ? (lang === 'en' ? `SEARCH RESULTS (${matchingFiles.length})` : `検索結果 (${matchingFiles.length}件)`)
-                    : groupMode === 'by-category'
-                    ? (!explorerCategory
-                        ? (lang === 'en' ? `ALL FOLDERS EXPANDED (${allFiles.length})` : `全フォルダー展開 (${allFiles.length}件)`)
-                        : (lang === 'en' ? `ALL SUB-FOLDERS EXPANDED (${categoryFileCounts.get(explorerCategory) || filesInCurrentFolder.length})` : `配下サブフォルダー展開 (${categoryFileCounts.get(explorerCategory) || filesInCurrentFolder.length}件)`))
-                    : (!explorerCategory
-                        ? (lang === 'en' ? `ROOT DIRECT FILES (${filesInCurrentFolder.length})` : `ルート直下のファイル (${filesInCurrentFolder.length}件)`)
-                        : (lang === 'en' ? `LOGS / ARTICLES (${filesInCurrentFolder.length})` : `ログファイル・記事一覧 (${filesInCurrentFolder.length}件)`))}
-                </span>
-                {searchQueries.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setFilterText('')}
-                    className="explorer-btn"
-                    style={{
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      borderColor: 'rgba(239, 68, 68, 0.3)',
-                      color: 'var(--danger-color, #ef4444)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      padding: '2px 8px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                    title="検索を解除して通常の一覧に戻る"
-                  >
-                    <span>✕</span>
-                    <span>{lang === 'en' ? 'Clear' : '検索解除'}</span>
-                  </button>
-                )}
-                {sortMode === 'custom' && searchQueries.length === 0 && (
-                  <span 
-                    style={{ 
-                      fontSize: '9.5px', 
-                      padding: '1px 6px', 
-                      background: 'rgba(59, 130, 246, 0.12)', 
-                      color: 'var(--sb-accent, #3b82f6)', 
-                      border: '1px solid rgba(59, 130, 246, 0.3)', 
-                      borderRadius: '0px', 
-                      fontWeight: 700,
-                      letterSpacing: '0.4px'
-                    }}
-                    title={lang === 'en' ? 'Custom ordering is active' : '手動で設定したカスタム並び順が適用されています'}
-                  >
-                    {lang === 'en' ? 'CUSTOM ORDER' : 'カスタム順'}
-                  </span>
-                )}
-              </div>
-
-              {/* サブカテゴリー別グループ表示 vs 直下/フラット切り替えピル */}
-              <div className="explorer-layout-group" style={{ marginLeft: '4px' }}>
-                <button
-                  type="button"
-                  className={`explorer-layout-btn ${groupMode === 'standard' ? 'active' : ''}`}
-                  onClick={() => handleSetGroupMode('standard')}
-                  title={
-                    searchQueries.length > 0
-                      ? (lang === 'en' ? 'Flat search result list' : '全検索結果をフラットに一覧表示')
-                      : (lang === 'en' ? 'Show only direct files in this folder' : 'このフォルダー直下のファイルのみ表示')
-                  }
-                  style={{ fontSize: '10.5px', padding: '2px 8px' }}
-                >
-                  <span>📄</span>
-                  <span>{searchQueries.length > 0 ? (lang === 'en' ? 'Flat List' : '全件一覧') : (lang === 'en' ? 'Direct Files' : '直下のみ')}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`explorer-layout-btn ${groupMode === 'by-category' ? 'active' : ''}`}
-                  onClick={() => handleSetGroupMode('by-category')}
-                  title={
-                    searchQueries.length > 0
-                      ? (lang === 'en' ? 'Group search results by folder' : '検索結果をフォルダー（カテゴリー）別に整理して表示')
-                      : (lang === 'en' ? 'Expand all sub-categories and their files' : 'サブカテゴリー別にフォルダーと配下ファイルを展開表示')
-                  }
-                  style={{ fontSize: '10.5px', padding: '2px 8px' }}
-                >
-                  <span>📁</span>
-                  <span>{lang === 'en' ? 'Group by Folder' : 'フォルダー別に整理'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 右側: ツールバー + 表示形式ピルを一番右寄りにまとめて配置 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
-              {/* 一括操作バー（選択モード・全選択・マーク・削除・移動） */}
-              <div className="explorer-bulk-toolbar">
-                {/* 選択モード切り替えボタン */}
-                <button
-                  type="button"
-                  className={`explorer-bulk-tool-btn select-mode ${isExplorerSelectMode ? 'active' : ''}`}
-                  onClick={handleToggleExplorerSelect}
-                  title={isExplorerSelectMode ? (lang === 'en' ? 'Exit selection mode' : '選択モードを終了') : (lang === 'en' ? 'Enter selection mode' : '選択モードを開始')}
-                >
-                  <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{isExplorerSelectMode ? '✕' : '☑'}</span>
-                  <span>{isExplorerSelectMode ? (lang === 'en' ? 'Exit' : '終了') : (lang === 'en' ? 'Select' : '選択')}</span>
-                </button>
-
-                {/* 全選択 / 全解除 */}
-                <button
-                  type="button"
-                  className={`explorer-bulk-tool-btn select-all ${isAllFolderSelected ? 'active' : ''}`}
-                  onClick={handleToggleSelectAll}
-                  disabled={activeDisplayedFiles.length === 0}
-                  title={isAllFolderSelected ? (lang === 'en' ? 'Deselect all' : '全選択解除') : (lang === 'en' ? 'Select all' : 'すべて選択')}
-                >
-                  <div className={`explorer-mini-checkbox ${isAllFolderSelected ? 'checked' : (isSomeFolderSelected ? 'indeterminate' : '')}`}>
-                    {isAllFolderSelected && (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="mini-check-svg">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                    {isSomeFolderSelected && <div className="mini-indeterminate-bar" />}
-                  </div>
-                  <span>{isAllFolderSelected ? (lang === 'en' ? 'Deselect All' : '全解除') : (lang === 'en' ? 'Select All' : '全選択')}</span>
-                </button>
-
-                {/* 選択件数カウンター */}
-                <span className={`explorer-bulk-count-badge ${totalSelectedCount > 0 ? 'highlight' : ''}`} title="選択中のファイル数">
-                  {totalSelectedCount} {lang === 'en' ? 'selected' : '件選択中'}
-                </span>
-
-                {/* 並び順移動ボタン群（最上・上へ・下へ・最下）- ゲートエスケーパー連動方式 */}
-                <div className="explorer-reorder-group" title={lang === 'en' ? 'Reorder selected items' : '選択した項目の並び順を移動'}>
-                  <button
-                    type="button"
-                    className="explorer-reorder-btn"
-                    disabled={selectedInCurrentFolder.length === 0}
-                    onClick={() => handleReorderFiles('top')}
-                    title={
-                      selectedInCurrentFolder.length > 0
-                        ? (lang === 'en' ? 'Move selected to top' : '選択した項目を一番上（最上部）へ移動')
-                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
-                    }
-                  >
-                    <span style={{ fontSize: '12px', lineHeight: 1 }}>⤒</span>
-                    <span>{lang === 'en' ? 'Top' : '最上'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="explorer-reorder-btn"
-                    disabled={selectedInCurrentFolder.length === 0}
-                    onClick={() => handleReorderFiles('up')}
-                    title={
-                      selectedInCurrentFolder.length > 0
-                        ? (lang === 'en' ? 'Move selected up' : '選択した項目を上へ移動')
-                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
-                    }
-                  >
-                    <span style={{ fontSize: '12px', lineHeight: 1 }}>↑</span>
-                    <span>{lang === 'en' ? 'Up' : '上へ'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="explorer-reorder-btn"
-                    disabled={selectedInCurrentFolder.length === 0}
-                    onClick={() => handleReorderFiles('down')}
-                    title={
-                      selectedInCurrentFolder.length > 0
-                        ? (lang === 'en' ? 'Move selected down' : '選択した項目を下へ移動')
-                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
-                    }
-                  >
-                    <span style={{ fontSize: '12px', lineHeight: 1 }}>↓</span>
-                    <span>{lang === 'en' ? 'Down' : '下へ'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="explorer-reorder-btn"
-                    disabled={selectedInCurrentFolder.length === 0}
-                    onClick={() => handleReorderFiles('bottom')}
-                    title={
-                      selectedInCurrentFolder.length > 0
-                        ? (lang === 'en' ? 'Move selected to bottom' : '選択した項目を一番下（最下部）へ移動')
-                        : (lang === 'en' ? 'Select files to reorder' : '並び替える項目を選択してください')
-                    }
-                  >
-                    <span style={{ fontSize: '12px', lineHeight: 1 }}>⤓</span>
-                    <span>{lang === 'en' ? 'Bottom' : '最下'}</span>
-                  </button>
-                </div>
-
-                {/* ☆ マーク ドロップダウン */}
-                <div style={{ position: 'relative', zIndex: 100 }} ref={bulkMarkRef}>
-                  <button
-                    type="button"
-                    className="explorer-bulk-tool-btn mark"
-                    onClick={() => setBulkMarkOpen(!bulkMarkOpen)}
-                    title={lang === 'en' ? 'Set mark for selected files' : '選択したファイルにマークをつける'}
-                  >
-                    <span>☆ {lang === 'en' ? 'Mark' : 'マーク'}</span>
-                    <span style={{ fontSize: '9px', opacity: 0.8 }}>▼</span>
-                  </button>
-
-                  {bulkMarkOpen && (
-                    <div className="explorer-bulk-mark-popup" onClick={e => e.stopPropagation()}>
-                      <div className="explorer-mark-popup-header">
-                        {lang === 'en' ? 'Mark selected files' : '選択したファイルにマーク'}
-                      </div>
-                      <div className="explorer-mark-popup-grid">
-                        {MARK_OPTIONS.map(opt => (
-                          <button
-                            key={opt.label}
-                            type="button"
-                            className="explorer-mark-item-btn"
-                            onClick={() => handleApplyBulkMark(opt.mark)}
-                          >
-                            <span className="mark-item-icon">{opt.icon}</span>
-                            <span className="mark-item-label">{opt.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* ショートカット作成... ボタン */}
-                <button
-                  type="button"
-                  className="explorer-bulk-tool-btn shortcut"
-                  onClick={handleOpenBulkShortcut}
-                  title={lang === 'en' ? 'Create shortcut for selected files in another folder' : '選択したファイルのショートカットを別フォルダーに作成'}
-                >
-                  <ShortcutIcon size={12} />
-                  <span>{lang === 'en' ? 'Shortcut...' : 'ショートカット...'}</span>
-                </button>
-
-                {/* 複製... ボタン */}
-                <button
-                  type="button"
-                  className="explorer-bulk-tool-btn copy"
-                  onClick={handleOpenBulkDuplicate}
-                  title={lang === 'en' ? 'Duplicate selected files' : '選択したファイルを複製（コピー）'}
-                >
-                  <CopyIcon size={12} />
-                  <span>{lang === 'en' ? 'Duplicate...' : '複製...'}</span>
-                </button>
-
-                {/* 移動先... ボタン */}
-                <button
-                  type="button"
-                  className="explorer-bulk-tool-btn move"
-                  onClick={handleOpenBulkMove}
-                  title={lang === 'en' ? 'Move selected files' : '選択したファイルを別のフォルダーへ移動'}
-                >
-                  <MoveIcon />
-                  <span>{t.main.moveTo || '移動先...'}</span>
-                </button>
-
-                {/* 削除ボタン */}
-                <button
-                  type="button"
-                  className="explorer-bulk-tool-btn delete"
-                  onClick={handleBulkDelete}
-                  title={lang === 'en' ? 'Delete selected files (or unlink shortcuts)' : '選択したファイルを削除（ショートカットの場合は解除）'}
-                >
-                  <DeleteIcon />
-                  <span>{t.main.delete || '削除'}</span>
-                </button>
-              </div>
-
-              {/* リスト表示時の行間隔調整ピル (カード/リストボタンの左隣に配置) */}
-              {layoutMode === 'list' && (
-                <div className="explorer-layout-group" title={lang === 'en' ? 'List spacing density' : 'リストの行間隔（密度）'}>
-                  <button
-                    className={`explorer-layout-btn ${listDensity === 'compact' ? 'active' : ''}`}
-                    onClick={() => handleSetListDensity('compact')}
-                    title="狭 (8px)"
-                    style={{ fontSize: '10px', padding: '0 7px' }}
-                  >
-                    狭
-                  </button>
-                  <button
-                    className={`explorer-layout-btn ${listDensity === 'standard' ? 'active' : ''}`}
-                    onClick={() => handleSetListDensity('standard')}
-                    title="標準 (14px)"
-                    style={{ fontSize: '10px', padding: '0 7px' }}
-                  >
-                    標準
-                  </button>
-                  <button
-                    className={`explorer-layout-btn ${listDensity === 'spacious' ? 'active' : ''}`}
-                    onClick={() => handleSetListDensity('spacious')}
-                    title="広 (22px)"
-                    style={{ fontSize: '10px', padding: '0 7px' }}
-                  >
-                    広
-                  </button>
-                </div>
-              )}
-
-              {/* カード型 / リスト型 切り替えピル (一番端っこに固定配置) */}
-              <div className="explorer-layout-group">
-                <button 
-                  className={`explorer-layout-btn ${layoutMode === 'card' ? 'active' : ''}`}
-                  onClick={() => handleSetLayoutMode('card')}
-                  title={lang === 'en' ? 'Card / Grid view' : 'カード型グリッド表示'}
-                >
-                  <span>⊞</span> {lang === 'en' ? 'Card' : 'カード'}
-                </button>
-                <button 
-                  className={`explorer-layout-btn ${layoutMode === 'list' ? 'active' : ''}`}
-                  onClick={() => handleSetLayoutMode('list')}
-                  title={lang === 'en' ? 'List / Slim view' : 'リスト型表示'}
-                >
-                  <span>☰</span> {lang === 'en' ? 'List' : 'リスト'}
-                </button>
-              </div>
-            </div>
-          </div>
-
+        <section className={`explorer-section ${isSelecting ? 'select-mode-active' : ''}`} style={{ position: 'relative' }}>
           {/* 検索時のレンダリング */}
           {searchQueries.length > 0 ? (
             matchingFiles.length === 0 ? (
