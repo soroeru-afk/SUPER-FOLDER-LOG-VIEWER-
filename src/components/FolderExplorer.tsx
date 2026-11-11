@@ -486,7 +486,7 @@ export const FolderExplorer: React.FC = () => {
       }
     }
 
-    const isYearMonth = (name: string) => /^\d{4}[-_./]\d{2}$/.test(name.trim());
+    const isYearMonth = (name: string) => /^\d{4}([-_./年]\d{1,2}月?)?$/.test(name.trim());
     const isArchive = /過去ログ|アーカイブ|archive|agent|エージェント|ai/i.test(explorerCategory || '');
 
     // 1. トップページ（ALL DATA 直下）の場合:
@@ -516,16 +516,20 @@ export const FolderExplorer: React.FC = () => {
       const isDateA = isYearMonth(a.shortName);
       const isDateB = isYearMonth(b.shortName);
 
-      if (sortMode === 'date') {
-        if ((isArchive || isDateA || isDateB)) {
-          if (isDateA && isDateB) {
-            return sortDirection === 'desc'
-              ? b.shortName.localeCompare(a.shortName, undefined, { numeric: true })
-              : a.shortName.localeCompare(b.shortName, undefined, { numeric: true });
-          }
-          if (isDateA && !isDateB) return sortDirection === 'desc' ? -1 : 1;
-          if (!isDateA && isDateB) return sortDirection === 'desc' ? 1 : -1;
+      // 年月フォルダー同士（2026-11, 2026-10等）は、メインが名前順でも常に最新月が上（降順）を固定
+      if (isDateA && isDateB) {
+        if (sortMode === 'date') {
+          return sortDirection === 'desc'
+            ? b.shortName.localeCompare(a.shortName, undefined, { numeric: true })
+            : a.shortName.localeCompare(b.shortName, undefined, { numeric: true });
+        } else {
+          return b.shortName.localeCompare(a.shortName, undefined, { numeric: true });
         }
+      }
+      if (isDateA && !isDateB) return -1;
+      if (!isDateA && isDateB) return 1;
+
+      if (sortMode === 'date') {
         return sortDirection === 'desc'
           ? b.shortName.localeCompare(a.shortName, 'ja', { numeric: true })
           : a.shortName.localeCompare(b.shortName, 'ja', { numeric: true });

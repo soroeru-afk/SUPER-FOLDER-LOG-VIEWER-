@@ -585,7 +585,7 @@ export const Sidebar = () => {
     treeTop.forEach(node => computeTotalCount(node));
 
     // フォルダ並び順のソート連動対応 (日付順・名前順)
-    const isYearMonthName = (name: string) => /^\d{4}[-_./]\d{2}$/.test(name.trim());
+    const isYearMonthName = (name: string) => /^\d{4}([-_./年]\d{1,2}月?)?$/.test(name.trim());
     const isArchiveOrAiFolder = (name: string) => /過去ログ|アーカイブ|archive|agent|エージェント|ai/i.test(name);
 
     const sortCategoryNodes = (nodes: CategoryNode[], parentName: string = '') => {
@@ -614,15 +614,20 @@ export const Sidebar = () => {
             const isDateA = isYearMonthName(shortA);
             const isDateB = isYearMonthName(shortB);
 
-            if (sortMode === 'date') {
-              if (isDateA && isDateB) {
+            // 年月フォルダー同士（2026-11, 2026-10等）は、メインが名前順でも常に最新月が上（降順）を固定
+            if (isDateA && isDateB) {
+              if (sortMode === 'date') {
                 return sortDirection === 'desc'
                   ? shortB.localeCompare(shortA, undefined, { numeric: true })
                   : shortA.localeCompare(shortB, undefined, { numeric: true });
+              } else {
+                return shortB.localeCompare(shortA, undefined, { numeric: true });
               }
-              if (isDateA && !isDateB) return sortDirection === 'desc' ? -1 : 1;
-              if (!isDateA && isDateB) return sortDirection === 'desc' ? 1 : -1;
+            }
+            if (isDateA && !isDateB) return -1;
+            if (!isDateA && isDateB) return 1;
 
+            if (sortMode === 'date') {
               return sortDirection === 'desc'
                 ? shortB.localeCompare(shortA, 'ja', { numeric: true })
                 : shortA.localeCompare(shortB, 'ja', { numeric: true });
@@ -736,14 +741,15 @@ export const Sidebar = () => {
           }
         }
 
-        // 年月グループのソートと描画
+        // 年月グループのソートと描画（アーカイブは常に最新月・最新日が上に来るよう降順を維持）
         Object.keys(byMonth)
           .filter(k => k !== '__nodate__')
           .sort((a, b) => {
             if (sortMode === 'date') {
               return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
             } else {
-              return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+              // 名前順モード時でも、アーカイブは古い月が上に来ないよう降順（最新月が上）を固定
+              return b.localeCompare(a);
             }
           })
           .forEach(mKey => {
@@ -767,16 +773,22 @@ export const Sidebar = () => {
                       if (sortMode === 'date') {
                         return sortDirection === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
                       } else {
-                        return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+                        // 名前順モード時でも日別グループは最新日が上
+                        return b.localeCompare(a);
                       }
                     })
                     .map(dKey => {
                       const isToday = dKey === today;
                       const [, , dd] = dKey.split('-');
+                      const dayFiles = [...byMonth[mKey][dKey]].sort((fa, fb) => {
+                        const dtA = (fa.date || '') + (fa.time || '');
+                        const dtB = (fb.date || '') + (fb.time || '');
+                        return dtB.localeCompare(dtA);
+                      });
                       return renderCategoryGroup(
                         isToday ? `${t.sidebar.today}(${parseInt(mm)}/${parseInt(dd)})` : `${parseInt(mm)}/${parseInt(dd)}`,
                         '',
-                        byMonth[mKey][dKey],
+                        dayFiles,
                         'date:' + dKey,
                         isToday ? 'TODAY' : null,
                         isToday
@@ -808,7 +820,7 @@ export const Sidebar = () => {
           <div id="app-name" style={{flex: 1}}>SUPER FOLDER<br/><span>LOG VIEWER</span></div>
         </div>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
-          <div id="app-version">React Edition v3.1.2</div>
+          <div id="app-version">React Edition v3.1.4</div>
           <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
             <button 
               id="side-change-btn"
