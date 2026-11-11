@@ -2302,16 +2302,67 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
   };
 
   const renameCurrentFile = async (newName: string) => {
+    if(!currentFileObj || !newName || newName === currentFileObj.filename) return;
+
     if (isFallbackMode) {
-      alert(t.main.fallbackRenameError);
+      const parsed = parseFilename(newName);
+      const updatedFiles = rawFiles.map(f => {
+        if (f.filename === currentFileObj.filename && f.category === currentFileObj.category) {
+          return {
+            ...f,
+            filename: newName,
+            title: parsed.title || newName.replace(/\.[^.]+$/, ''),
+            date: parsed.date || f.date,
+            time: parsed.time || f.time
+          };
+        }
+        return f;
+      });
+      setRawFiles(updatedFiles);
+      const merged = buildAllFiles(updatedFiles, fileShortcutsRef.current, physicalFolders);
+      setAllFiles(merged);
+      updateFilter(merged, physicalFolders, searchQueries);
+      await saveFallbackData({
+        rootFolderName: dirHandle?.name || 'Local Logs',
+        pFolders: physicalFolders,
+        fileObjs: updatedFiles,
+        shortcuts: fileShortcutsRef.current
+      });
+      const nextFileObj: FileObj = {
+        ...currentFileObj,
+        filename: newName,
+        title: parsed.title || newName.replace(/\.[^.]+$/, ''),
+        date: parsed.date || currentFileObj.date,
+        time: parsed.time || currentFileObj.time
+      };
+      setCurrentFileObj(nextFileObj);
+      try {
+        localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'file', filename: newName, category: currentFileObj.category || null }));
+        localStorage.setItem('lv_lastFile', JSON.stringify({ filename: newName, category: currentFileObj.category || null }));
+      } catch(e) {}
+      showToast(lang === 'en' ? `✓ Renamed to 「${nextFileObj.title}」` : `✓ タイトルを「${nextFileObj.title}」に変更しました`, 'success');
       return;
     }
-    if(!currentFileObj || !newName || newName === currentFileObj.filename) return;
+
     try {
       const th = currentFileObj.folderHandle || dirHandle;
       const nf = await th.getFileHandle(newName, {create: true});
+      let contentToWrite = currentFileObj.content;
+      if (contentToWrite === undefined || contentToWrite === null) {
+        if (currentContent) {
+          contentToWrite = currentContent;
+        } else if (currentFileObj.handle) {
+          try {
+            const srcFile = await currentFileObj.handle.getFile();
+            contentToWrite = await srcFile.text();
+          } catch(e) {}
+        }
+      }
+      if (contentToWrite === undefined || contentToWrite === null) {
+        contentToWrite = '';
+      }
       const w = await nf.createWritable();
-      await w.write(currentFileObj.content);
+      await w.write(contentToWrite);
       await w.close();
       await th.removeEntry(currentFileObj.filename);
 
@@ -2328,8 +2379,22 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         await syncShortcutsToDisk(nextShortcuts);
       }
 
-      setCurrentFileObj({...currentFileObj, filename: newName, handle: nf});
+      const parsed = parseFilename(newName);
+      const nextFileObj: FileObj = {
+        ...currentFileObj,
+        filename: newName,
+        title: parsed.title || newName.replace(/\.[^.]+$/, ''),
+        date: parsed.date || currentFileObj.date,
+        time: parsed.time || currentFileObj.time,
+        handle: nf
+      };
+      setCurrentFileObj(nextFileObj);
+      try {
+        localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'file', filename: newName, category: currentFileObj.category || null }));
+        localStorage.setItem('lv_lastFile', JSON.stringify({ filename: newName, category: currentFileObj.category || null }));
+      } catch(e) {}
       await loadFiles(dirHandle);
+      showToast(lang === 'en' ? `✓ Renamed to 「${nextFileObj.title}」` : `✓ タイトルを「${nextFileObj.title}」に変更しました`, 'success');
     } catch(e:any) { alert(e.message); }
   };
 

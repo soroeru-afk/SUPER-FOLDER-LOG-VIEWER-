@@ -36,6 +36,30 @@ export const MainContent = () => {
 
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [renameInputVal, setRenameInputVal] = useState('');
+  const [titleInputVal, setTitleInputVal] = useState('');
+  const [isAdvancedRenameMode, setIsAdvancedRenameMode] = useState(false);
+
+  const computeNewFilenameFromTitle = (title: string, origFilename: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) return origFilename;
+    const extMatch = origFilename.match(/(\.[^.]+)$/);
+    const ext = extMatch ? extMatch[1] : '.txt';
+
+    const prefixMatch = origFilename.match(/^(\d{4}-?\d{2}-?\d{2}_\d{2}-?\d{2}\.?_)/);
+    if (prefixMatch) {
+      return `${prefixMatch[1]}${trimmed}${ext}`;
+    }
+    return `${trimmed}${ext}`;
+  };
+
+  const openRenameModal = () => {
+    if (!currentFileObj) return;
+    setTitleInputVal(currentFileObj.title || '');
+    setRenameInputVal(currentFileObj.filename);
+    setIsAdvancedRenameMode(false);
+    setIsRenameModalOpen(true);
+  };
+
   const [folderRenameTarget, setFolderRenameTarget] = useState<{ name: string; handle: any } | null>(null);
   const [folderRenameInputVal, setFolderRenameInputVal] = useState('');
 
@@ -1008,8 +1032,20 @@ export const MainContent = () => {
     if (isCurrentImage) {
       return highlightText(currentFileObj.title || currentFileObj.filename, searchQueries);
     }
-    const firstSentence = extractFirstSentence(currentContent);
-    let displayTitle = (firstSentence && firstSentence.length > 2) ? firstSentence : currentFileObj.title;
+
+    // 優先順位:
+    // 1. ファイル名に設定されたタイトル（カオルさまが「名前変更」で設定したタイトル）
+    // 2. タイトルが未設定または単なる日付数値（20261112_0017等）の場合のみ、本文先頭の一文を抽出してフォールバック
+    const hasMeaningfulTitle = currentFileObj.title && 
+      !/^\d{4}-?\d{2}-?\d{2}(_\d{2}-?\d{2})?$/.test(currentFileObj.title.trim()) &&
+      !/^\d{8}_\d{4}$/.test(currentFileObj.title.trim());
+
+    let displayTitle = hasMeaningfulTitle ? currentFileObj.title : '';
+    if (!displayTitle) {
+      const firstSentence = extractFirstSentence(currentContent);
+      displayTitle = (firstSentence && firstSentence.length > 2) ? firstSentence : (currentFileObj.title || currentFileObj.filename);
+    }
+
     if (displayTitle) {
       displayTitle = displayTitle
         .replace(/^(\d+[.・)][\s　]*)?(#{1,6})[\s　]*/, '$1')
@@ -1099,7 +1135,39 @@ export const MainContent = () => {
             </div>
 
             <div id="file-meta">{currentFileObj.filename}</div>
-            <div id="file-heading" dangerouslySetInnerHTML={{__html: getHeadingHTML()}} />
+            <div 
+              className="file-heading-container" 
+              style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}
+            >
+              <div 
+                id="file-heading" 
+                onClick={openRenameModal}
+                title={lang === 'en' ? 'Click to edit title' : 'クリックしてタイトルを変更'}
+                style={{ cursor: 'pointer', flex: 1, margin: 0 }}
+                dangerouslySetInnerHTML={{__html: getHeadingHTML()}} 
+              />
+              <button
+                type="button"
+                className="tool-btn"
+                onClick={openRenameModal}
+                title={lang === 'en' ? 'Change document title' : '大見出しのタイトルを変更'}
+                style={{
+                  padding: '4px 9px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  marginTop: '2px',
+                  borderRadius: '0px'
+                }}
+              >
+                <EditIcon size={12} />
+                <span>{lang === 'en' ? 'Edit Title' : 'タイトル変更'}</span>
+              </button>
+            </div>
 
             <div id="toolbar">
               <div className="toolbar-row">
@@ -1479,11 +1547,7 @@ export const MainContent = () => {
                       id="rename-file-btn" 
                       className="tool-btn"
                       style={{display:'inline-flex', alignItems:'center', gap:'4px'}} 
-                      onClick={() => {
-                        if (!currentFileObj) return;
-                        setRenameInputVal(currentFileObj.filename);
-                        setIsRenameModalOpen(true);
-                      }}
+                      onClick={openRenameModal}
                     >
                       <EditIcon /> {t.main.rename}
                     </button>
@@ -1952,38 +2016,130 @@ export const MainContent = () => {
         );
       })()}
 
-      {/* ファイル名前変更モーダル */}
+      {/* ファイル名前・タイトル変更モーダル */}
       {isRenameModalOpen && currentFileObj && (
         <div className="modal-backdrop" onClick={() => setIsRenameModalOpen(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <EditIcon />
-              <span>{t.main.rename}</span>
+              <span>{lang === 'en' ? 'Rename Document / Title' : 'タイトル・名前の変更'}</span>
             </div>
-            <div className="modal-body">
-              <label className="modal-label">{t.main.renamePrompt}</label>
-              <input
-                type="text"
-                className="modal-input"
-                value={renameInputVal}
-                onChange={e => setRenameInputVal(e.target.value)}
-                autoFocus
-                onKeyDown={async e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const trimmed = renameInputVal.trim();
-                    if (trimmed && trimmed !== currentFileObj.filename) {
-                      await renameCurrentFile(trimmed);
-                    }
-                    setIsRenameModalOpen(false);
-                  } else if (e.key === 'Escape') {
-                    setIsRenameModalOpen(false);
-                  }
-                }}
-              />
-              <div className="modal-hint">
-                {currentFileObj.filename}
-              </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {!isAdvancedRenameMode ? (
+                <>
+                  <div>
+                    <label className="modal-label" style={{ marginBottom: '4px' }}>
+                      {lang === 'en' ? 'Document / Article Title:' : 'タイトル（記事・大見出しの名称）:'}
+                    </label>
+                    <input
+                      type="text"
+                      className="modal-input"
+                      value={titleInputVal}
+                      onChange={e => setTitleInputVal(e.target.value)}
+                      placeholder="タイトルを入力..."
+                      autoFocus
+                      onKeyDown={async e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const finalName = computeNewFilenameFromTitle(titleInputVal, currentFileObj.filename);
+                          if (finalName && finalName !== currentFileObj.filename) {
+                            await renameCurrentFile(finalName);
+                          }
+                          setIsRenameModalOpen(false);
+                        } else if (e.key === 'Escape') {
+                          setIsRenameModalOpen(false);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div style={{
+                    padding: '8px 10px',
+                    background: 'var(--panel-item-bg, rgba(0,0,0,0.04))',
+                    border: '1px solid var(--panel-item-border, rgba(0,0,0,0.1))',
+                    fontSize: '11px',
+                    color: 'var(--main-text)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px'
+                  }}>
+                    <span style={{ opacity: 0.65, fontSize: '10px' }}>📁 {lang === 'en' ? 'Saved Filename Preview:' : '保存ファイル名の反映プレビュー:'}</span>
+                    <span style={{ fontWeight: 700, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {computeNewFilenameFromTitle(titleInputVal, currentFileObj.filename)}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAdvancedRenameMode(true)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--sb-accent, #3b82f6)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: '2px 0',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      {lang === 'en' ? 'Edit full raw filename (with date/ext) ➔' : '拡張子・日時を含むファイル名全体を直接編集 ➔'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="modal-label" style={{ marginBottom: '4px' }}>
+                      {lang === 'en' ? 'Full Filename (with extension):' : 'ファイル名全体（拡張子・プレフィックス含む）:'}
+                    </label>
+                    <input
+                      type="text"
+                      className="modal-input"
+                      value={renameInputVal}
+                      onChange={e => setRenameInputVal(e.target.value)}
+                      autoFocus
+                      onKeyDown={async e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const trimmed = renameInputVal.trim();
+                          if (trimmed && trimmed !== currentFileObj.filename) {
+                            await renameCurrentFile(trimmed);
+                          }
+                          setIsRenameModalOpen(false);
+                        } else if (e.key === 'Escape') {
+                          setIsRenameModalOpen(false);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="modal-hint">
+                    {currentFileObj.filename}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAdvancedRenameMode(false);
+                        setTitleInputVal(currentFileObj.title || '');
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--sb-accent, #3b82f6)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: '2px 0',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      {lang === 'en' ? '↩ Back to Title editing' : '↩ タイトルのみの編集に戻る'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
             <div className="modal-footer">
               <button className="modal-btn-cancel" onClick={() => setIsRenameModalOpen(false)}>
@@ -1991,11 +2147,17 @@ export const MainContent = () => {
               </button>
               <button
                 className="modal-btn-primary"
-                disabled={!renameInputVal.trim() || renameInputVal.trim() === currentFileObj.filename}
+                disabled={
+                  isAdvancedRenameMode 
+                    ? (!renameInputVal.trim() || renameInputVal.trim() === currentFileObj.filename)
+                    : (!titleInputVal.trim() || computeNewFilenameFromTitle(titleInputVal, currentFileObj.filename) === currentFileObj.filename)
+                }
                 onClick={async () => {
-                  const trimmed = renameInputVal.trim();
-                  if (trimmed && trimmed !== currentFileObj.filename) {
-                    await renameCurrentFile(trimmed);
+                  const finalName = isAdvancedRenameMode 
+                    ? renameInputVal.trim() 
+                    : computeNewFilenameFromTitle(titleInputVal, currentFileObj.filename);
+                  if (finalName && finalName !== currentFileObj.filename) {
+                    await renameCurrentFile(finalName);
                   }
                   setIsRenameModalOpen(false);
                 }}
