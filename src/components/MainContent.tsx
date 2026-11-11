@@ -27,7 +27,8 @@ export const MainContent = () => {
     viewMode, openExplorer,
     sidebarPosition,
     isNewFileModalOpen, newFileInitialCategory, closeNewFileDialog, createAndOpenFile, allCategories,
-    createNewFolder, isNewFolderModalOpen, newFolderInitialParentPath, closeNewFolderDialog
+    createNewFolder, isNewFolderModalOpen, newFolderInitialParentPath, closeNewFolderDialog,
+    moveFolder, isMoveFolderModalOpen, movingFolderPath, movingFolderPaths, openMoveFolderDialog, closeMoveFolderDialog, execBulkMoveFolders
   } = useAppContext();
 
   const [markPaletteOpen, setMarkPaletteOpen] = useState(false);
@@ -82,6 +83,30 @@ export const MainContent = () => {
       const fullPath = newFolderModalParent ? `${newFolderModalParent}/${trimmed}` : trimmed;
       openExplorer(fullPath);
       showToast(lang === 'en' ? `✓ Created folder 「${trimmed}」` : `✓ フォルダー「${trimmed}」を作成しました`, 'info');
+    }
+  };
+
+  const [moveFolderDest, setMoveFolderDest] = useState('');
+
+  useEffect(() => {
+    if (isMoveFolderModalOpen) {
+      setMoveFolderDest('');
+    }
+  }, [isMoveFolderModalOpen]);
+
+  const handleMoveFolderSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (movingFolderPaths && movingFolderPaths.length > 1) {
+      const success = await execBulkMoveFolders(movingFolderPaths, moveFolderDest || null);
+      if (success) {
+        closeMoveFolderDialog();
+      }
+      return;
+    }
+    if (!movingFolderPath) return;
+    const success = await moveFolder(movingFolderPath, moveFolderDest || null);
+    if (success) {
+      closeMoveFolderDialog();
     }
   };
 
@@ -2257,6 +2282,104 @@ export const MainContent = () => {
                   disabled={!newFolderModalName.trim()}
                 >
                   📁 {lang === 'en' ? 'Create Folder ➔' : 'フォルダーを作成 ➔'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* フォルダー移動モーダル（単一 & 一括対応） */}
+      {isMoveFolderModalOpen && (movingFolderPath || (movingFolderPaths && movingFolderPaths.length > 0)) && (
+        <div className="modal-backdrop" onClick={closeMoveFolderDialog}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <div className="modal-header">
+              <span style={{ fontSize: '15px' }}>📦</span>
+              <span>
+                {movingFolderPaths && movingFolderPaths.length > 1
+                  ? (lang === 'en' ? `Bulk Move Folders (${movingFolderPaths.length})` : `複数フォルダーの一括階層移動 (${movingFolderPaths.length}件)`)
+                  : (lang === 'en' ? 'Move Folder' : 'フォルダーの階層移動')}
+              </span>
+            </div>
+            <form onSubmit={handleMoveFolderSubmit}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label className="modal-label" style={{ marginBottom: '4px' }}>
+                    {movingFolderPaths && movingFolderPaths.length > 1
+                      ? (lang === 'en' ? `Folders to Move (${movingFolderPaths.length}):` : `移動するフォルダー（${movingFolderPaths.length}件）:`)
+                      : (lang === 'en' ? 'Target Folder to Move:' : '移動するフォルダー:')}
+                  </label>
+                  {movingFolderPaths && movingFolderPaths.length > 1 ? (
+                    <div style={{
+                      maxHeight: '120px',
+                      overflowY: 'auto',
+                      padding: '8px 10px',
+                      background: 'var(--panel-item-bg, rgba(0,0,0,0.04))',
+                      border: '1px solid var(--panel-item-border, rgba(0,0,0,0.1))',
+                      fontSize: '11px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
+                    }}>
+                      {movingFolderPaths.map(p => (
+                        <div key={p} style={{ fontWeight: 600, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>📁</span>
+                          <span>{p}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '8px 10px',
+                      background: 'var(--panel-item-bg, rgba(0,0,0,0.04))',
+                      border: '1px solid var(--panel-item-border, rgba(0,0,0,0.1))',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      wordBreak: 'break-all'
+                    }}>
+                      📁 {movingFolderPath}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="modal-label" style={{ marginBottom: '6px' }}>
+                    {lang === 'en' ? 'Select New Destination (Parent):' : '新しい移動先（親フォルダー）を選択:'}
+                  </label>
+                  <select
+                    className="modal-input"
+                    value={moveFolderDest}
+                    onChange={e => setMoveFolderDest(e.target.value)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level / ALL DATA)' : '最上位階層（ALL DATA / ルート直下）'}</option>
+                    {physicalFolders
+                      .filter(pf => {
+                        const targets = movingFolderPaths && movingFolderPaths.length > 0 ? movingFolderPaths : (movingFolderPath ? [movingFolderPath] : []);
+                        return !targets.some(tp => pf.name === tp || pf.name.startsWith(tp + '/'));
+                      })
+                      .map(pf => (
+                        <option key={pf.name} value={pf.name}>
+                          📁 {pf.name}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="modal-hint">
+                    {moveFolderDest ? `「${moveFolderDest}」の中に移動配置されます` : '最上位（ルート直下）に移動配置されます'}
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="modal-btn-cancel" onClick={closeMoveFolderDialog}>
+                  {t.main.cancel}
+                </button>
+                <button
+                  type="submit"
+                  className="modal-btn-primary"
+                >
+                  📦 {movingFolderPaths && movingFolderPaths.length > 1
+                    ? (lang === 'en' ? `Move ${movingFolderPaths.length} Folders ➔` : `${movingFolderPaths.length}件のフォルダーを一括移動 ➔`)
+                    : (lang === 'en' ? 'Move Folder ➔' : 'フォルダーを移動 ➔')}
                 </button>
               </div>
             </form>

@@ -3711,6 +3711,12 @@ body.paper-mode.paper-mode-white .mark-palette-popup {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
+.folder-card.folder-selected {
+  border-color: var(--sb-accent, #3b82f6) !important;
+  background: var(--sb-item-hover, rgba(59, 130, 246, 0.12)) !important;
+  box-shadow: 0 0 0 1px var(--sb-accent, #3b82f6), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
 /* カバー（バナー型）付きフォルダーカード */
 .folder-card.with-cover-banner {
   padding: 0;

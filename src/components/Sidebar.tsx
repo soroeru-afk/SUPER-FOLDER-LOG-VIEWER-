@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../AppContext';
-import { SearchIcon, FolderIcon, FoldersStackIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon, SolidSeriesIcon, SideChangeIcon, ImageIcon } from './Icons';
+import { SearchIcon, FolderIcon, FoldersStackIcon, RefreshIcon, HighlightIcon, SettingsIcon, ExternalLinkIcon, SolidSeriesIcon, SideChangeIcon, ImageIcon, MoveIcon, DeleteIcon } from './Icons';
 import { FileObj } from '../types';
 import { highlightText, escHtml, isImageFilename } from '../utils';
 import { ImageThumbnail } from './ImageThumbnail';
@@ -16,6 +16,7 @@ export const Sidebar = () => {
     movePanelState, closeMovePanels, openMovePanel, bulkDeleteFiles, execBulkMove,
     fileShortcuts,
     createNewFolder, createNewFile, openNewFileDialog, openNewFolderDialog,
+    openMoveFolderDialog, deleteFolder,
     lang, setLang, t,
     sortMode, sortDirection, setSortMode, setSortDirection,
     customFolderOrders,
@@ -349,20 +350,45 @@ export const Sidebar = () => {
           {icon && <span className="category-icon" style={{ opacity: depth > 0 ? 0.7 : 1 }}>{icon}</span>}
           <span className="category-name">{label}</span>
           {badge && <span className="today-badge">{badge}</span>}
-          {targetHandle && isAddMode && (
-            <span 
-              className="new-file-btn"
-              title={t.main.newFilePrompt}
-              onClick={(e) => { e.stopPropagation(); openNewFileDialog(targetCatName); }}
-              style={{
-                marginLeft: 'auto', background: 'var(--sb-accent)', color: '#fff',
-                width: '18px', height: '18px', borderRadius: '0px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', fontSize: '12px',
-                marginRight: '6px'
-              }}
-            >＋</span>
+          {targetCatName && targetCatName !== '__root_direct__' && isAddMode && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginLeft: 'auto', marginRight: '6px' }}>
+              <span 
+                className="new-file-btn"
+                title={lang === 'en' ? 'Move Folder' : 'フォルダーを移動'}
+                onClick={(e) => { e.stopPropagation(); openMoveFolderDialog(targetCatName); }}
+                style={{
+                  background: 'var(--sb-item-hover)', border: '1px solid var(--sb-border)', color: 'var(--sb-text)',
+                  width: '18px', height: '18px', borderRadius: '0px', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: '10px'
+                }}
+              >
+                <MoveIcon />
+              </span>
+              <span 
+                className="new-file-btn"
+                title={lang === 'en' ? 'Delete Folder' : 'フォルダーを削除'}
+                onClick={(e) => { e.stopPropagation(); deleteFolder(targetCatName, targetHandle); }}
+                style={{
+                  background: 'var(--sb-item-hover)', border: '1px solid var(--sb-border)', color: '#EF4444',
+                  width: '18px', height: '18px', borderRadius: '0px', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: '10px'
+                }}
+              >
+                <DeleteIcon />
+              </span>
+              <span 
+                className="new-file-btn"
+                title={t.main.newFilePrompt}
+                onClick={(e) => { e.stopPropagation(); openNewFileDialog(targetCatName); }}
+                style={{
+                  background: 'var(--sb-accent)', color: '#fff',
+                  width: '18px', height: '18px', borderRadius: '0px', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: '12px'
+                }}
+              >＋</span>
+            </span>
           )}
-          <span className="category-count" style={{ marginLeft: targetHandle ? '0' : 'auto' }}>{totalCount !== undefined ? totalCount : files.length}</span>
+          <span className="category-count" style={{ marginLeft: (targetCatName && isAddMode) ? '0' : 'auto' }}>{totalCount !== undefined ? totalCount : files.length}</span>
           <span className="category-arrow">▶</span>
         </button>
         <div className={`category-files ${isOpen ? 'open' : ''}`}>
@@ -504,25 +530,47 @@ export const Sidebar = () => {
     const nodeMap = new Map<string, CategoryNode>();
     const treeTop: CategoryNode[] = [];
     
+    // 1. 各カテゴリーを初期登録
     allCategories.forEach(cat => {
       const catFiles = showImageFiles ? cat.files : cat.files.filter(f => !isImageFilename(f.filename));
       nodeMap.set(cat.name, { name: cat.name, files: catFiles, children: [], totalCount: catFiles.length });
     });
-    
+
+    // 2. 欠落している中間親フォルダーを自動補完（ツリー寸断・孤立化・重複防止）
     allCategories.forEach(cat => {
-      const node = nodeMap.get(cat.name)!;
       const parts = cat.name.split('/');
+      let cur = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        cur = cur ? `${cur}/${parts[i]}` : parts[i];
+        if (!nodeMap.has(cur)) {
+          nodeMap.set(cur, { name: cur, files: [], children: [], totalCount: 0 });
+        }
+      }
+    });
+
+    // 3. 親子関係を構築（親があれば必ず親のchildrenに格納、重複追加を防止）
+    const addedToTop = new Set<string>();
+
+    Array.from(nodeMap.values()).forEach(node => {
+      const parts = node.name.split('/');
       if (parts.length > 1) {
-        parts.pop();
-        const parentName = parts.join('/');
+        const parentName = parts.slice(0, -1).join('/');
         const parent = nodeMap.get(parentName);
         if (parent) {
-          parent.children.push(node);
+          if (!parent.children.some(c => c.name === node.name)) {
+            parent.children.push(node);
+          }
         } else {
-          treeTop.push(node);
+          if (!addedToTop.has(node.name)) {
+            treeTop.push(node);
+            addedToTop.add(node.name);
+          }
         }
       } else {
-        treeTop.push(node);
+        if (!addedToTop.has(node.name)) {
+          treeTop.push(node);
+          addedToTop.add(node.name);
+        }
       }
     });
 

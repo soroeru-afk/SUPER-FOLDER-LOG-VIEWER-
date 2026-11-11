@@ -94,6 +94,14 @@ export interface AppState {
   renameCurrentFile: (newName: string) => Promise<void>;
   renameFolder: (oldName: string, folderHandle?: any, explicitNewName?: string) => Promise<boolean>;
   deleteFolder: (name: string, folderHandle: any) => Promise<void>;
+  moveFolder: (oldCategoryPath: string, newParentPath: string | null, silent?: boolean) => Promise<boolean>;
+  execBulkMoveFolders: (folderPaths: string[], newParentPath: string | null) => Promise<boolean>;
+  execBulkDeleteFolders: (folderPaths: string[]) => Promise<void>;
+  isMoveFolderModalOpen: boolean;
+  movingFolderPath: string | null;
+  movingFolderPaths: string[];
+  openMoveFolderDialog: (folderPaths: string | string[]) => void;
+  closeMoveFolderDialog: () => void;
   createNewFolder: (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string) => Promise<boolean>;
   isNewFolderModalOpen: boolean;
   newFolderInitialParentPath: string | null;
@@ -1268,28 +1276,49 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
           // _shortcuts.json がまだ無い場合
         }
 
-        // 双方向ユニオンマージ（ローカルとディスクのショートカット双方のデータを保持して合体）
-        const mergedShortcuts: Record<string, string[]> = {};
-        const allKeys = new Set([...Object.keys(shortcutsToUse), ...Object.keys(diskData)]);
-        allKeys.forEach(key => {
-          const targets = Array.from(new Set([
-            ...(shortcutsToUse[key] || []),
-            ...(diskData[key] || [])
-          ]));
-          if (targets.length > 0) {
-            mergedShortcuts[key] = targets;
+        if (overrideShortcuts) {
+          shortcutsToUse = overrideShortcuts;
+        } else {
+          // 双方向ユニオンマージ（ローカルとディスクのショートカット双方のデータを保持して合体）
+          const mergedShortcuts: Record<string, string[]> = {};
+          const allKeys = new Set([...Object.keys(shortcutsToUse), ...Object.keys(diskData)]);
+          allKeys.forEach(key => {
+            const targets = Array.from(new Set([
+              ...(shortcutsToUse[key] || []),
+              ...(diskData[key] || [])
+            ]));
+            if (targets.length > 0) {
+              mergedShortcuts[key] = targets;
+            }
+          });
+          shortcutsToUse = mergedShortcuts;
+        }
+
+        // 実在しないゴーストフォルダーへの孤立ショートカットをクリーンアップ
+        const physicalNames = new Set(pFolders.map(p => p.name));
+        const cleanedShortcuts: Record<string, string[]> = {};
+        let hadGhostPruned = false;
+        Object.entries(shortcutsToUse).forEach(([k, targets]) => {
+          const validTargets = (targets as string[]).filter(t => t === '' || physicalNames.has(t));
+          if (validTargets.length !== targets.length) {
+            hadGhostPruned = true;
+          }
+          if (validTargets.length > 0) {
+            cleanedShortcuts[k] = validTargets;
           }
         });
+        if (hadGhostPruned) {
+          shortcutsToUse = cleanedShortcuts;
+        }
 
-        shortcutsToUse = mergedShortcuts;
         localStorage.setItem('lv_file_shortcuts', JSON.stringify(shortcutsToUse));
         fileShortcutsRef.current = shortcutsToUse;
         setFileShortcutsState(shortcutsToUse);
 
-        // ディスク上の内容と差分がある場合（ローカル側の最新ショートカットがディスクに未反映の場合など）、直ちにディスクへ書き込み同期
+        // ディスク上の内容と差分がある場合、直ちにディスクへ書き込み同期
         const diskStr = JSON.stringify(diskData);
         const mergedStr = JSON.stringify(shortcutsToUse);
-        if (diskStr !== mergedStr && Object.keys(shortcutsToUse).length > 0) {
+        if (diskStr !== mergedStr) {
           try {
             await syncShortcutsToDisk(shortcutsToUse, handle);
           } catch (syncErr) {
@@ -1440,6 +1469,9 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     });
 
     const catMap = new Map();
+    const pFolderMap = new Map<string, any>();
+    pFolders.forEach(pf => pFolderMap.set(pf.name, pf.handle));
+
     if (queries.length === 0) {
       pFolders.forEach(pf => {
         catMap.set(pf.name, { name: pf.name, handle: pf.handle, files: [] });
@@ -1447,9 +1479,21 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
 
     filtered.forEach(f => {
-      if(f.category) {
-        if(!catMap.has(f.category)) catMap.set(f.category, { name: f.category, handle: f.folderHandle, files: [] });
+      if (f.category) {
+        if (!catMap.has(f.category)) {
+          catMap.set(f.category, { name: f.category, handle: f.folderHandle || pFolderMap.get(f.category) || null, files: [] });
+        }
         catMap.get(f.category).files.push(f);
+
+        // 祖先フォルダーも確実に登録（ツリー構造の寸断・孤立化防止）
+        const parts = f.category.split('/');
+        let cur = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+          cur = cur ? `${cur}/${parts[i]}` : parts[i];
+          if (!catMap.has(cur)) {
+            catMap.set(cur, { name: cur, handle: pFolderMap.get(cur) || null, files: [] });
+          }
+        }
       }
     });
 
@@ -2335,6 +2379,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
       setFileShortcuts(nextShortcuts);
       fileShortcutsRef.current = nextShortcuts;
+      await syncShortcutsToDisk(nextShortcuts);
     }
 
     // カスタム並び順の移行
@@ -2402,16 +2447,16 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       // 3. 親フォルダー内に新しい名前でフォルダーを作成
       const newDirHandle = await parentHandle.getDirectoryHandle(newShortName, { create: true });
 
-      // 4. 再帰的に中身（ファイルおよびサブフォルダー）をコピー
+      // 4. 再帰的に中身（ファイルおよびサブフォルダー）をコピー（バイナリ・画像安全）
       const copyRecursively = async (src: any, dest: any) => {
         if (!src || !src.values) return;
         for await (const entry of src.values()) {
           if (entry.kind === 'file') {
             const file = await entry.getFile();
-            const text = await file.text();
+            const buffer = await file.arrayBuffer();
             const newFileHandle = await dest.getFileHandle(entry.name, { create: true });
             const writable = await newFileHandle.createWritable();
-            await writable.write(text);
+            await writable.write(buffer);
             await writable.close();
           } else if (entry.kind === 'directory') {
             const newSubDir = await dest.getDirectoryHandle(entry.name, { create: true });
@@ -2621,8 +2666,229 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
   };
 
+  const [isMoveFolderModalOpen, setIsMoveFolderModalOpen] = useState(false);
+  const [movingFolderPaths, setMovingFolderPaths] = useState<string[]>([]);
+  const movingFolderPath = movingFolderPaths[0] || null;
+
+  const openMoveFolderDialog = (folderPaths: string | string[]) => {
+    const list = Array.isArray(folderPaths) ? folderPaths : [folderPaths];
+    if (list.length === 0) return;
+    setMovingFolderPaths(list);
+    setIsMoveFolderModalOpen(true);
+  };
+
+  const closeMoveFolderDialog = () => {
+    setIsMoveFolderModalOpen(false);
+    setMovingFolderPaths([]);
+  };
+
+  const moveFolder = async (oldCategoryPath: string, newParentPath: string | null, silent: boolean = false): Promise<boolean> => {
+    const oldParts = oldCategoryPath.split('/');
+    const folderShortName = oldParts[oldParts.length - 1];
+    const currentParentPath = oldParts.length > 1 ? oldParts.slice(0, -1).join('/') : null;
+
+    const targetParent = newParentPath ? newParentPath.trim() : null;
+    if (targetParent === currentParentPath) {
+      if (!silent) showToast(lang === 'en' ? 'Already in this location' : '既にこの場所にあります', 'info');
+      return false;
+    }
+    if (targetParent === oldCategoryPath || (targetParent && targetParent.startsWith(oldCategoryPath + '/'))) {
+      if (!silent) alert(lang === 'en' ? 'Cannot move folder into itself or its subfolder.' : '自分自身または自分のサブフォルダー内へは移動できません。');
+      return false;
+    }
+
+    const newCategoryPath = targetParent ? `${targetParent}/${folderShortName}` : folderShortName;
+
+    // ショートカットの移行処理マップ
+    const nextShortcuts: Record<string, string[]> = {};
+    let shortcutsChanged = false;
+    Object.entries(fileShortcutsRef.current).forEach(([key, rawTargets]) => {
+      const targets = rawTargets as string[];
+      let newKey = key;
+      const [catPart, fname] = key.split('::');
+      if (catPart === oldCategoryPath) {
+        newKey = `${newCategoryPath}::${fname}`;
+        shortcutsChanged = true;
+      } else if (catPart.startsWith(oldCategoryPath + '/')) {
+        const suffix = catPart.slice(oldCategoryPath.length);
+        newKey = `${newCategoryPath}${suffix}::${fname}`;
+        shortcutsChanged = true;
+      }
+
+      const newTargets = targets.map(target => {
+        if (target === oldCategoryPath) {
+          shortcutsChanged = true;
+          return newCategoryPath;
+        } else if (target.startsWith(oldCategoryPath + '/')) {
+          shortcutsChanged = true;
+          return newCategoryPath + target.slice(oldCategoryPath.length);
+        }
+        return target;
+      });
+
+      nextShortcuts[newKey] = newTargets;
+    });
+
+    if (shortcutsChanged) {
+      localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+      setFileShortcuts(nextShortcuts);
+      fileShortcutsRef.current = nextShortcuts;
+      await syncShortcutsToDisk(nextShortcuts);
+    }
+
+    // カスタム並び順の移行
+    setCustomFileOrders(prev => {
+      const nextOrders = { ...prev };
+      if (nextOrders[oldCategoryPath]) {
+        nextOrders[newCategoryPath] = nextOrders[oldCategoryPath];
+        delete nextOrders[oldCategoryPath];
+      }
+      localStorage.setItem('lv_custom_file_orders', JSON.stringify(nextOrders));
+      return nextOrders;
+    });
+
+    // 1. フォールバックモードの場合
+    if (isFallbackMode) {
+      const updatedFiles = rawFiles.map(f => {
+        if (!f.category) return f;
+        if (f.category === oldCategoryPath) {
+          return { ...f, category: newCategoryPath };
+        } else if (f.category.startsWith(oldCategoryPath + '/')) {
+          const suffix = f.category.slice(oldCategoryPath.length);
+          return { ...f, category: newCategoryPath + suffix };
+        }
+        return f;
+      });
+      const updatedFolders = physicalFolders.map(p => {
+        if (p.name === oldCategoryPath) {
+          return { ...p, name: newCategoryPath };
+        } else if (p.name.startsWith(oldCategoryPath + '/')) {
+          const suffix = p.name.slice(oldCategoryPath.length);
+          return { ...p, name: newCategoryPath + suffix };
+        }
+        return p;
+      });
+      setRawFiles(updatedFiles);
+      setPhysicalFolders(updatedFolders);
+      const merged = buildAllFiles(updatedFiles, nextShortcuts, updatedFolders);
+      setAllFiles(merged);
+      updateFilter(merged, updatedFolders, searchQueries);
+      await saveFallbackData({
+        rootFolderName: dirHandle?.name || 'Local Logs',
+        pFolders: updatedFolders,
+        fileObjs: updatedFiles,
+        shortcuts: nextShortcuts
+      });
+      if (currentFileObj && (currentFileObj.category === oldCategoryPath || currentFileObj.category?.startsWith(oldCategoryPath + '/'))) {
+        const newCat = currentFileObj.category === oldCategoryPath 
+          ? newCategoryPath 
+          : newCategoryPath + currentFileObj.category.slice(oldCategoryPath.length);
+        setCurrentFileObj({ ...currentFileObj, category: newCat });
+      }
+      setExplorerCategory(newCategoryPath);
+      migrateFolderVisualSettings(oldCategoryPath, newCategoryPath);
+      if (!silent) {
+        showToast(lang === 'en' ? `✓ Moved folder 「${folderShortName}」 to 「${targetParent || 'Root'}」` : `✓ フォルダー「${folderShortName}」を「${targetParent || 'ALL DATA (ルート)'}」へ移動しました`, 'success');
+      }
+      return true;
+    }
+
+    // 2. 通常の File System Access API モード
+    try {
+      const oldParentHandle = currentParentPath ? await getDirectoryHandleByPath(dirHandle, currentParentPath, false) : dirHandle;
+      const srcHandle = await getDirectoryHandleByPath(dirHandle, oldCategoryPath, false);
+
+      const newParentHandle = targetParent ? await getDirectoryHandleByPath(dirHandle, targetParent, true) : dirHandle;
+      const newDirHandle = await newParentHandle.getDirectoryHandle(folderShortName, { create: true });
+
+      const copyRecursively = async (src: any, dest: any) => {
+        if (!src || !src.values) return;
+        for await (const entry of src.values()) {
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            const buffer = await file.arrayBuffer();
+            const newFileHandle = await dest.getFileHandle(entry.name, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(buffer);
+            await writable.close();
+          } else if (entry.kind === 'directory') {
+            const newSubDir = await dest.getDirectoryHandle(entry.name, { create: true });
+            await copyRecursively(entry, newSubDir);
+          }
+        }
+      };
+      await copyRecursively(srcHandle, newDirHandle);
+      await oldParentHandle.removeEntry(folderShortName, { recursive: true });
+
+      if (currentFileObj && (currentFileObj.category === oldCategoryPath || currentFileObj.category?.startsWith(oldCategoryPath + '/'))) {
+        const newCat = currentFileObj.category === oldCategoryPath 
+          ? newCategoryPath 
+          : newCategoryPath + currentFileObj.category.slice(oldCategoryPath.length);
+        setCurrentFileObj({ ...currentFileObj, category: newCat });
+      }
+      setExplorerCategory(newCategoryPath);
+
+      migrateFolderVisualSettings(oldCategoryPath, newCategoryPath);
+      if (!silent) {
+        await loadFiles(dirHandle, nextShortcuts);
+        showToast(lang === 'en' ? `✓ Moved folder 「${folderShortName}」 to 「${targetParent || 'Root'}」` : `✓ フォルダー「${folderShortName}」を「${targetParent || 'ALL DATA (ルート)'}」へ移動しました`, 'success');
+      }
+      return true;
+    } catch (e: any) {
+      if (!silent) alert(`フォルダー移動に失敗しました: ${e.message}`);
+      return false;
+    }
+  };
+
+  const execBulkMoveFolders = async (folderPaths: string[], newParentPath: string | null): Promise<boolean> => {
+    if (!folderPaths.length) return false;
+    const targetParent = newParentPath ? newParentPath.trim() : null;
+
+    // バリデーション: 移動先フォルダーが選択中のいずれかのフォルダー自身または子孫である場合は不可
+    for (const fp of folderPaths) {
+      if (targetParent === fp || (targetParent && targetParent.startsWith(fp + '/'))) {
+        alert(lang === 'en' 
+          ? `Cannot move into 「${fp}」 (cannot move folder into itself or its subfolder).` 
+          : `「${fp}」の配下へは移動できません（選択したフォルダー自身またはそのサブフォルダーです）。`);
+        return false;
+      }
+    }
+
+    let successCount = 0;
+    for (const fp of folderPaths) {
+      const ok = await moveFolder(fp, targetParent, true);
+      if (ok) successCount++;
+    }
+
+    if (successCount > 0) {
+      if (!isFallbackMode && dirHandle) {
+        await loadFiles(dirHandle);
+      }
+      showToast(
+        lang === 'en' 
+          ? `✓ Moved ${successCount} folder(s) to 「${targetParent || 'Root'}」` 
+          : `✓ ${successCount}件のフォルダーを「${targetParent || 'ALL DATA (ルート)'}」へ一括移動しました`, 
+        'success'
+      );
+      return true;
+    }
+    return false;
+  };
+
+  const execBulkDeleteFolders = async (folderPaths: string[]) => {
+    if (!folderPaths.length) return;
+    const msg = lang === 'en'
+      ? `Delete ${folderPaths.length} selected folder(s)?\n⚠️ Warning: All files in these folders will be deleted.`
+      : `選択した ${folderPaths.length} 件のフォルダーを削除しますか？\n⚠️ 警告: フォルダー内に含まれるすべてのファイルも削除されます。`;
+    if (!confirm(msg)) return;
+
+    for (const fp of folderPaths) {
+      const found = physicalFolders.find(p => p.name === fp);
+      await deleteFolder(fp, found?.handle);
+    }
+  };
+
   const createNewFolder = async (parentFolderHandle?: any, parentPath?: string | null, explicitFolderName?: string): Promise<boolean> => {
-    if (isFallbackMode) return false;
     let folderName = explicitFolderName;
     if (!folderName) {
       const promptMsg = parentPath 
@@ -2632,20 +2898,41 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
     if (!folderName || !folderName.trim()) return false;
     const trimmed = folderName.trim();
+    const targetParent = parentPath && parentPath.trim() ? parentPath.trim() : null;
+    const fullPath = targetParent ? `${targetParent}/${trimmed}` : trimmed;
+
+    // フォールバックモードの場合
+    if (isFallbackMode) {
+      if (physicalFolders.some(p => p.name === fullPath)) {
+        showToast(lang === 'en' ? 'Folder already exists' : '同じフォルダーが既に存在します', 'warn');
+        return false;
+      }
+      const updatedFolders = [...physicalFolders, { name: fullPath, handle: null }];
+      setPhysicalFolders(updatedFolders);
+      const merged = buildAllFiles(rawFiles, fileShortcutsRef.current, updatedFolders);
+      setAllFiles(merged);
+      updateFilter(merged, updatedFolders, searchQueries);
+      await saveFallbackData({
+        rootFolderName: dirHandle?.name || 'Local Logs',
+        pFolders: updatedFolders,
+        fileObjs: rawFiles,
+        shortcuts: fileShortcutsRef.current
+      });
+      openExplorer(fullPath);
+      showToast(lang === 'en' ? `✓ Created folder 「${trimmed}」` : `✓ フォルダー「${trimmed}」を作成しました`, 'success');
+      return true;
+    }
 
     try {
-      if (parentFolderHandle && parentFolderHandle !== dirHandle) {
-        // 親フォルダーのDirectoryHandleが直接渡されている場合
-        await parentFolderHandle.getDirectoryHandle(trimmed, { create: true });
-      } else if (parentPath && parentPath.trim()) {
-        // 親パスが指定されている場合（ルートから辿って確実に作成）
-        const fullPath = `${parentPath.trim()}/${trimmed}`;
-        await getDirectoryHandleByPath(dirHandle, fullPath, true);
+      if (targetParent) {
+        const parentHandle = await getDirectoryHandleByPath(dirHandle, targetParent, true);
+        await parentHandle.getDirectoryHandle(trimmed, { create: true });
       } else {
-        // 最上位（ルート）に作成
         await dirHandle.getDirectoryHandle(trimmed, { create: true });
       }
       await loadFiles(dirHandle);
+      openExplorer(fullPath);
+      showToast(lang === 'en' ? `✓ Created folder 「${trimmed}」` : `✓ フォルダー「${trimmed}」を作成しました`, 'success');
       return true;
     } catch (e: any) {
       alert(e.message);
@@ -2867,7 +3154,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       exportShortcutsJson, importShortcuts, syncShortcutsToFolder,
       toast, showToast,
       bulkDeleteFiles, deleteCurrentFile,
-      renameCurrentFile, renameFolder, deleteFolder, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
+      renameCurrentFile, renameFolder, deleteFolder, moveFolder, isMoveFolderModalOpen, movingFolderPath, movingFolderPaths, openMoveFolderDialog, closeMoveFolderDialog, execBulkMoveFolders, execBulkDeleteFolders, createNewFolder, createNewFile, importExistingFiles, lang, setLang, t, speakerModeEnabled, setSpeakerMode,
       isNewFolderModalOpen, newFolderInitialParentPath, openNewFolderDialog, closeNewFolderDialog,
       isNewFileModalOpen, newFileInitialCategory, openNewFileDialog, closeNewFileDialog, createAndOpenFile,
       ttsSettings, updateTtsSettings, voiceRates, voices, writingMode, setWritingMode,

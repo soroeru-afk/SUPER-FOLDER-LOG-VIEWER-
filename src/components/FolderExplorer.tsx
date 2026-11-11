@@ -42,6 +42,10 @@ export const FolderExplorer: React.FC = () => {
     lang,
     createNewFile,
     openNewFileDialog,
+    openNewFolderDialog,
+    openMoveFolderDialog,
+    execBulkMoveFolders,
+    execBulkDeleteFolders,
     createNewFolder,
     renameFolder,
     deleteFolder,
@@ -105,9 +109,6 @@ export const FolderExplorer: React.FC = () => {
   const [listDensity, setListDensity] = useState<'compact' | 'standard' | 'spacious'>(() => {
     return (localStorage.getItem('sf_explorer_density') as 'compact' | 'standard' | 'spacious') || 'standard';
   });
-  const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [targetParentPath, setTargetParentPath] = useState<string>('');
 
   // フォルダー名編集（リネーム）用ステート
   const [isRenameFolderModalOpen, setIsRenameFolderModalOpen] = useState(false);
@@ -333,30 +334,7 @@ export const FolderExplorer: React.FC = () => {
   };
 
   const handleOpenNewFolderModal = () => {
-    setTargetParentPath(explorerCategory || '');
-    setNewFolderName('');
-    setIsNewFolderModalOpen(true);
-  };
-
-  const handleCreateFolderSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = newFolderName.trim();
-    if (!trimmed) return;
-    
-    // 選択された親パスに対応するハンドルを取得
-    let targetHandle = dirHandle;
-    if (targetParentPath) {
-      const found = physicalFolders.find(p => p.name === targetParentPath);
-      if (found && found.handle) {
-        targetHandle = found.handle;
-      }
-    }
-    
-    const success = await createNewFolder(targetHandle, targetParentPath, trimmed);
-    if (success) {
-      setIsNewFolderModalOpen(false);
-      setNewFolderName('');
-    }
+    openNewFolderDialog(explorerCategory || null);
   };
 
   // フォルダー名変更モーダルを開く
@@ -573,6 +551,71 @@ export const FolderExplorer: React.FC = () => {
       }
     }
   }, [subCategories, visualSettings]);
+
+  // サブフォルダーの複数選択＆一括操作ステート
+  const [selectedFolderPaths, setSelectedFolderPaths] = useState<Set<string>>(new Set());
+  const [isFolderSelectMode, setIsFolderSelectMode] = useState(false);
+
+  // フォルダー階層移動時は選択状態を自動リセット
+  useEffect(() => {
+    setSelectedFolderPaths(new Set());
+    setIsFolderSelectMode(false);
+  }, [explorerCategory]);
+
+  const toggleFolderSelection = (folderPath: string) => {
+    setSelectedFolderPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(folderPath)) {
+        next.delete(folderPath);
+      } else {
+        next.add(folderPath);
+      }
+      if (next.size > 0 && !isFolderSelectMode) {
+        setIsFolderSelectMode(true);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllFolders = () => {
+    const allPaths = new Set(subCategories.map(c => c.name));
+    setSelectedFolderPaths(allPaths);
+    setIsFolderSelectMode(true);
+  };
+
+  const handleClearFolderSelection = () => {
+    setSelectedFolderPaths(new Set());
+  };
+
+  const handleToggleFolderSelectMode = () => {
+    if (isFolderSelectMode) {
+      setIsFolderSelectMode(false);
+      setSelectedFolderPaths(new Set());
+    } else {
+      setIsFolderSelectMode(true);
+    }
+  };
+
+  const handleBulkMoveSelectedFolders = () => {
+    if (selectedFolderPaths.size === 0) return;
+    openMoveFolderDialog(Array.from(selectedFolderPaths));
+  };
+
+  const handleBulkDeleteSelectedFolders = async () => {
+    if (selectedFolderPaths.size === 0) return;
+    await execBulkDeleteFolders(Array.from(selectedFolderPaths));
+    setSelectedFolderPaths(new Set());
+    setIsFolderSelectMode(false);
+  };
+
+  const handleBulkTogglePrefix00 = async () => {
+    if (selectedFolderPaths.size === 0) return;
+    const targets = subCategories.filter(c => selectedFolderPaths.has(c.name));
+    for (const cat of targets) {
+      await handleTogglePrefix00(cat.name, cat.handle);
+    }
+    setSelectedFolderPaths(new Set());
+  };
 
   // ファイルリストソートヘルパー
   const sortFileList = (files: FileObj[], catKeyForCustom?: string) => {
@@ -1902,6 +1945,13 @@ export const FolderExplorer: React.FC = () => {
                 </button>
                 <button 
                   className="explorer-btn" 
+                  onClick={() => openMoveFolderDialog(explorerCategory)}
+                  title={lang === 'en' ? 'Move current folder to another parent or root' : '現在開いているフォルダーを別の場所へ階層移動'}
+                >
+                  📦 {lang === 'en' ? 'Move Folder' : 'フォルダー移動'}
+                </button>
+                <button 
+                  className="explorer-btn" 
                   onClick={() => {
                     const found = physicalFolders.find(p => p.name === explorerCategory);
                     deleteFolder(explorerCategory, found?.handle);
@@ -2174,36 +2224,65 @@ export const FolderExplorer: React.FC = () => {
                 )}
               </div>
 
-              {/* 右側: 上下の幅調整切り替え ＆ 折りたたみトグルボタン */}
+              {/* 右側: 上下の幅調整切り替え ＆ 選択モード切り替え ＆ 折りたたみトグルボタン */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {!isSubDirsCollapsed && (
-                  <button
-                    type="button"
-                    onClick={handleToggleSubDirsCompact}
-                    title={
-                      subDirsCustomHeight !== null
-                        ? (lang === 'en' ? 'Currently constrained. Click to show all folders without scroll' : '現在枠固定中。クリックで全フォルダーをそのまま全表示')
-                        : (lang === 'en' ? 'Currently full view. Click to constrain height (compact)' : '現在全表示中。クリックで枠固定（コンパクト表示）')
-                    }
-                    style={{
-                      background: subDirsCustomHeight !== null ? 'rgba(217, 84, 48, 0.12)' : 'transparent',
-                      border: subDirsCustomHeight !== null ? '1px solid #D95430' : '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
-                      color: subDirsCustomHeight !== null ? '#D95430' : 'inherit',
-                      fontSize: '10.5px',
-                      fontWeight: 700,
-                      padding: '2px 7px',
-                      borderRadius: '0px',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                      userSelect: 'none',
-                      lineHeight: '16px'
-                    }}
-                  >
-                    <span>↕</span>
-                    <span>{subDirsCustomHeight !== null ? (lang === 'en' ? `${subDirsCustomHeight}px` : `${subDirsCustomHeight}px`) : (lang === 'en' ? 'FULL' : '全表示')}</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleFolderSelectMode();
+                      }}
+                      title={isFolderSelectMode ? (lang === 'en' ? 'Exit folder selection mode' : 'フォルダー選択モードを終了') : (lang === 'en' ? 'Select multiple folders for bulk moving or actions' : '複数のフォルダーを選択して一括移動・操作')}
+                      style={{
+                        background: isFolderSelectMode ? 'var(--sb-accent, #3b82f6)' : (selectedFolderPaths.size > 0 ? 'rgba(59, 130, 246, 0.15)' : 'transparent'),
+                        border: isFolderSelectMode ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                        color: isFolderSelectMode ? '#ffffff' : 'inherit',
+                        fontSize: '10.5px',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '0px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        userSelect: 'none',
+                        lineHeight: '16px'
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{isFolderSelectMode ? '✕' : '☑'}</span>
+                      <span>{isFolderSelectMode ? (lang === 'en' ? 'Exit' : '終了') : (lang === 'en' ? 'Select' : '選択')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleSubDirsCompact}
+                      title={
+                        subDirsCustomHeight !== null
+                          ? (lang === 'en' ? 'Currently constrained. Click to show all folders without scroll' : '現在枠固定中。クリックで全フォルダーをそのまま全表示')
+                          : (lang === 'en' ? 'Currently full view. Click to constrain height (compact)' : '現在全表示中。クリックで枠固定（コンパクト表示）')
+                      }
+                      style={{
+                        background: subDirsCustomHeight !== null ? 'rgba(217, 84, 48, 0.12)' : 'transparent',
+                        border: subDirsCustomHeight !== null ? '1px solid #D95430' : '1px solid var(--card-border, rgba(120, 120, 120, 0.3))',
+                        color: subDirsCustomHeight !== null ? '#D95430' : 'inherit',
+                        fontSize: '10.5px',
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: '0px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        userSelect: 'none',
+                        lineHeight: '16px'
+                      }}
+                    >
+                      <span>↕</span>
+                      <span>{subDirsCustomHeight !== null ? (lang === 'en' ? `${subDirsCustomHeight}px` : `${subDirsCustomHeight}px`) : (lang === 'en' ? 'FULL' : '全表示')}</span>
+                    </button>
+                  </>
                 )}
 
                 <span 
@@ -2228,6 +2307,94 @@ export const FolderExplorer: React.FC = () => {
 
             {!isSubDirsCollapsed && (
               <>
+                {/* 複数フォルダー一括操作バー */}
+                {(isFolderSelectMode || selectedFolderPaths.size > 0) && (
+                  <div 
+                    className="explorer-subdirs-bulk-bar"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 14px',
+                      background: 'var(--panel-item-bg, rgba(0, 0, 0, 0.03))',
+                      borderBottom: '1px solid var(--card-border, rgba(120, 120, 120, 0.2))',
+                      borderTop: '1px solid var(--card-border, rgba(120, 120, 120, 0.15))',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <div className="explorer-bulk-toolbar" style={{ margin: 0 }}>
+                      {/* 選択モード終了 */}
+                      <button
+                        type="button"
+                        className="explorer-bulk-tool-btn select-mode active"
+                        onClick={handleToggleFolderSelectMode}
+                        title={lang === 'en' ? 'Exit folder selection' : 'フォルダー選択モードを終了'}
+                      >
+                        <span style={{ fontSize: '11px', fontWeight: 'bold' }}>✕</span>
+                        <span>{lang === 'en' ? 'Exit' : '終了'}</span>
+                      </button>
+
+                      {/* 全選択 / 全解除 */}
+                      <button
+                        type="button"
+                        className={`explorer-bulk-tool-btn select-all ${selectedFolderPaths.size === subCategories.length && subCategories.length > 0 ? 'active' : ''}`}
+                        onClick={selectedFolderPaths.size === subCategories.length ? handleClearFolderSelection : handleSelectAllFolders}
+                        title={selectedFolderPaths.size === subCategories.length ? (lang === 'en' ? 'Deselect all folders' : 'フォルダー全解除') : (lang === 'en' ? 'Select all folders' : 'すべてのフォルダーを選択')}
+                      >
+                        <div className={`explorer-mini-checkbox ${selectedFolderPaths.size === subCategories.length ? 'checked' : (selectedFolderPaths.size > 0 ? 'indeterminate' : '')}`}>
+                          {selectedFolderPaths.size === subCategories.length && subCategories.length > 0 && (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="mini-check-svg">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                          {selectedFolderPaths.size > 0 && selectedFolderPaths.size < subCategories.length && <div className="mini-indeterminate-bar" />}
+                        </div>
+                        <span>{selectedFolderPaths.size === subCategories.length ? (lang === 'en' ? 'Deselect All' : '全解除') : (lang === 'en' ? 'Select All' : '全選択')}</span>
+                      </button>
+
+                      {/* 選択件数カウンター */}
+                      <span className={`explorer-bulk-count-badge ${selectedFolderPaths.size > 0 ? 'highlight' : ''}`}>
+                        {selectedFolderPaths.size} {lang === 'en' ? 'selected' : '件選択中'}
+                      </span>
+
+                      {/* 一括移動ボタン（複数フォルダーの階層移動モーダルを開く） */}
+                      <button
+                        type="button"
+                        className="explorer-bulk-tool-btn move"
+                        disabled={selectedFolderPaths.size === 0}
+                        onClick={handleBulkMoveSelectedFolders}
+                        title={lang === 'en' ? 'Move selected folders to another parent or root' : '選択したフォルダーを別の親フォルダーまたはルートへ一括階層移動'}
+                        style={selectedFolderPaths.size > 0 ? { background: '#2563eb', color: '#ffffff', borderColor: '#1d4ed8' } : undefined}
+                      >
+                        <MoveIcon />
+                        <span>{lang === 'en' ? 'Move Selected...' : '一括移動...'}</span>
+                      </button>
+
+                      {/* 00_ 一括切替 */}
+                      <button
+                        type="button"
+                        className="explorer-bulk-tool-btn"
+                        disabled={selectedFolderPaths.size === 0}
+                        onClick={handleBulkTogglePrefix00}
+                        title={lang === 'en' ? 'Toggle "00_" prefix on selected folders' : '選択したフォルダーの先頭「00_」を一括付与/解除'}
+                      >
+                        <span>00_ 一括切替</span>
+                      </button>
+
+                      {/* 一括削除ボタン */}
+                      <button
+                        type="button"
+                        className="explorer-bulk-tool-btn delete"
+                        disabled={selectedFolderPaths.size === 0}
+                        onClick={handleBulkDeleteSelectedFolders}
+                        title={lang === 'en' ? 'Delete selected folders' : '選択したフォルダーを一括削除'}
+                      >
+                        <DeleteIcon />
+                        <span>{lang === 'en' ? 'Delete Folders' : '一括削除'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div 
                   ref={subDirsAccordionRef}
                   className={`explorer-subdirs-accordion-scroll ${subDirsCustomHeight !== null ? 'is-custom-height' : ''}`}
@@ -2246,11 +2413,25 @@ export const FolderExplorer: React.FC = () => {
                 return (
                   <div 
                     key={cat.name} 
-                    className={`folder-card ${isBanner ? 'with-cover-banner' : ''} ${isCardBg ? 'with-cover-bg' : ''} ${isFolderDropTarget ? 'folder-drag-over' : ''} ${isBeingDragged ? 'folder-dragging' : ''}`}
-                    onClick={() => openExplorer(cat.name)}
+                    className={`folder-card ${isBanner ? 'with-cover-banner' : ''} ${isCardBg ? 'with-cover-bg' : ''} ${isFolderDropTarget ? 'folder-drag-over' : ''} ${isBeingDragged ? 'folder-dragging' : ''} ${selectedFolderPaths.has(cat.name) ? 'folder-selected' : ''}`}
+                    onClick={() => {
+                      if (isFolderSelectMode) {
+                        toggleFolderSelection(cat.name);
+                      } else {
+                        openExplorer(cat.name);
+                      }
+                    }}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={e => { if (e.key === 'Enter') openExplorer(cat.name); }}
+                    onKeyDown={e => { 
+                      if (e.key === 'Enter') {
+                        if (isFolderSelectMode) {
+                          toggleFolderSelection(cat.name);
+                        } else {
+                          openExplorer(cat.name);
+                        }
+                      }
+                    }}
                     draggable={true}
                     onDragStart={(e) => {
                       setDraggedFolder(cat.name);
@@ -2387,6 +2568,37 @@ export const FolderExplorer: React.FC = () => {
 
                     <div className={isBanner ? 'folder-card-body-wrap' : ''} style={isBanner ? { display: 'flex', flexDirection: 'column', flex: 1, gap: '8px', padding: '10px 14px 12px 14px' } : undefined}>
                       <div className="folder-card-top">
+                        {/* 複数選択チェックボックス */}
+                        <div 
+                          className="folder-card-checkbox-wrap"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFolderSelection(cat.name);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: '3px',
+                            cursor: 'pointer',
+                            userSelect: 'none'
+                          }}
+                          title={selectedFolderPaths.has(cat.name) ? (lang === 'en' ? 'Deselect folder' : 'フォルダーの選択を解除') : (lang === 'en' ? 'Select folder' : 'フォルダーを選択')}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedFolderPaths.has(cat.name)}
+                            onChange={() => {}}
+                            style={{
+                              cursor: 'pointer',
+                              width: '13px',
+                              height: '13px',
+                              margin: 0,
+                              accentColor: 'var(--sb-accent, #3b82f6)'
+                            }}
+                          />
+                        </div>
+
                         <div 
                           className="folder-grip-handle" 
                           draggable={true}
@@ -2500,6 +2712,17 @@ export const FolderExplorer: React.FC = () => {
                           </button>
                           <button
                             type="button"
+                            className="folder-card-rename-btn"
+                            title={lang === 'en' ? 'Move this folder to another location' : 'このフォルダーを別の場所へ移動'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openMoveFolderDialog(cat.name);
+                            }}
+                          >
+                            <MoveIcon />
+                          </button>
+                          <button
+                            type="button"
                             className="folder-card-delete-btn"
                             title={lang === 'en' ? 'Delete this folder' : 'フォルダーを削除'}
                             onClick={(e) => {
@@ -2509,7 +2732,13 @@ export const FolderExplorer: React.FC = () => {
                           >
                             <DeleteIcon />
                           </button>
-                          <span className="folder-card-open-arrow">
+                          <span 
+                            className="folder-card-open-arrow"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openExplorer(cat.name);
+                            }}
+                          >
                             {lang === 'en' ? 'Open ➔' : '開く ➔'}
                           </span>
                         </div>
