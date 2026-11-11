@@ -2304,10 +2304,15 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
   const renameCurrentFile = async (newName: string) => {
     if(!currentFileObj || !newName || newName === currentFileObj.filename) return;
 
+    // 実体ファイル（原本）の場所とファイル名を特定
+    const isShortcut = !!currentFileObj.isShortcut;
+    const realCat = isShortcut ? (currentFileObj.originalCategory || null) : (currentFileObj.category || null);
+    const realOrigFilename = isShortcut ? (currentFileObj.originalFilename || currentFileObj.filename) : currentFileObj.filename;
+
     if (isFallbackMode) {
       const parsed = parseFilename(newName);
       const updatedFiles = rawFiles.map(f => {
-        if (f.filename === currentFileObj.filename && f.category === currentFileObj.category) {
+        if (f.filename === realOrigFilename && (f.category || null) === realCat) {
           return {
             ...f,
             filename: newName,
@@ -2319,18 +2324,41 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         return f;
       });
       setRawFiles(updatedFiles);
-      const merged = buildAllFiles(updatedFiles, fileShortcutsRef.current, physicalFolders);
+
+      // ショートカットキーの追従
+      const oldKey = (realCat || '') + '::' + realOrigFilename;
+      const newKey = (realCat || '') + '::' + newName;
+      let nextShortcuts = { ...fileShortcutsRef.current };
+      let shortcutsUpdated = false;
+      if (nextShortcuts[oldKey]) {
+        nextShortcuts[newKey] = nextShortcuts[oldKey];
+        delete nextShortcuts[oldKey];
+        shortcutsUpdated = true;
+      }
+      if (nextShortcuts[realOrigFilename]) {
+        nextShortcuts[newName] = nextShortcuts[realOrigFilename];
+        delete nextShortcuts[realOrigFilename];
+        shortcutsUpdated = true;
+      }
+      if (shortcutsUpdated) {
+        localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
+        setFileShortcuts(nextShortcuts);
+        fileShortcutsRef.current = nextShortcuts;
+      }
+
+      const merged = buildAllFiles(updatedFiles, nextShortcuts, physicalFolders);
       setAllFiles(merged);
       updateFilter(merged, physicalFolders, searchQueries);
       await saveFallbackData({
         rootFolderName: dirHandle?.name || 'Local Logs',
         pFolders: physicalFolders,
         fileObjs: updatedFiles,
-        shortcuts: fileShortcutsRef.current
+        shortcuts: nextShortcuts
       });
       const nextFileObj: FileObj = {
         ...currentFileObj,
         filename: newName,
+        originalFilename: isShortcut ? newName : currentFileObj.originalFilename,
         title: parsed.title || newName.replace(/\.[^.]+$/, ''),
         date: parsed.date || currentFileObj.date,
         time: parsed.time || currentFileObj.time
@@ -2345,10 +2373,61 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     }
 
     try {
-      const th = currentFileObj.folderHandle || dirHandle;
-      const nf = await th.getFileHandle(newName, {create: true});
+      if (!dirHandle) {
+        showToast(lang === 'en' ? 'Directory not opened' : 'フォルダーが開かれていません', 'warn');
+        return;
+      }
+
+      // 1. 実体ファイルが保存されている正しい DirectoryHandle を安全に探索・特定
+      let targetDirH: any = null;
+
+      if (realCat) {
+        try {
+          const h = await getDirectoryHandleByPath(dirHandle, realCat, false);
+          // そのフォルダー内に実体ファイルが存在するか確認
+          await h.getFileHandle(realOrigFilename, { create: false });
+          targetDirH = h;
+        } catch {}
+      }
+
+      if (!targetDirH && !realCat) {
+        try {
+          await dirHandle.getFileHandle(realOrigFilename, { create: false });
+          targetDirH = dirHandle;
+        } catch {}
+      }
+
+      if (!targetDirH && !isShortcut && currentFileObj.folderHandle) {
+        try {
+          await currentFileObj.folderHandle.getFileHandle(realOrigFilename, { create: false });
+          targetDirH = currentFileObj.folderHandle;
+        } catch {}
+      }
+
+      // 万一見つからない場合、全フォルダーから実体ファイルの在り処を検索
+      if (!targetDirH) {
+        const foundInRaw = rawFiles.find(rf => rf.filename === realOrigFilename);
+        if (foundInRaw && foundInRaw.category) {
+          try {
+            const h = await getDirectoryHandleByPath(dirHandle, foundInRaw.category, false);
+            await h.getFileHandle(realOrigFilename, { create: false });
+            targetDirH = h;
+          } catch {}
+        } else {
+          try {
+            await dirHandle.getFileHandle(realOrigFilename, { create: false });
+            targetDirH = dirHandle;
+          } catch {}
+        }
+      }
+
+      if (!targetDirH) {
+        targetDirH = (isShortcut ? null : currentFileObj.folderHandle) || dirHandle;
+      }
+
+      // 2. 本文データの保全
       let contentToWrite = currentFileObj.content;
-      if (contentToWrite === undefined || contentToWrite === null) {
+      if (contentToWrite === undefined || contentToWrite === null || contentToWrite === '') {
         if (currentContent) {
           contentToWrite = currentContent;
         } else if (currentFileObj.handle) {
@@ -2361,18 +2440,37 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       if (contentToWrite === undefined || contentToWrite === null) {
         contentToWrite = '';
       }
+
+      // 3. 新しいファイル名で作成して書き込み
+      const nf = await targetDirH.getFileHandle(newName, { create: true });
       const w = await nf.createWritable();
       await w.write(contentToWrite);
       await w.close();
-      await th.removeEntry(currentFileObj.filename);
 
-      // ショートカットキーの追従
-      const oldKey = (currentFileObj.category || '') + '::' + currentFileObj.filename;
-      const newKey = (currentFileObj.category || '') + '::' + newName;
-      if (fileShortcutsRef.current[oldKey]) {
-        const nextShortcuts = { ...fileShortcutsRef.current };
+      // 4. 元のファイルを安全に削除（存在する場合のみ）
+      try {
+        await targetDirH.removeEntry(realOrigFilename);
+      } catch (removeErr) {
+        console.warn('Old file removeEntry warning:', removeErr);
+      }
+
+      // 5. ショートカットキーの追従
+      const oldKey = (realCat || '') + '::' + realOrigFilename;
+      const newKey = (realCat || '') + '::' + newName;
+      let nextShortcuts = { ...fileShortcutsRef.current };
+      let shortcutsUpdated = false;
+
+      if (nextShortcuts[oldKey]) {
         nextShortcuts[newKey] = nextShortcuts[oldKey];
         delete nextShortcuts[oldKey];
+        shortcutsUpdated = true;
+      }
+      if (nextShortcuts[realOrigFilename]) {
+        nextShortcuts[newName] = nextShortcuts[realOrigFilename];
+        delete nextShortcuts[realOrigFilename];
+        shortcutsUpdated = true;
+      }
+      if (shortcutsUpdated) {
         localStorage.setItem('lv_file_shortcuts', JSON.stringify(nextShortcuts));
         setFileShortcuts(nextShortcuts);
         fileShortcutsRef.current = nextShortcuts;
@@ -2383,19 +2481,25 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       const nextFileObj: FileObj = {
         ...currentFileObj,
         filename: newName,
+        originalFilename: isShortcut ? newName : currentFileObj.originalFilename,
         title: parsed.title || newName.replace(/\.[^.]+$/, ''),
         date: parsed.date || currentFileObj.date,
         time: parsed.time || currentFileObj.time,
         handle: nf
       };
       setCurrentFileObj(nextFileObj);
+
       try {
         localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'file', filename: newName, category: currentFileObj.category || null }));
         localStorage.setItem('lv_lastFile', JSON.stringify({ filename: newName, category: currentFileObj.category || null }));
       } catch(e) {}
-      await loadFiles(dirHandle);
+
+      await loadFiles(dirHandle, shortcutsUpdated ? nextShortcuts : undefined);
       showToast(lang === 'en' ? `✓ Renamed to 「${nextFileObj.title}」` : `✓ タイトルを「${nextFileObj.title}」に変更しました`, 'success');
-    } catch(e:any) { alert(e.message); }
+    } catch(e:any) {
+      console.error('Rename failed:', e);
+      showToast(lang === 'en' ? `Rename failed: ${e.message}` : `ファイル名変更エラー: ${e.message}`, 'warn');
+    }
   };
 
   const renameFolder = async (oldCategoryPath: string, folderHandle?: any, explicitNewName?: string): Promise<boolean> => {
