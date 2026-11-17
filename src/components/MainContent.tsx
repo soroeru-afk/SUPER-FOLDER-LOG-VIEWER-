@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppContext } from '../AppContext';
-import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, CopyIcon, ShortcutIcon, UnlinkIcon, ImageIcon } from './Icons';
+import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, CopyIcon, ShortcutIcon, UnlinkIcon, ImageIcon, SearchIcon } from './Icons';
 import { ChevronsLeft, ChevronLeft, ChevronsRight, ChevronRight } from 'lucide-react';
 import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, getDirectoryHandleByPath, isImageFilename, cleanChatNoise, isNoiseLine, isAudioNoise, sortFoldersHierarchically } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
@@ -117,12 +117,116 @@ export const MainContent = () => {
   };
 
   const [moveFolderDest, setMoveFolderDest] = useState('');
+  const [moveFolderModalSearch, setMoveFolderModalSearch] = useState('');
+  const [moveFolderModalExpanded, setMoveFolderModalExpanded] = useState<Record<string, boolean>>({});
+  const moveFolderSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isMoveFolderModalOpen) {
       setMoveFolderDest('');
+      setMoveFolderModalSearch('');
+      setMoveFolderModalExpanded({});
     }
   }, [isMoveFolderModalOpen]);
+
+  const moveFolderModalTreeData = useMemo(() => {
+    const targets = movingFolderPaths && movingFolderPaths.length > 0
+      ? movingFolderPaths
+      : (movingFolderPath ? [movingFolderPath] : []);
+
+    const eligibleFolders = sortedPhysicalFolders.filter(pf =>
+      !targets.some(tp => pf.name === tp || pf.name.startsWith(tp + '/'))
+    );
+
+    const hasChildrenSet = new Set<string>();
+    for (const cat of eligibleFolders) {
+      const parts = cat.name.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        hasChildrenSet.add(parts.slice(0, i).join('/'));
+      }
+    }
+
+    const rawQuery = moveFolderModalSearch.trim().toLowerCase();
+    const tokens = rawQuery ? rawQuery.split(/[\s　]+/).filter(Boolean) : [];
+    const isSearching = tokens.length > 0;
+
+    if (!isSearching) {
+      const visibleFolders = eligibleFolders.filter(cat => {
+        const parts = cat.name.split('/');
+        for (let i = 1; i < parts.length; i++) {
+          const anc = parts.slice(0, i).join('/');
+          if (!moveFolderModalExpanded[anc]) return false;
+        }
+        return true;
+      });
+      return {
+        eligibleFolders,
+        hasChildrenSet,
+        isSearching: false,
+        visibleFolders,
+        directMatchSet: new Set<string>(),
+        autoExpandedSet: new Set<string>(),
+        showRoot: true,
+      };
+    }
+
+    const directMatchSet = new Set<string>();
+    const visibleSet = new Set<string>();
+    const autoExpandedSet = new Set<string>();
+
+    for (const cat of eligibleFolders) {
+      const lowerPath = cat.name.toLowerCase();
+      if (tokens.every(tok => lowerPath.includes(tok))) {
+        directMatchSet.add(cat.name);
+        visibleSet.add(cat.name);
+        const parts = cat.name.split('/');
+        for (let i = 1; i < parts.length; i++) {
+          const anc = parts.slice(0, i).join('/');
+          visibleSet.add(anc);
+          autoExpandedSet.add(anc);
+        }
+      }
+    }
+
+    const rootSearchText = 'all data ルート root 最上位階層 ルート直下';
+    const showRoot = tokens.every(tok => rootSearchText.includes(tok));
+
+    const visibleFolders = eligibleFolders.filter(cat => visibleSet.has(cat.name));
+    return {
+      eligibleFolders,
+      hasChildrenSet,
+      isSearching: true,
+      visibleFolders,
+      directMatchSet,
+      autoExpandedSet,
+      showRoot,
+    };
+  }, [sortedPhysicalFolders, movingFolderPath, movingFolderPaths, moveFolderModalSearch, moveFolderModalExpanded]);
+
+  const toggleMoveFolderModalExpand = (folderPath: string) => {
+    setMoveFolderModalExpanded(prev => ({
+      ...prev,
+      [folderPath]: !prev[folderPath],
+    }));
+  };
+
+  const isAnyMoveFolderModalExpanded = useMemo(
+    () => Array.from(moveFolderModalTreeData.hasChildrenSet).some(p => !!moveFolderModalExpanded[p]),
+    [moveFolderModalTreeData.hasChildrenSet, moveFolderModalExpanded]
+  );
+
+  const toggleAllMoveFolderModal = () => {
+    if (moveFolderModalTreeData.isSearching || moveFolderModalTreeData.hasChildrenSet.size === 0) return;
+    if (isAnyMoveFolderModalExpanded) {
+      setMoveFolderModalExpanded({});
+    } else {
+      const allOpen: Record<string, boolean> = {};
+      moveFolderModalTreeData.hasChildrenSet.forEach(p => {
+        allOpen[p] = true;
+      });
+      setMoveFolderModalExpanded(allOpen);
+    }
+  };
 
   const handleMoveFolderSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -1065,6 +1169,112 @@ export const MainContent = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentPath, setNewFolderParentPath] = useState('');
 
+  const [movePanelSearch, setMovePanelSearch] = useState('');
+  const [movePanelExpanded, setMovePanelExpanded] = useState<Record<string, boolean>>({});
+  const [movePanelSelection, setMovePanelSelection] = useState<{
+    selected: boolean;
+    category: string | null;
+    handle: any | null;
+  }>({ selected: false, category: null, handle: null });
+  const movePanelSearchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (movePanelState?.isOpen) {
+      setMovePanelSearch('');
+      setMovePanelExpanded({});
+      setMovePanelSelection({ selected: false, category: null, handle: null });
+    }
+  }, [movePanelState?.isOpen, movePanelState?.type]);
+
+  const movePanelTreeData = useMemo(() => {
+    const hasChildrenSet = new Set<string>();
+    for (const cat of sortedPhysicalFolders) {
+      const parts = cat.name.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        hasChildrenSet.add(parts.slice(0, i).join('/'));
+      }
+    }
+
+    const rawQuery = movePanelSearch.trim().toLowerCase();
+    const tokens = rawQuery ? rawQuery.split(/[\s　]+/).filter(Boolean) : [];
+    const isSearching = tokens.length > 0;
+
+    if (!isSearching) {
+      const visibleFolders = sortedPhysicalFolders.filter(cat => {
+        const parts = cat.name.split('/');
+        for (let i = 1; i < parts.length; i++) {
+          const anc = parts.slice(0, i).join('/');
+          if (!movePanelExpanded[anc]) return false;
+        }
+        return true;
+      });
+      return {
+        hasChildrenSet,
+        isSearching: false,
+        visibleFolders,
+        directMatchSet: new Set<string>(),
+        autoExpandedSet: new Set<string>(),
+        showRoot: true,
+      };
+    }
+
+    const directMatchSet = new Set<string>();
+    const visibleSet = new Set<string>();
+    const autoExpandedSet = new Set<string>();
+
+    for (const cat of sortedPhysicalFolders) {
+      const lowerPath = cat.name.toLowerCase();
+      if (tokens.every(tok => lowerPath.includes(tok))) {
+        directMatchSet.add(cat.name);
+        visibleSet.add(cat.name);
+        const parts = cat.name.split('/');
+        for (let i = 1; i < parts.length; i++) {
+          const anc = parts.slice(0, i).join('/');
+          visibleSet.add(anc);
+          autoExpandedSet.add(anc);
+        }
+      }
+    }
+
+    const rootSearchText = 'all data ルート root 最上位';
+    const showRoot = tokens.every(tok => rootSearchText.includes(tok));
+
+    const visibleFolders = sortedPhysicalFolders.filter(cat => visibleSet.has(cat.name));
+    return {
+      hasChildrenSet,
+      isSearching: true,
+      visibleFolders,
+      directMatchSet,
+      autoExpandedSet,
+      showRoot,
+    };
+  }, [sortedPhysicalFolders, movePanelSearch, movePanelExpanded]);
+
+  const toggleMovePanelFolderExpand = (folderPath: string) => {
+    setMovePanelExpanded(prev => ({
+      ...prev,
+      [folderPath]: !prev[folderPath],
+    }));
+  };
+
+  const isAnyMovePanelExpanded = useMemo(
+    () => Array.from(movePanelTreeData.hasChildrenSet).some(p => !!movePanelExpanded[p]),
+    [movePanelTreeData.hasChildrenSet, movePanelExpanded]
+  );
+
+  const toggleAllMovePanelFolders = () => {
+    if (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) return;
+    if (isAnyMovePanelExpanded) {
+      setMovePanelExpanded({});
+    } else {
+      const allOpen: Record<string, boolean> = {};
+      movePanelTreeData.hasChildrenSet.forEach(p => {
+        allOpen[p] = true;
+      });
+      setMovePanelExpanded(allOpen);
+    }
+  };
+
   const isInitialLoading = (isResuming || loading) && allFiles.length === 0;
 
   return (
@@ -1804,49 +2014,321 @@ export const MainContent = () => {
                   {currentMode === 'duplicate' && (lang === 'en' ? 'Create independent duplicate in selected folder' : '内容を複製して新しい実体ファイルを作成します')}
                 </div>
 
-                <div className="move-panel-scroll">
-                  <button 
-                    className="move-folder-btn" 
-                    style={{color: 'var(--panel-text)', fontSize: '13px', opacity: 1}} 
-                    onClick={async (e) => { 
-                      e.stopPropagation(); 
-                      await handleFolderAction(null, null);
+                {/* 1行検索バー */}
+                <div
+                  style={{
+                    padding: '6px 10px',
+                    borderBottom: '1px solid var(--panel-border)',
+                    background: 'rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexShrink: 0,
+                  }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.55, flexShrink: 0 }}>
+                    <SearchIcon />
+                  </span>
+                  <input
+                    ref={movePanelSearchRef}
+                    type="text"
+                    value={movePanelSearch}
+                    onChange={e => setMovePanelSearch(e.target.value)}
+                    placeholder={lang === 'en' ? 'Search folders...' : 'フォルダー検索...'}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: '26px',
+                      fontSize: '11.5px',
+                      padding: '0 8px',
+                      border: '1px solid var(--panel-border)',
+                      borderRadius: '0px',
+                      background: 'var(--panel-bg)',
+                      color: 'var(--panel-text)',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {movePanelSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMovePanelSearch('');
+                        movePanelSearchRef.current?.focus();
+                      }}
+                      title={lang === 'en' ? 'Clear search' : '検索をクリア'}
+                      style={{
+                        width: '24px',
+                        height: '26px',
+                        padding: 0,
+                        border: '1px solid var(--panel-border)',
+                        borderRadius: '0px',
+                        background: 'var(--btn-bg, transparent)',
+                        color: 'var(--panel-text)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        lineHeight: 1,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      toggleAllMovePanelFolders();
+                    }}
+                    disabled={movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0}
+                    title={
+                      isAnyMovePanelExpanded
+                        ? (lang === 'en' ? 'Collapse all folders' : '全て折りたたむ')
+                        : (lang === 'en' ? 'Expand all folders' : '全て展開')
+                    }
+                    style={{
+                      width: '26px',
+                      height: '26px',
+                      padding: 0,
+                      border: '1px solid var(--panel-border)',
+                      borderRadius: '0px',
+                      background: 'var(--btn-bg, transparent)',
+                      color: 'var(--panel-text)',
+                      cursor: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 'default' : 'pointer',
+                      opacity: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.85,
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      lineHeight: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    <FolderIcon /> {t.main.moveToRoot || 'ALL DATA (ルート)'}
+                    {isAnyMovePanelExpanded ? '－' : '＋'}
                   </button>
-                  {sortedPhysicalFolders.map(cat => {
+                </div>
+
+                <div className="move-panel-scroll">
+                  {movePanelTreeData.showRoot && (() => {
+                    const isRootSelected = movePanelSelection.selected && movePanelSelection.category === null;
+                    return (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="move-folder-btn"
+                        style={{
+                          color: isRootSelected ? 'var(--sb-accent, #3b82f6)' : 'var(--panel-text)',
+                          fontSize: '12.5px',
+                          opacity: 1,
+                          padding: '8px 10px 8px 6px',
+                          gap: '6px',
+                          borderLeft: isRootSelected ? '3px solid var(--sb-accent, #3b82f6)' : '3px solid transparent',
+                          background: isRootSelected ? 'rgba(59, 130, 246, 0.14)' : undefined,
+                          boxSizing: 'border-box',
+                        }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setMovePanelSelection({ selected: true, category: null, handle: null });
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMovePanelSelection({ selected: true, category: null, handle: null });
+                          }
+                        }}
+                      >
+                        <span style={{ width: '20px', flexShrink: 0 }} />
+                        <FolderIcon size={15} />
+                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                          {t.main.moveToRoot || 'ALL DATA (ルート)'}
+                        </span>
+                        {isRootSelected && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--sb-accent, #3b82f6)', flexShrink: 0 }}>✓</span>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {movePanelTreeData.visibleFolders.map(cat => {
                     const parts = cat.name.split('/');
                     const depth = parts.length - 1;
                     const shortName = parts[parts.length - 1];
-                    const parentPath = depth > 0 ? parts.slice(0, -1).join(' / ') : null;
+                    const hasChildren = movePanelTreeData.hasChildrenSet.has(cat.name);
+                    const isExpanded = movePanelTreeData.isSearching
+                      ? movePanelTreeData.autoExpandedSet.has(cat.name)
+                      : !!movePanelExpanded[cat.name];
+                    const isSelected = movePanelSelection.selected && movePanelSelection.category === cat.name;
+                    const isAncestorContextOnly =
+                      movePanelTreeData.isSearching && !movePanelTreeData.directMatchSet.has(cat.name);
 
                     return (
-                      <button 
-                        key={cat.name} 
+                      <div
+                        key={cat.name}
+                        role="button"
+                        tabIndex={0}
                         className={`move-folder-btn ${depth > 0 ? 'is-subfolder' : ''}`}
-                        style={{ paddingLeft: `${depth * 14 + 12}px` }}
-                        onClick={async (e) => { 
-                          e.stopPropagation(); 
-                          await handleFolderAction(cat.handle, cat.name);
+                        style={{
+                          padding: `8px 10px 8px ${Math.min(depth, 5) * 14 + 6}px`,
+                          gap: '6px',
+                          borderLeft: isSelected ? '3px solid var(--sb-accent, #3b82f6)' : '3px solid transparent',
+                          background: isSelected ? 'rgba(59, 130, 246, 0.14)' : undefined,
+                          color: isSelected ? 'var(--sb-accent, #3b82f6)' : 'var(--panel-text)',
+                          opacity: isAncestorContextOnly ? 0.65 : 1,
+                          boxSizing: 'border-box',
                         }}
-                        title={`配置先: ${cat.name}`}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setMovePanelSelection({ selected: true, category: cat.name, handle: cat.handle });
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMovePanelSelection({ selected: true, category: cat.name, handle: cat.handle });
+                          }
+                        }}
+                        title={cat.name}
                       >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          {depth > 0 && <span style={{ opacity: 0.45, fontSize: '11px', fontFamily: 'monospace' }}>└</span>}
-                          <FolderIcon /> 
-                          <span style={{ fontWeight: depth > 0 ? 500 : 700 }}>{shortName}</span>
-                          {parentPath && (
-                            <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px' }}>
-                              ({parentPath})
-                            </span>
-                          )}
+                        {hasChildren ? (
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (!movePanelTreeData.isSearching) {
+                                toggleMovePanelFolderExpand(cat.name);
+                              }
+                            }}
+                            title={isExpanded ? (lang === 'en' ? 'Collapse' : '折りたたむ') : (lang === 'en' ? 'Expand' : '展開する')}
+                            aria-expanded={isExpanded}
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              padding: 0,
+                              border: 'none',
+                              borderRadius: '0px',
+                              background: 'transparent',
+                              color: 'var(--panel-muted)',
+                              fontSize: '9px',
+                              lineHeight: 1,
+                              cursor: movePanelTreeData.isSearching ? 'default' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isExpanded ? '▼' : '▶'}
+                          </button>
+                        ) : (
+                          <span style={{ width: '20px', flexShrink: 0 }} />
+                        )}
+                        <FolderIcon size={15} />
+                        <span
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontWeight: depth > 0 ? 500 : 700,
+                          }}
+                        >
+                          {shortName}
                         </span>
-                      </button>
+                        {isSelected && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--sb-accent, #3b82f6)', flexShrink: 0 }}>✓</span>
+                        )}
+                      </div>
                     );
                   })}
-                  {sortedPhysicalFolders.length === 0 && <div style={{padding:'12px',opacity:0.5,fontSize:'12px'}}>{t.main.noDestFolder}</div>}
+                  {sortedPhysicalFolders.length === 0 && (
+                    <div style={{padding:'12px',opacity:0.5,fontSize:'12px'}}>{t.main.noDestFolder}</div>
+                  )}
+                  {sortedPhysicalFolders.length > 0 && movePanelTreeData.isSearching && movePanelTreeData.visibleFolders.length === 0 && !movePanelTreeData.showRoot && (
+                    <div style={{padding:'12px',opacity:0.55,fontSize:'11.5px'}}>
+                      {lang === 'en' ? 'No matching folders found.' : '一致するフォルダーがありません'}
+                    </div>
+                  )}
                 </div>
+
+                {/* 選択中フォルダーへの実行確定ボタン */}
+                {(() => {
+                  const selectedTargetLabel = !movePanelSelection.selected
+                    ? ''
+                    : movePanelSelection.category === null
+                      ? (t.main.moveToRoot || 'ALL DATA (ルート)')
+                      : (movePanelSelection.category.split('/').pop() || movePanelSelection.category);
+
+                  return (
+                    <div
+                      style={{
+                        padding: '8px 10px',
+                        borderTop: '1px solid var(--panel-border)',
+                        background: 'rgba(0,0,0,0.04)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        disabled={!movePanelSelection.selected}
+                        onClick={async e => {
+                          e.stopPropagation();
+                          if (!movePanelSelection.selected) return;
+                          await handleFolderAction(movePanelSelection.handle, movePanelSelection.category);
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '34px',
+                          padding: '0 10px',
+                          borderRadius: '0px',
+                          border: movePanelSelection.selected
+                            ? '1px solid var(--sb-accent, #3b82f6)'
+                            : '1px solid var(--panel-border)',
+                          background: movePanelSelection.selected
+                            ? 'var(--sb-accent, #3b82f6)'
+                            : 'rgba(128, 128, 128, 0.08)',
+                          color: movePanelSelection.selected ? '#ffffff' : 'var(--panel-muted)',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: movePanelSelection.selected ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          boxSizing: 'border-box',
+                          transition: 'background 0.12s, border-color 0.12s',
+                        }}
+                        title={
+                          movePanelSelection.selected
+                            ? (movePanelSelection.category || (t.main.moveToRoot || 'ALL DATA (ルート)'))
+                            : undefined
+                        }
+                      >
+                        {movePanelSelection.selected ? (
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {currentMode === 'move' && (lang === 'en' ? `Move to "${selectedTargetLabel}"` : `「${selectedTargetLabel}」へ移動する`)}
+                            {currentMode === 'shortcut' && (lang === 'en' ? `Link in "${selectedTargetLabel}"` : `「${selectedTargetLabel}」へショートカット配置`)}
+                            {currentMode === 'duplicate' && (lang === 'en' ? `Duplicate to "${selectedTargetLabel}"` : `「${selectedTargetLabel}」へ複製する`)}
+                          </span>
+                        ) : (
+                          <span>
+                            {currentMode === 'move' && (lang === 'en' ? 'Select destination folder above' : '上のリストから移動先を選択してください')}
+                            {currentMode === 'shortcut' && (lang === 'en' ? 'Select destination folder above' : '上のリストから配置先を選択してください')}
+                            {currentMode === 'duplicate' && (lang === 'en' ? 'Select destination folder above' : '上のリストから複製先を選択してください')}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })()}
                 
                 {/* 新規フォルダー作成欄（親フォルダー選択対応） */}
                 <div style={{ padding: '8px 10px', background: 'rgba(0,0,0,0.03)', borderTop: '1px solid var(--panel-border)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1958,62 +2440,236 @@ export const MainContent = () => {
           })() : (
             <>
               <div className="move-panel-title">{t.main.folderEditTitle}</div>
+              {/* 1行検索バー */}
+              <div
+                style={{
+                  padding: '6px 10px',
+                  borderBottom: '1px solid var(--panel-border)',
+                  background: 'rgba(0,0,0,0.02)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  flexShrink: 0,
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.55, flexShrink: 0 }}>
+                  <SearchIcon />
+                </span>
+                <input
+                  ref={movePanelSearchRef}
+                  type="text"
+                  value={movePanelSearch}
+                  onChange={e => setMovePanelSearch(e.target.value)}
+                  placeholder={lang === 'en' ? 'Search folders...' : 'フォルダー検索...'}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    height: '26px',
+                    fontSize: '11.5px',
+                    padding: '0 8px',
+                    border: '1px solid var(--panel-border)',
+                    borderRadius: '0px',
+                    background: 'var(--panel-bg)',
+                    color: 'var(--panel-text)',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                {movePanelSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMovePanelSearch('');
+                      movePanelSearchRef.current?.focus();
+                    }}
+                    title={lang === 'en' ? 'Clear search' : '検索をクリア'}
+                    style={{
+                      width: '24px',
+                      height: '26px',
+                      padding: 0,
+                      border: '1px solid var(--panel-border)',
+                      borderRadius: '0px',
+                      background: 'var(--btn-bg, transparent)',
+                      color: 'var(--panel-text)',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      lineHeight: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    toggleAllMovePanelFolders();
+                  }}
+                  disabled={movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0}
+                  title={
+                    isAnyMovePanelExpanded
+                      ? (lang === 'en' ? 'Collapse all folders' : '全て折りたたむ')
+                      : (lang === 'en' ? 'Expand all folders' : '全て展開')
+                  }
+                  style={{
+                    width: '26px',
+                    height: '26px',
+                    padding: 0,
+                    border: '1px solid var(--panel-border)',
+                    borderRadius: '0px',
+                    background: 'var(--btn-bg, transparent)',
+                    color: 'var(--panel-text)',
+                    cursor: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 'default' : 'pointer',
+                    opacity: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.85,
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {isAnyMovePanelExpanded ? '－' : '＋'}
+                </button>
+              </div>
               <div className="move-panel-scroll">
                 {sortedPhysicalFolders.length === 0 ? (
                   <div className="folder-edit-empty">{t.main.noFolders}</div>
+                ) : movePanelTreeData.isSearching && movePanelTreeData.visibleFolders.length === 0 ? (
+                  <div className="folder-edit-empty">
+                    {lang === 'en' ? 'No matching folders found.' : '一致するフォルダーがありません'}
+                  </div>
                 ) : (
-                  sortedPhysicalFolders.map(cat => {
+                  movePanelTreeData.visibleFolders.map(cat => {
                     const parts = cat.name.split('/');
                     const depth = parts.length - 1;
                     const shortName = parts[parts.length - 1];
-                    const parentPath = depth > 0 ? parts.slice(0, -1).join(' / ') : null;
+                    const hasChildren = movePanelTreeData.hasChildrenSet.has(cat.name);
+                    const isExpanded = movePanelTreeData.isSearching
+                      ? movePanelTreeData.autoExpandedSet.has(cat.name)
+                      : !!movePanelExpanded[cat.name];
+                    const isAncestorContextOnly =
+                      movePanelTreeData.isSearching && !movePanelTreeData.directMatchSet.has(cat.name);
 
                     return (
-                      <div className="folder-edit-row" key={cat.name} style={{ paddingLeft: `${depth * 14 + 10}px` }}>
-                        <div className="folder-edit-name" title={cat.name}>
-                          {depth > 0 && <span style={{ opacity: 0.45, fontSize: '11px', fontFamily: 'monospace', marginRight: '4px' }}>└</span>}
-                          <FolderIcon /> 
-                          <span style={{ fontWeight: depth > 0 ? 500 : 700 }}>{shortName}</span>
-                          {parentPath && <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px' }}>({parentPath})</span>}
-                        </div>
-                        <div className="folder-edit-actions">
-                        <button 
-                          className="folder-edit-action" 
-                          title={cat.name.split('/').pop()?.startsWith('00_') ? '先頭の「00_」を外す' : '先頭に「00_」を付与'} 
-                          style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', width: 'auto', padding: '0 5px' }}
-                          onClick={async () => {
-                            const parts = cat.name.split('/');
-                            const short = parts[parts.length - 1];
-                            const newShort = short.startsWith('00_') ? short.slice(3) : ('00_' + short);
-                            if (newShort.trim()) {
-                              await renameFolder(cat.name, cat.handle, newShort.trim());
+                      <div
+                        className="folder-edit-row"
+                        key={cat.name}
+                        style={{
+                          paddingLeft: `${Math.min(depth, 5) * 14 + 6}px`,
+                          opacity: isAncestorContextOnly ? 0.65 : 1,
+                        }}
+                      >
+                        {hasChildren ? (
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (!movePanelTreeData.isSearching) {
+                                toggleMovePanelFolderExpand(cat.name);
+                              }
+                            }}
+                            title={isExpanded ? (lang === 'en' ? 'Collapse' : '折りたたむ') : (lang === 'en' ? 'Expand' : '展開する')}
+                            aria-expanded={isExpanded}
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              padding: 0,
+                              border: 'none',
+                              borderRadius: '0px',
+                              background: 'transparent',
+                              color: 'var(--panel-muted)',
+                              fontSize: '9px',
+                              lineHeight: 1,
+                              cursor: movePanelTreeData.isSearching ? 'default' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isExpanded ? '▼' : '▶'}
+                          </button>
+                        ) : (
+                          <span style={{ width: '20px', flexShrink: 0 }} />
+                        )}
+                        <div
+                          className="folder-edit-name"
+                          title={cat.name}
+                          style={{
+                            padding: '9px 8px 9px 4px',
+                            gap: '6px',
+                            fontSize: depth > 0 ? '12px' : '13px',
+                            cursor: hasChildren && !movePanelTreeData.isSearching ? 'pointer' : 'default',
+                          }}
+                          onClick={e => {
+                            if (hasChildren && !movePanelTreeData.isSearching) {
+                              e.stopPropagation();
+                              toggleMovePanelFolderExpand(cat.name);
                             }
                           }}
                         >
-                          {cat.name.split('/').pop()?.startsWith('00_') ? '00_✓' : '+00_'}
-                        </button>
-                        <button 
-                          className="folder-edit-action" 
-                          title={t.main.rename} 
-                          onClick={() => {
-                            setFolderRenameTarget({ name: cat.name, handle: cat.handle });
-                            setFolderRenameInputVal(cat.name);
-                          }}
-                        >
-                          ✏️
-                        </button>
-                        <button 
-                          className="folder-edit-action" 
-                          title={t.main.delete} 
-                          onClick={() => deleteFolder(cat.name, cat.handle)}
-                        >
-                          🗑️
-                        </button>
+                          <FolderIcon size={15} />
+                          <span
+                            style={{
+                              fontWeight: depth > 0 ? 500 : 700,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {shortName}
+                          </span>
+                        </div>
+                        <div className="folder-edit-actions">
+                          <button 
+                            className="folder-edit-action" 
+                            title={cat.name.split('/').pop()?.startsWith('00_') ? '先頭の「00_」を外す' : '先頭に「00_」を付与'} 
+                            style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', width: 'auto', padding: '0 5px' }}
+                            onClick={async e => {
+                              e.stopPropagation();
+                              const p = cat.name.split('/');
+                              const short = p[p.length - 1];
+                              const newShort = short.startsWith('00_') ? short.slice(3) : ('00_' + short);
+                              if (newShort.trim()) {
+                                await renameFolder(cat.name, cat.handle, newShort.trim());
+                              }
+                            }}
+                          >
+                            {cat.name.split('/').pop()?.startsWith('00_') ? '00_✓' : '+00_'}
+                          </button>
+                          <button 
+                            className="folder-edit-action" 
+                            title={t.main.rename} 
+                            onClick={e => {
+                              e.stopPropagation();
+                              setFolderRenameTarget({ name: cat.name, handle: cat.handle });
+                              setFolderRenameInputVal(cat.name);
+                            }}
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            className="folder-edit-action" 
+                            title={t.main.delete} 
+                            onClick={e => {
+                              e.stopPropagation();
+                              deleteFolder(cat.name, cat.handle);
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
               </div>
               <button className="move-panel-close" onClick={closeMovePanels}>{t.main.close}</button>
             </>
@@ -2514,24 +3170,253 @@ export const MainContent = () => {
                   <label className="modal-label" style={{ marginBottom: '6px' }}>
                     {lang === 'en' ? 'Select New Destination (Parent):' : '新しい移動先（親フォルダー）を選択:'}
                   </label>
-                  <select
-                    className="modal-input"
-                    value={moveFolderDest}
-                    onChange={e => setMoveFolderDest(e.target.value)}
-                    style={{ cursor: 'pointer' }}
+                  <div
+                    style={{
+                      border: '1px solid var(--panel-border, rgba(120, 120, 120, 0.35))',
+                      borderRadius: '0px',
+                      background: 'var(--panel-bg)',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
                   >
-                    <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level / ALL DATA)' : '最上位階層（ALL DATA / ルート直下）'}</option>
-                    {sortedPhysicalFolders
-                      .filter(pf => {
-                        const targets = movingFolderPaths && movingFolderPaths.length > 0 ? movingFolderPaths : (movingFolderPath ? [movingFolderPath] : []);
-                        return !targets.some(tp => pf.name === tp || pf.name.startsWith(tp + '/'));
-                      })
-                      .map(pf => (
-                        <option key={pf.name} value={pf.name}>
-                          📁 {pf.name}
-                        </option>
-                      ))}
-                  </select>
+                    {/* 1行検索バー */}
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        borderBottom: '1px solid var(--panel-border, rgba(120, 120, 120, 0.25))',
+                        background: 'rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.55, flexShrink: 0 }}>
+                        <SearchIcon />
+                      </span>
+                      <input
+                        ref={moveFolderSearchRef}
+                        type="text"
+                        value={moveFolderModalSearch}
+                        onChange={e => setMoveFolderModalSearch(e.target.value)}
+                        placeholder={lang === 'en' ? 'Search folders...' : 'フォルダー検索...'}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          height: '26px',
+                          fontSize: '11.5px',
+                          padding: '0 8px',
+                          border: '1px solid var(--panel-border, rgba(120, 120, 120, 0.35))',
+                          borderRadius: '0px',
+                          background: 'var(--panel-bg)',
+                          color: 'var(--panel-text)',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      {moveFolderModalSearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMoveFolderModalSearch('');
+                            moveFolderSearchRef.current?.focus();
+                          }}
+                          title={lang === 'en' ? 'Clear search' : '検索をクリア'}
+                          style={{
+                            width: '24px',
+                            height: '26px',
+                            padding: 0,
+                            border: '1px solid var(--panel-border, rgba(120, 120, 120, 0.35))',
+                            borderRadius: '0px',
+                            background: 'var(--btn-bg, transparent)',
+                            color: 'var(--panel-text)',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            lineHeight: 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          toggleAllMoveFolderModal();
+                        }}
+                        disabled={moveFolderModalTreeData.isSearching || moveFolderModalTreeData.hasChildrenSet.size === 0}
+                        title={
+                          isAnyMoveFolderModalExpanded
+                            ? (lang === 'en' ? 'Collapse all folders' : '全て折りたたむ')
+                            : (lang === 'en' ? 'Expand all folders' : '全て展開')
+                        }
+                        style={{
+                          width: '26px',
+                          height: '26px',
+                          padding: 0,
+                          border: '1px solid var(--panel-border, rgba(120, 120, 120, 0.35))',
+                          borderRadius: '0px',
+                          background: 'var(--btn-bg, transparent)',
+                          color: 'var(--panel-text)',
+                          cursor: (moveFolderModalTreeData.isSearching || moveFolderModalTreeData.hasChildrenSet.size === 0) ? 'default' : 'pointer',
+                          opacity: (moveFolderModalTreeData.isSearching || moveFolderModalTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.85,
+                          fontSize: '13px',
+                          fontWeight: 'bold',
+                          lineHeight: 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isAnyMoveFolderModalExpanded ? '－' : '＋'}
+                      </button>
+                    </div>
+
+                    {/* 折りたたみ式フォルダーツリー */}
+                    <div
+                      style={{
+                        maxHeight: '260px',
+                        overflowY: 'auto',
+                        overscrollBehavior: 'contain',
+                      }}
+                    >
+                      {moveFolderModalTreeData.showRoot && (() => {
+                        const isRootSelected = moveFolderDest === '';
+                        return (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="move-folder-btn"
+                            style={{
+                              color: isRootSelected ? 'var(--sb-accent, #3b82f6)' : 'var(--panel-text)',
+                              fontSize: '12.5px',
+                              padding: '8px 10px 8px 6px',
+                              gap: '6px',
+                              borderLeft: isRootSelected ? '3px solid var(--sb-accent, #3b82f6)' : '3px solid transparent',
+                              background: isRootSelected ? 'rgba(59, 130, 246, 0.14)' : undefined,
+                              boxSizing: 'border-box',
+                            }}
+                            onClick={() => setMoveFolderDest('')}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setMoveFolderDest('');
+                              }
+                            }}
+                          >
+                            <span style={{ width: '20px', flexShrink: 0 }} />
+                            <FolderIcon size={15} />
+                            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                              {lang === 'en' ? 'Root Folder (Top level / ALL DATA)' : '最上位階層（ALL DATA / ルート直下）'}
+                            </span>
+                            {isRootSelected && (
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--sb-accent, #3b82f6)', flexShrink: 0 }}>✓</span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {moveFolderModalTreeData.visibleFolders.map(cat => {
+                        const parts = cat.name.split('/');
+                        const depth = parts.length - 1;
+                        const shortName = parts[parts.length - 1];
+                        const hasChildren = moveFolderModalTreeData.hasChildrenSet.has(cat.name);
+                        const isExpanded = moveFolderModalTreeData.isSearching
+                          ? moveFolderModalTreeData.autoExpandedSet.has(cat.name)
+                          : !!moveFolderModalExpanded[cat.name];
+                        const isSelected = moveFolderDest === cat.name;
+                        const isAncestorContextOnly =
+                          moveFolderModalTreeData.isSearching && !moveFolderModalTreeData.directMatchSet.has(cat.name);
+
+                        return (
+                          <div
+                            key={cat.name}
+                            role="button"
+                            tabIndex={0}
+                            className={`move-folder-btn ${depth > 0 ? 'is-subfolder' : ''}`}
+                            style={{
+                              padding: `8px 10px 8px ${Math.min(depth, 5) * 14 + 6}px`,
+                              gap: '6px',
+                              borderLeft: isSelected ? '3px solid var(--sb-accent, #3b82f6)' : '3px solid transparent',
+                              background: isSelected ? 'rgba(59, 130, 246, 0.14)' : undefined,
+                              color: isSelected ? 'var(--sb-accent, #3b82f6)' : 'var(--panel-text)',
+                              opacity: isAncestorContextOnly ? 0.65 : 1,
+                              boxSizing: 'border-box',
+                            }}
+                            onClick={() => setMoveFolderDest(cat.name)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setMoveFolderDest(cat.name);
+                              }
+                            }}
+                            title={cat.name}
+                          >
+                            {hasChildren ? (
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  if (!moveFolderModalTreeData.isSearching) {
+                                    toggleMoveFolderModalExpand(cat.name);
+                                  }
+                                }}
+                                title={isExpanded ? (lang === 'en' ? 'Collapse' : '折りたたむ') : (lang === 'en' ? 'Expand' : '展開する')}
+                                aria-expanded={isExpanded}
+                                style={{
+                                  width: '20px',
+                                  height: '20px',
+                                  padding: 0,
+                                  border: 'none',
+                                  borderRadius: '0px',
+                                  background: 'transparent',
+                                  color: 'var(--panel-muted)',
+                                  fontSize: '9px',
+                                  lineHeight: 1,
+                                  cursor: moveFolderModalTreeData.isSearching ? 'default' : 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {isExpanded ? '▼' : '▶'}
+                              </button>
+                            ) : (
+                              <span style={{ width: '20px', flexShrink: 0 }} />
+                            )}
+                            <FolderIcon size={15} />
+                            <span
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontWeight: depth > 0 ? 500 : 700,
+                              }}
+                            >
+                              {shortName}
+                            </span>
+                            {isSelected && (
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--sb-accent, #3b82f6)', flexShrink: 0 }}>✓</span>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {moveFolderModalTreeData.isSearching && moveFolderModalTreeData.visibleFolders.length === 0 && !moveFolderModalTreeData.showRoot && (
+                        <div style={{ padding: '12px', opacity: 0.55, fontSize: '11.5px' }}>
+                          {lang === 'en' ? 'No matching folders found.' : '一致するフォルダーがありません'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div className="modal-hint">
                     {moveFolderDest ? `「${moveFolderDest}」の中に移動配置されます` : '最上位（ルート直下）に移動配置されます'}
                   </div>

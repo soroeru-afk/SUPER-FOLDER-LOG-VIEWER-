@@ -822,7 +822,7 @@ export const Sidebar = () => {
           <div id="app-name" style={{flex: 1}}>SUPER FOLDER<br/><span>LOG VIEWER</span></div>
         </div>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
-          <div id="app-version">React Edition v3.1.8</div>
+          <div id="app-version">React Edition v3.1.11</div>
           <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
             <button 
               id="side-change-btn"
