@@ -2320,7 +2320,7 @@ export const FolderExplorer: React.FC = () => {
                       alignItems: 'center',
                       gap: '6px',
                       padding: '6px 14px',
-                      background: 'var(--panel-item-bg, rgba(0, 0, 0, 0.03))',
+                      background: 'var(--card-bg, #ffffff)',
                       borderBottom: '1px solid var(--card-border, rgba(120, 120, 120, 0.2))',
                       borderTop: '1px solid var(--card-border, rgba(120, 120, 120, 0.15))',
                       flexWrap: 'wrap'
@@ -2364,7 +2364,7 @@ export const FolderExplorer: React.FC = () => {
                       {/* 一括移動ボタン（複数フォルダーの階層移動モーダルを開く） */}
                       <button
                         type="button"
-                        className="explorer-bulk-tool-btn move"
+                        className={`explorer-bulk-tool-btn move ${selectedFolderPaths.size > 0 ? 'has-selection' : ''}`}
                         disabled={selectedFolderPaths.size === 0}
                         onClick={handleBulkMoveSelectedFolders}
                         title={lang === 'en' ? 'Move selected folders to another parent or root' : '選択したフォルダーを別の親フォルダーまたはルートへ一括階層移動'}

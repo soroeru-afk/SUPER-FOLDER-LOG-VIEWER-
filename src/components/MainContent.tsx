@@ -1865,6 +1865,7 @@ export const MainContent = () => {
           position: 'fixed',
           zIndex: 200,
           background: 'var(--panel-bg)',
+          color: 'var(--panel-text)',
           border: '1px solid var(--panel-border)',
           borderRadius: '0px',
           padding: 0,
@@ -2008,7 +2009,7 @@ export const MainContent = () => {
                   </button>
                 </div>
 
-                <div style={{ padding: '6px 12px', fontSize: '10.5px', opacity: 0.75, background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid var(--panel-border)' }}>
+                <div style={{ padding: '6px 12px', fontSize: '10.5px', color: 'var(--panel-text)', opacity: 0.78, background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid var(--panel-border)' }}>
                   {currentMode === 'move' && (lang === 'en' ? 'Move file(s) to selected folder' : '原本を指定フォルダーへ移動します（元の場所からはなくなります）')}
                   {currentMode === 'shortcut' && (lang === 'en' ? 'Place shortcut in selected folder (synced with original)' : '原本は残し、指定フォルダーにもリンクを配置します（どこから編集しても原本と連動）')}
                   {currentMode === 'duplicate' && (lang === 'en' ? 'Create independent duplicate in selected folder' : '内容を複製して新しい実体ファイルを作成します')}
@@ -2027,7 +2028,7 @@ export const MainContent = () => {
                   }}
                   onClick={e => e.stopPropagation()}
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.55, flexShrink: 0 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--panel-text)', opacity: 0.65, flexShrink: 0 }}>
                     <SearchIcon />
                   </span>
                   <input
@@ -2064,7 +2065,7 @@ export const MainContent = () => {
                         padding: 0,
                         border: '1px solid var(--panel-border)',
                         borderRadius: '0px',
-                        background: 'var(--btn-bg, transparent)',
+                        background: 'var(--panel-item-bg, transparent)',
                         color: 'var(--panel-text)',
                         cursor: 'pointer',
                         fontSize: '12px',
@@ -2096,10 +2097,10 @@ export const MainContent = () => {
                       padding: 0,
                       border: '1px solid var(--panel-border)',
                       borderRadius: '0px',
-                      background: 'var(--btn-bg, transparent)',
+                      background: 'var(--panel-item-bg, transparent)',
                       color: 'var(--panel-text)',
                       cursor: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 'default' : 'pointer',
-                      opacity: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.85,
+                      opacity: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.9,
                       fontSize: '13px',
                       fontWeight: 'bold',
                       lineHeight: 1,
@@ -2331,9 +2332,9 @@ export const MainContent = () => {
                 })()}
                 
                 {/* 新規フォルダー作成欄（親フォルダー選択対応） */}
-                <div style={{ padding: '8px 10px', background: 'rgba(0,0,0,0.03)', borderTop: '1px solid var(--panel-border)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ padding: '8px 10px', background: 'rgba(0,0,0,0.03)', color: 'var(--panel-text)', borderTop: '1px solid var(--panel-border)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
-                    <label style={{ fontWeight: 700, opacity: 0.85, whiteSpace: 'nowrap' }}>
+                    <label style={{ fontWeight: 700, opacity: 0.85, whiteSpace: 'nowrap', color: 'var(--panel-text)' }}>
                       {lang === 'en' ? 'Parent:' : '作成先:'}
                     </label>
                     <select
@@ -2376,8 +2377,8 @@ export const MainContent = () => {
                         fontFamily: 'monospace',
                         height: '28px',
                         border: newFolderName.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-border, rgba(120, 120, 120, 0.4))',
-                        background: newFolderName.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, transparent)',
-                        color: newFolderName.startsWith('00_') ? '#ffffff' : 'var(--btn-text, inherit)',
+                        background: newFolderName.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--panel-item-bg, transparent)',
+                        color: newFolderName.startsWith('00_') ? '#ffffff' : 'var(--panel-text)',
                         cursor: 'pointer',
                         flexShrink: 0
                       }}
@@ -2453,7 +2454,7 @@ export const MainContent = () => {
                 }}
                 onClick={e => e.stopPropagation()}
               >
-                <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.55, flexShrink: 0 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--panel-text)', opacity: 0.65, flexShrink: 0 }}>
                   <SearchIcon />
                 </span>
                 <input
@@ -2490,7 +2491,7 @@ export const MainContent = () => {
                       padding: 0,
                       border: '1px solid var(--panel-border)',
                       borderRadius: '0px',
-                      background: 'var(--btn-bg, transparent)',
+                      background: 'var(--panel-item-bg, transparent)',
                       color: 'var(--panel-text)',
                       cursor: 'pointer',
                       fontSize: '12px',
@@ -2522,10 +2523,10 @@ export const MainContent = () => {
                     padding: 0,
                     border: '1px solid var(--panel-border)',
                     borderRadius: '0px',
-                    background: 'var(--btn-bg, transparent)',
+                    background: 'var(--panel-item-bg, transparent)',
                     color: 'var(--panel-text)',
                     cursor: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 'default' : 'pointer',
-                    opacity: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.85,
+                    opacity: (movePanelTreeData.isSearching || movePanelTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.9,
                     fontSize: '13px',
                     fontWeight: 'bold',
                     lineHeight: 1,
@@ -3140,13 +3141,14 @@ export const MainContent = () => {
                       padding: '8px 10px',
                       background: 'var(--panel-item-bg, rgba(0,0,0,0.04))',
                       border: '1px solid var(--panel-item-border, rgba(0,0,0,0.1))',
+                      color: 'var(--panel-text)',
                       fontSize: '11px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '4px'
                     }}>
                       {movingFolderPaths.map(p => (
-                        <div key={p} style={{ fontWeight: 600, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div key={p} style={{ fontWeight: 600, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--panel-text)' }}>
                           <span>📁</span>
                           <span>{p}</span>
                         </div>
@@ -3157,6 +3159,7 @@ export const MainContent = () => {
                       padding: '8px 10px',
                       background: 'var(--panel-item-bg, rgba(0,0,0,0.04))',
                       border: '1px solid var(--panel-item-border, rgba(0,0,0,0.1))',
+                      color: 'var(--panel-text)',
                       fontSize: '12px',
                       fontWeight: 700,
                       wordBreak: 'break-all'
@@ -3191,7 +3194,7 @@ export const MainContent = () => {
                         gap: '6px',
                       }}
                     >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.55, flexShrink: 0 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--panel-text)', opacity: 0.65, flexShrink: 0 }}>
                         <SearchIcon />
                       </span>
                       <input
@@ -3228,7 +3231,7 @@ export const MainContent = () => {
                             padding: 0,
                             border: '1px solid var(--panel-border, rgba(120, 120, 120, 0.35))',
                             borderRadius: '0px',
-                            background: 'var(--btn-bg, transparent)',
+                            background: 'var(--panel-item-bg, transparent)',
                             color: 'var(--panel-text)',
                             cursor: 'pointer',
                             fontSize: '12px',
@@ -3260,10 +3263,10 @@ export const MainContent = () => {
                           padding: 0,
                           border: '1px solid var(--panel-border, rgba(120, 120, 120, 0.35))',
                           borderRadius: '0px',
-                          background: 'var(--btn-bg, transparent)',
+                          background: 'var(--panel-item-bg, transparent)',
                           color: 'var(--panel-text)',
                           cursor: (moveFolderModalTreeData.isSearching || moveFolderModalTreeData.hasChildrenSet.size === 0) ? 'default' : 'pointer',
-                          opacity: (moveFolderModalTreeData.isSearching || moveFolderModalTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.85,
+                          opacity: (moveFolderModalTreeData.isSearching || moveFolderModalTreeData.hasChildrenSet.size === 0) ? 0.35 : 0.9,
                           fontSize: '13px',
                           fontWeight: 'bold',
                           lineHeight: 1,
