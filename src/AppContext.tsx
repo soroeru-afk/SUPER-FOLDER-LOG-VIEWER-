@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { FileObj, PhysicalFolder, CategoryObj } from './types';
-import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename, loadFileMetaCache, saveFileMetaCache, CachedFileMeta, isImageFilename, isSupportedFilename, downloadFileBlob } from './utils';
+import { loadFolderHandle, saveFolderHandle, saveFallbackData, loadFallbackData, parseFilename, loadFileMetaCache, saveFileMetaCache, CachedFileMeta, isImageFilename, isSupportedFilename, downloadFileBlob, sortFoldersHierarchically } from './utils';
 import { THEMES, getPaperSettingsForTheme, setPaperModeForTheme, setPaperColorForTheme, getMainBgWhiteForTheme, setMainBgWhiteForTheme } from './theme';
 import { applySettingsToDOM } from './settingsSync';
 import { migrateFolderVisualSettings } from './folderVisuals';
@@ -356,7 +356,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const [customFolderOrders, setCustomFolderOrders] = useState<Record<string, string[]>>(() => {
+  const [customFolderOrders, setCustomFolderOrdersState] = useState<Record<string, string[]>>(() => {
     try {
       const saved = localStorage.getItem('lv_custom_folder_orders');
       return saved ? JSON.parse(saved) : {};
@@ -364,6 +364,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return {};
     }
   });
+  const customFolderOrdersRef = useRef<Record<string, string[]>>(customFolderOrders);
+  const setCustomFolderOrders = (updater: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => {
+    const next = typeof updater === 'function' ? updater(customFolderOrdersRef.current) : updater;
+    customFolderOrdersRef.current = next;
+    setCustomFolderOrdersState(next);
+  };
 
   const saveFolderCustomFolderOrder = (parentKey: string, folderNames: string[]) => {
     const key = parentKey || '__root__';
@@ -1497,12 +1503,12 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       }
     });
 
-    setAllCategories(Array.from(catMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja')));
+    setAllCategories(sortFoldersHierarchically(Array.from(catMap.values()), sortMode, sortDirection, customFolderOrdersRef.current));
   };
 
   useEffect(() => {
     updateFilter(allFiles, physicalFolders, searchQueries);
-  }, [sortMode, sortDirection, allFiles, physicalFolders, searchQueries, customFileOrders]);
+  }, [sortMode, sortDirection, allFiles, physicalFolders, searchQueries, customFileOrders, customFolderOrders]);
 
   const openFolderFallback = () => {
     const input = document.createElement("input");
@@ -2551,15 +2557,81 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       await syncShortcutsToDisk(nextShortcuts);
     }
 
-    // カスタム並び順の移行
+    // カスタム並び順の移行（ファイル並び順 ＆ フォルダー並び順）
     setCustomFileOrders(prev => {
-      const nextOrders = { ...prev };
-      if (nextOrders[oldCategoryPath]) {
-        nextOrders[newCategoryPath] = nextOrders[oldCategoryPath];
-        delete nextOrders[oldCategoryPath];
-      }
+      const nextOrders: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([k, val]) => {
+        if (k === oldCategoryPath) {
+          nextOrders[newCategoryPath] = val;
+        } else if (k.startsWith(oldCategoryPath + '/')) {
+          nextOrders[newCategoryPath + k.slice(oldCategoryPath.length)] = val;
+        } else {
+          nextOrders[k] = val;
+        }
+      });
       localStorage.setItem('lv_custom_file_orders', JSON.stringify(nextOrders));
       return nextOrders;
+    });
+
+    const parentKey = parentPath || '__root__';
+    const currentParentSiblings = sortFoldersHierarchically(
+      physicalFoldersRef.current.filter(pf => {
+        const parts = pf.name.split('/');
+        const pfParent = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+        return pfParent === parentPath;
+      }),
+      sortMode,
+      sortDirection,
+      customFolderOrdersRef.current
+    ).map(pf => pf.name);
+
+    setCustomFolderOrders(prev => {
+      const nextOrders: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([k, list]) => {
+        let newKey = k;
+        if (k === oldCategoryPath) {
+          newKey = newCategoryPath;
+        } else if (k.startsWith(oldCategoryPath + '/')) {
+          newKey = newCategoryPath + k.slice(oldCategoryPath.length);
+        }
+        nextOrders[newKey] = list.map(item => {
+          if (item === oldCategoryPath) return newCategoryPath;
+          if (item.startsWith(oldCategoryPath + '/')) return newCategoryPath + item.slice(oldCategoryPath.length);
+          return item;
+        });
+      });
+
+      // カスタム順モード中にこの親階層の並び順がまだ保存されていなかった場合は、現在の表示順を保持したままリネーム先を置き換える
+      if (sortMode === 'custom' && (!nextOrders[parentKey] || !nextOrders[parentKey].includes(newCategoryPath))) {
+        const baseList = nextOrders[parentKey] && nextOrders[parentKey].length > 0
+          ? [...nextOrders[parentKey]]
+          : currentParentSiblings;
+        if (baseList.includes(oldCategoryPath)) {
+          nextOrders[parentKey] = baseList.map(item => item === oldCategoryPath ? newCategoryPath : item);
+        } else if (currentParentSiblings.includes(oldCategoryPath)) {
+          nextOrders[parentKey] = currentParentSiblings.map(item => item === oldCategoryPath ? newCategoryPath : item);
+        }
+      }
+
+      localStorage.setItem('lv_custom_folder_orders', JSON.stringify(nextOrders));
+      return nextOrders;
+    });
+
+    setCategoryOpenState(prev => {
+      let changed = false;
+      const nextState: Record<string, boolean> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        if (k === `cat:${oldCategoryPath}`) {
+          nextState[`cat:${newCategoryPath}`] = v;
+          changed = true;
+        } else if (k.startsWith(`cat:${oldCategoryPath}/`)) {
+          nextState[`cat:${newCategoryPath}${k.slice(`cat:${oldCategoryPath}`.length)}`] = v;
+          changed = true;
+        } else {
+          nextState[k] = v;
+        }
+      });
+      return changed ? nextState : prev;
     });
 
     // フォールバックモードの場合
@@ -2774,11 +2846,28 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       await syncShortcutsToDisk(nextShortcuts);
     }
 
-    // カスタム並び順のクリーンアップ
+    // カスタム並び順のクリーンアップ（ファイル並び順 ＆ フォルダー並び順）
     setCustomFileOrders(prev => {
-      const next = { ...prev };
-      delete next[name];
+      const next: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([k, val]) => {
+        if (k !== name && !k.startsWith(name + '/')) {
+          next[k] = val;
+        }
+      });
       localStorage.setItem('lv_custom_file_orders', JSON.stringify(next));
+      return next;
+    });
+
+    setCustomFolderOrders(prev => {
+      const next: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([k, list]) => {
+        if (k === name || k.startsWith(name + '/')) return;
+        const filtered = list.filter(item => item !== name && !item.startsWith(name + '/'));
+        if (filtered.length > 0) {
+          next[k] = filtered;
+        }
+      });
+      localStorage.setItem('lv_custom_folder_orders', JSON.stringify(next));
       return next;
     });
 
@@ -2905,15 +2994,68 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       await syncShortcutsToDisk(nextShortcuts);
     }
 
-    // カスタム並び順の移行
+    // カスタム並び順の移行（ファイル並び順 ＆ フォルダー並び順）
     setCustomFileOrders(prev => {
-      const nextOrders = { ...prev };
-      if (nextOrders[oldCategoryPath]) {
-        nextOrders[newCategoryPath] = nextOrders[oldCategoryPath];
-        delete nextOrders[oldCategoryPath];
-      }
+      const nextOrders: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([k, val]) => {
+        if (k === oldCategoryPath) {
+          nextOrders[newCategoryPath] = val;
+        } else if (k.startsWith(oldCategoryPath + '/')) {
+          nextOrders[newCategoryPath + k.slice(oldCategoryPath.length)] = val;
+        } else {
+          nextOrders[k] = val;
+        }
+      });
       localStorage.setItem('lv_custom_file_orders', JSON.stringify(nextOrders));
       return nextOrders;
+    });
+
+    setCustomFolderOrders(prev => {
+      const oldParentKey = currentParentPath || '__root__';
+      const newParentKey = targetParent || '__root__';
+      const nextOrders: Record<string, string[]> = {};
+
+      Object.entries(prev).forEach(([k, list]) => {
+        let newKey = k;
+        if (k === oldCategoryPath) {
+          newKey = newCategoryPath;
+        } else if (k.startsWith(oldCategoryPath + '/')) {
+          newKey = newCategoryPath + k.slice(oldCategoryPath.length);
+        }
+
+        const updatedList = list
+          .filter(item => !(k === oldParentKey && item === oldCategoryPath))
+          .map(item => {
+            if (item === oldCategoryPath) return newCategoryPath;
+            if (item.startsWith(oldCategoryPath + '/')) return newCategoryPath + item.slice(oldCategoryPath.length);
+            return item;
+          });
+        nextOrders[newKey] = updatedList;
+      });
+
+      if (nextOrders[newParentKey] && !nextOrders[newParentKey].includes(newCategoryPath)) {
+        nextOrders[newParentKey] = [...nextOrders[newParentKey], newCategoryPath];
+      }
+
+      localStorage.setItem('lv_custom_folder_orders', JSON.stringify(nextOrders));
+      return nextOrders;
+    });
+
+    setCategoryOpenState(prev => {
+      let changed = false;
+      const nextState: Record<string, boolean> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        if (k === `cat:${oldCategoryPath}`) {
+          nextState[`cat:${newCategoryPath}`] = v;
+          changed = true;
+        } else if (k.startsWith(`cat:${oldCategoryPath}/`)) {
+          nextState[`cat:${newCategoryPath}${k.slice(`cat:${oldCategoryPath}`.length)}`] = v;
+          changed = true;
+        } else {
+          nextState[k] = v;
+        }
+      });
+      return changed ? nextState : prev;
     });
 
     // 1. フォールバックモードの場合

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppContext } from '../AppContext';
 import { EditIcon, SaveIcon, MoveIcon, FolderIcon, SpeakerIcon, ReadIcon, DeleteIcon, CopyIcon, ShortcutIcon, UnlinkIcon, ImageIcon } from './Icons';
 import { ChevronsLeft, ChevronLeft, ChevronsRight, ChevronRight } from 'lucide-react';
-import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, getDirectoryHandleByPath, isImageFilename, cleanChatNoise, isNoiseLine, isAudioNoise } from '../utils';
+import { extractFirstSentence, highlightText, highlightTextSafe, linkifyUrls, escHtml, getDirectoryHandleByPath, isImageFilename, cleanChatNoise, isNoiseLine, isAudioNoise, sortFoldersHierarchically } from '../utils';
 import { applySettingsToDOM } from '../settingsSync';
 import { MarkdownView } from './MarkdownView';
 import { FolderExplorer } from './FolderExplorer';
@@ -28,8 +28,14 @@ export const MainContent = () => {
     sidebarPosition,
     isNewFileModalOpen, newFileInitialCategory, closeNewFileDialog, createAndOpenFile, allCategories,
     createNewFolder, isNewFolderModalOpen, newFolderInitialParentPath, closeNewFolderDialog,
-    moveFolder, isMoveFolderModalOpen, movingFolderPath, movingFolderPaths, openMoveFolderDialog, closeMoveFolderDialog, execBulkMoveFolders
+    moveFolder, isMoveFolderModalOpen, movingFolderPath, movingFolderPaths, openMoveFolderDialog, closeMoveFolderDialog, execBulkMoveFolders,
+    sortMode, sortDirection, customFolderOrders
   } = useAppContext();
+
+  const sortedPhysicalFolders = useMemo(
+    () => sortFoldersHierarchically(physicalFolders, sortMode, sortDirection, customFolderOrders),
+    [physicalFolders, sortMode, sortDirection, customFolderOrders]
+  );
 
   const [markPaletteOpen, setMarkPaletteOpen] = useState(false);
   const markPaletteRef = useRef<HTMLDivElement>(null);
@@ -1809,7 +1815,7 @@ export const MainContent = () => {
                   >
                     <FolderIcon /> {t.main.moveToRoot || 'ALL DATA (ルート)'}
                   </button>
-                  {physicalFolders.map(cat => {
+                  {sortedPhysicalFolders.map(cat => {
                     const parts = cat.name.split('/');
                     const depth = parts.length - 1;
                     const shortName = parts[parts.length - 1];
@@ -1839,7 +1845,7 @@ export const MainContent = () => {
                       </button>
                     );
                   })}
-                  {physicalFolders.length === 0 && <div style={{padding:'12px',opacity:0.5,fontSize:'12px'}}>{t.main.noDestFolder}</div>}
+                  {sortedPhysicalFolders.length === 0 && <div style={{padding:'12px',opacity:0.5,fontSize:'12px'}}>{t.main.noDestFolder}</div>}
                 </div>
                 
                 {/* 新規フォルダー作成欄（親フォルダー選択対応） */}
@@ -1864,7 +1870,7 @@ export const MainContent = () => {
                       }}
                     >
                       <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level)' : 'ルートフォルダー (最上位)'}</option>
-                      {physicalFolders.map(pf => (
+                      {sortedPhysicalFolders.map(pf => (
                         <option key={pf.name} value={pf.name}>
                           📁 {pf.name}
                         </option>
@@ -1953,10 +1959,10 @@ export const MainContent = () => {
             <>
               <div className="move-panel-title">{t.main.folderEditTitle}</div>
               <div className="move-panel-scroll">
-                {physicalFolders.length === 0 ? (
+                {sortedPhysicalFolders.length === 0 ? (
                   <div className="folder-edit-empty">{t.main.noFolders}</div>
                 ) : (
-                  physicalFolders.map(cat => {
+                  sortedPhysicalFolders.map(cat => {
                     const parts = cat.name.split('/');
                     const depth = parts.length - 1;
                     const shortName = parts[parts.length - 1];
@@ -2374,7 +2380,7 @@ export const MainContent = () => {
                     style={{ cursor: 'pointer' }}
                   >
                     <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level)' : 'ルートフォルダー (最上位)'} ({allFiles.length} {lang === 'en' ? 'files' : '件'})</option>
-                    {physicalFolders.map(cat => (
+                    {sortedPhysicalFolders.map(cat => (
                       <option key={cat.name} value={cat.name}>
                         📁 {cat.name}
                       </option>
@@ -2515,7 +2521,7 @@ export const MainContent = () => {
                     style={{ cursor: 'pointer' }}
                   >
                     <option value="">🏠 {lang === 'en' ? 'Root Folder (Top level / ALL DATA)' : '最上位階層（ALL DATA / ルート直下）'}</option>
-                    {physicalFolders
+                    {sortedPhysicalFolders
                       .filter(pf => {
                         const targets = movingFolderPaths && movingFolderPaths.length > 0 ? movingFolderPaths : (movingFolderPath ? [movingFolderPath] : []);
                         return !targets.some(tp => pf.name === tp || pf.name.startsWith(tp + '/'));

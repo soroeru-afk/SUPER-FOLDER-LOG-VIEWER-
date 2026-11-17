@@ -312,3 +312,166 @@ export async function downloadFileBlob(fileOrBlob: Blob, filename: string) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
+export function sortFoldersHierarchically<T extends { name: string }>(
+  folders: T[],
+  sortMode: 'date' | 'name' | 'custom',
+  sortDirection: 'asc' | 'desc',
+  customFolderOrders: Record<string, string[]>
+): T[] {
+  if (!folders || folders.length === 0) return [];
+
+  type TreeNode = {
+    name: string;
+    item?: T;
+    children: TreeNode[];
+  };
+
+  const nodeMap = new Map<string, TreeNode>();
+  const roots: TreeNode[] = [];
+
+  folders.forEach(item => {
+    const existing = nodeMap.get(item.name);
+    if (existing) {
+      existing.item = item;
+    } else {
+      nodeMap.set(item.name, { name: item.name, item, children: [] });
+    }
+  });
+
+  folders.forEach(item => {
+    const parts = item.name.split('/');
+    let cur = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+      cur = cur ? `${cur}/${parts[i]}` : parts[i];
+      if (!nodeMap.has(cur)) {
+        nodeMap.set(cur, { name: cur, children: [] });
+      }
+    }
+  });
+
+  const addedToRoots = new Set<string>();
+  Array.from(nodeMap.values()).forEach(node => {
+    const parts = node.name.split('/');
+    if (parts.length > 1) {
+      const parentName = parts.slice(0, -1).join('/');
+      const parent = nodeMap.get(parentName);
+      if (parent) {
+        if (!parent.children.some(c => c.name === node.name)) {
+          parent.children.push(node);
+        }
+        return;
+      }
+    }
+    if (!addedToRoots.has(node.name)) {
+      roots.push(node);
+      addedToRoots.add(node.name);
+    }
+  });
+
+  const isYearMonthName = (name: string) => /^\d{4}([-_./年]\d{1,2}月?)?$/.test(name.trim());
+  const isArchiveOrAiFolder = (name: string) => /過去ログ|アーカイブ|archive|agent|エージェント|ai/i.test(name);
+
+  const sortNodes = (nodes: TreeNode[], parentName: string = '') => {
+    if (sortMode === 'custom') {
+      const orderList = customFolderOrders[parentName || '__root__'] || [];
+      if (orderList.length > 0) {
+        nodes.sort((a, b) => {
+          const idxA = orderList.indexOf(a.name);
+          const idxB = orderList.indexOf(b.name);
+          const posA = idxA >= 0 ? idxA : 999999;
+          const posB = idxB >= 0 ? idxB : 999999;
+          if (posA !== posB) return posA - posB;
+          const shortA = a.name.split('/').pop() || a.name;
+          const shortB = b.name.split('/').pop() || b.name;
+          return shortA.localeCompare(shortB, 'ja', { numeric: true });
+        });
+      } else {
+        const hasYearMonth = nodes.some(n => isYearMonthName(n.name.split('/').pop() || n.name));
+        if (isArchiveOrAiFolder(parentName) || hasYearMonth) {
+          nodes.sort((a, b) => {
+            const shortA = a.name.split('/').pop() || a.name;
+            const shortB = b.name.split('/').pop() || b.name;
+            const isDateA = isYearMonthName(shortA);
+            const isDateB = isYearMonthName(shortB);
+            if (isDateA && isDateB) return shortB.localeCompare(shortA, undefined, { numeric: true });
+            if (isDateA && !isDateB) return -1;
+            if (!isDateA && isDateB) return 1;
+            return shortA.localeCompare(shortB, 'ja', { numeric: true });
+          });
+        } else {
+          nodes.sort((a, b) => {
+            const shortA = a.name.split('/').pop() || a.name;
+            const shortB = b.name.split('/').pop() || b.name;
+            return shortA.localeCompare(shortB, 'ja', { numeric: true });
+          });
+        }
+      }
+    } else if (sortMode === 'name') {
+      nodes.sort((a, b) => {
+        const shortA = a.name.split('/').pop() || a.name;
+        const shortB = b.name.split('/').pop() || b.name;
+        const isDateA = isYearMonthName(shortA);
+        const isDateB = isYearMonthName(shortB);
+        if (isDateA && isDateB) {
+          return shortB.localeCompare(shortA, undefined, { numeric: true });
+        }
+        if (isDateA && !isDateB) return -1;
+        if (!isDateA && isDateB) return 1;
+        return sortDirection === 'asc'
+          ? shortA.localeCompare(shortB, 'ja', { numeric: true })
+          : shortB.localeCompare(shortA, 'ja', { numeric: true });
+      });
+    } else {
+      const hasYearMonth = nodes.some(n => isYearMonthName(n.name.split('/').pop() || n.name));
+      if (isArchiveOrAiFolder(parentName) || hasYearMonth) {
+        nodes.sort((a, b) => {
+          const shortA = a.name.split('/').pop() || a.name;
+          const shortB = b.name.split('/').pop() || b.name;
+          const isDateA = isYearMonthName(shortA);
+          const isDateB = isYearMonthName(shortB);
+          if (isDateA && isDateB) {
+            return sortDirection === 'desc'
+              ? shortB.localeCompare(shortA, undefined, { numeric: true })
+              : shortA.localeCompare(shortB, undefined, { numeric: true });
+          }
+          if (isDateA && !isDateB) return -1;
+          if (!isDateA && isDateB) return 1;
+          return sortDirection === 'desc'
+            ? shortB.localeCompare(shortA, 'ja', { numeric: true })
+            : shortA.localeCompare(shortB, 'ja', { numeric: true });
+        });
+      } else {
+        nodes.sort((a, b) => {
+          const shortA = a.name.split('/').pop() || a.name;
+          const shortB = b.name.split('/').pop() || b.name;
+          return shortA.localeCompare(shortB, 'ja', { numeric: true });
+        });
+      }
+    }
+
+    nodes.forEach(n => {
+      if (n.children.length > 0) {
+        sortNodes(n.children, n.name);
+      }
+    });
+  };
+
+  sortNodes(roots, '');
+
+  const result: T[] = [];
+  const flatten = (nodes: TreeNode[]) => {
+    nodes.forEach(n => {
+      if (n.item !== undefined) {
+        result.push(n.item);
+      }
+      if (n.children.length > 0) {
+        flatten(n.children);
+      }
+    });
+  };
+  flatten(roots);
+
+  return result;
+}
+

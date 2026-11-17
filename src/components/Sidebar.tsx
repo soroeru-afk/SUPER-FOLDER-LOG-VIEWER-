@@ -598,7 +598,9 @@ export const Sidebar = () => {
             const posA = idxA >= 0 ? idxA : 999999;
             const posB = idxB >= 0 ? idxB : 999999;
             if (posA !== posB) return posA - posB;
-            return a.name.localeCompare(b.name, 'ja');
+            const shortA = a.name.split('/').pop() || a.name;
+            const shortB = b.name.split('/').pop() || b.name;
+            return shortA.localeCompare(shortB, 'ja', { numeric: true });
           });
         }
       } else {
@@ -607,7 +609,7 @@ export const Sidebar = () => {
           return isYearMonthName(short);
         });
 
-        if (isTarget) {
+        if (isTarget || sortMode === 'name') {
           nodes.sort((a, b) => {
             const shortA = a.name.split('/').pop() || a.name;
             const shortB = b.name.split('/').pop() || b.name;
@@ -820,7 +822,7 @@ export const Sidebar = () => {
           <div id="app-name" style={{flex: 1}}>SUPER FOLDER<br/><span>LOG VIEWER</span></div>
         </div>
         <div style={{display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center'}}>
-          <div id="app-version">React Edition v3.1.7</div>
+          <div id="app-version">React Edition v3.1.8</div>
           <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
             <button 
               id="side-change-btn"
