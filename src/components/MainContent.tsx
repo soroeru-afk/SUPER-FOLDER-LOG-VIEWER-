@@ -44,6 +44,7 @@ export const MainContent = () => {
   const [renameInputVal, setRenameInputVal] = useState('');
   const [titleInputVal, setTitleInputVal] = useState('');
   const [isAdvancedRenameMode, setIsAdvancedRenameMode] = useState(false);
+  const modalBackdropMouseDownRef = useRef(false);
 
   const computeNewFilenameFromTitle = (title: string, origFilename: string) => {
     const trimmed = title.trim();
@@ -2681,7 +2682,19 @@ export const MainContent = () => {
 
       {/* ファイル名前・タイトル変更モーダル */}
       {isRenameModalOpen && currentFileObj && (
-        <div className="modal-backdrop" onClick={() => setIsRenameModalOpen(false)}>
+        <div
+          className="modal-backdrop"
+          onMouseDown={e => {
+            modalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = modalBackdropMouseDownRef.current;
+            modalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              setIsRenameModalOpen(false);
+            }
+          }}
+        >
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <EditIcon />
@@ -2721,13 +2734,13 @@ export const MainContent = () => {
                     background: 'var(--panel-item-bg, rgba(0,0,0,0.04))',
                     border: '1px solid var(--panel-item-border, rgba(0,0,0,0.1))',
                     fontSize: '11px',
-                    color: 'var(--main-text)',
+                    color: 'var(--panel-text)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '2px'
                   }}>
-                    <span style={{ opacity: 0.65, fontSize: '10px' }}>📁 {lang === 'en' ? 'Saved Filename Preview:' : '保存ファイル名の反映プレビュー:'}</span>
-                    <span style={{ fontWeight: 700, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    <span style={{ opacity: 0.72, fontSize: '10px', color: 'var(--panel-text)' }}>📁 {lang === 'en' ? 'Saved Filename Preview:' : '保存ファイル名の反映プレビュー:'}</span>
+                    <span style={{ fontWeight: 700, fontFamily: 'monospace', wordBreak: 'break-all', color: 'var(--panel-text)' }}>
                       {computeNewFilenameFromTitle(titleInputVal, currentFileObj.filename)}
                     </span>
                   </div>
@@ -2834,7 +2847,19 @@ export const MainContent = () => {
 
       {/* フォルダー名前変更モーダル */}
       {folderRenameTarget && (
-        <div className="modal-backdrop" onClick={() => setFolderRenameTarget(null)}>
+        <div
+          className="modal-backdrop"
+          onMouseDown={e => {
+            modalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = modalBackdropMouseDownRef.current;
+            modalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              setFolderRenameTarget(null);
+            }
+          }}
+        >
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <FolderIcon />
@@ -2858,8 +2883,8 @@ export const MainContent = () => {
                     fontWeight: 700,
                     fontFamily: 'monospace',
                     border: folderRenameInputVal.startsWith('00_') ? '1px solid var(--sb-accent, #3b82f6)' : '1px solid var(--panel-border, rgba(120, 120, 120, 0.4))',
-                    background: folderRenameInputVal.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--btn-bg, transparent)',
-                    color: folderRenameInputVal.startsWith('00_') ? '#ffffff' : 'var(--btn-text, inherit)',
+                    background: folderRenameInputVal.startsWith('00_') ? 'var(--sb-accent, #3b82f6)' : 'var(--panel-item-bg, transparent)',
+                    color: folderRenameInputVal.startsWith('00_') ? '#ffffff' : 'var(--panel-text, inherit)',
                     cursor: 'pointer'
                   }}
                 >
@@ -2910,7 +2935,19 @@ export const MainContent = () => {
 
       {/* 新規ファイル作成モーダル（カテゴリー選択・即時編集起動対応） */}
       {isNewFileModalOpen && (
-        <div className="modal-backdrop" onClick={closeNewFileDialog}>
+        <div
+          className="modal-backdrop"
+          onMouseDown={e => {
+            modalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = modalBackdropMouseDownRef.current;
+            modalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              closeNewFileDialog();
+            }
+          }}
+        >
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div className="modal-header">
               <span style={{ fontSize: '15px' }}>📄＋</span>
@@ -3018,7 +3055,19 @@ export const MainContent = () => {
 
       {/* 新規フォルダー作成モーダル（親フォルダー選択・00_付与ボタン対応） */}
       {isNewFolderModalOpen && (
-        <div className="modal-backdrop" onClick={closeNewFolderDialog}>
+        <div
+          className="modal-backdrop"
+          onMouseDown={e => {
+            modalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = modalBackdropMouseDownRef.current;
+            modalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              closeNewFolderDialog();
+            }
+          }}
+        >
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div className="modal-header">
               <span style={{ fontSize: '15px' }}>📁＋</span>
@@ -3072,9 +3121,9 @@ export const MainContent = () => {
                         fontWeight: 700,
                         fontFamily: 'monospace',
                         borderRadius: '0px',
-                        border: newFolderModalName.startsWith('00_') ? '1px solid #3b82f6' : '1px solid var(--card-border, #CBD5E1)',
-                        background: newFolderModalName.startsWith('00_') ? '#3b82f6' : 'var(--btn-bg, #F1F5F9)',
-                        color: newFolderModalName.startsWith('00_') ? '#ffffff' : 'var(--main-text, #0F172A)',
+                        border: newFolderModalName.startsWith('00_') ? '1px solid #3b82f6' : '1px solid var(--panel-border, rgba(120, 120, 120, 0.4))',
+                        background: newFolderModalName.startsWith('00_') ? '#3b82f6' : 'var(--panel-item-bg, transparent)',
+                        color: newFolderModalName.startsWith('00_') ? '#ffffff' : 'var(--panel-text, inherit)',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
@@ -3116,7 +3165,19 @@ export const MainContent = () => {
 
       {/* フォルダー移動モーダル（単一 & 一括対応） */}
       {isMoveFolderModalOpen && (movingFolderPath || (movingFolderPaths && movingFolderPaths.length > 0)) && (
-        <div className="modal-backdrop" onClick={closeMoveFolderDialog}>
+        <div
+          className="modal-backdrop"
+          onMouseDown={e => {
+            modalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = modalBackdropMouseDownRef.current;
+            modalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              closeMoveFolderDialog();
+            }
+          }}
+        >
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
             <div className="modal-header">
               <span style={{ fontSize: '15px' }}>📦</span>

@@ -248,6 +248,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           title: rf.title,
           dateSource: rf.dateSource,
           content: rf.content,
+          isPartialContent: rf.isPartialContent,
           isShortcut: true,
           originalCategory: rf.category,
           originalFilename: rf.filename,
@@ -449,21 +450,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'explorer', category: item.category || null }));
       } catch (e) {}
     } else if (item.type === 'file') {
-      const target = item.fileObj || allFiles.find(
+      const target = allFiles.find(
         f => f.filename === item.filename && (item.category ? f.category === item.category : true)
-      );
+      ) || item.fileObj;
       if (target) {
-        setCurrentFileObj(target);
-        setCurrentContent(target.content);
-        setIsEditing(false);
-        setViewMode('reader');
-        if (target.category) {
-          setExplorerCategory(target.category);
-        }
-        try {
-          localStorage.setItem('lv_lastLocation', JSON.stringify({ type: 'file', filename: target.filename, category: target.category || null }));
-          localStorage.setItem('lv_lastFile', JSON.stringify({ filename: target.filename, category: target.category || null }));
-        } catch (e) {}
+        void selectFile(target, true);
       } else {
         setExplorerCategory(item.category);
         setViewMode('explorer');
@@ -1025,7 +1016,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             time: cf.time,
             title: cf.title,
             dateSource: cf.dateSource,
-            content: cf.snippet || ''
+            content: cf.snippet || '',
+            isPartialContent: true,
+            isImage: isImageFilename(cf.filename)
           }));
           const cachedPFolders: PhysicalFolder[] = (metaCache.pFolders || []).map(pf => ({
             name: pf.name,
@@ -1200,17 +1193,19 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
     pFolders.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
     
     // 【第1段階: メタデータ先行即時生成 ＆ キャッシュ引き継ぎ】
-    // 既存のキャッシュまたは直前のrawFilesから日付・タイトル・本文を引き継ぐ
-    const existingMap = new Map<string, FileObj>(rawFiles.map(f => [(f.category || '') + '::' + f.filename, f]));
+    // 全文読み込み済みのrawFilesのみ本文を引き継ぎ、100文字スニペットキャッシュ(isPartialContent)は再読み込み対象にする
+    const existingMap = new Map<string, FileObj>(rawFilesRef.current.map(f => [(f.category || '') + '::' + f.filename, f]));
 
     const initialFiles: FileObj[] = entries.map(entry => {
       const p = parseFilename(entry.handle.name);
       const isImg = isImageFilename(entry.handle.name);
       const existing = existingMap.get((entry.category || '') + '::' + entry.handle.name);
+      const hasFullExistingContent = !!(existing && !existing.isPartialContent);
       const date = p.date || existing?.date || '';
       const time = p.time || existing?.time || '';
       const title = p.title || existing?.title || entry.handle.name.replace(/\.[^.]+$/,'');
-      const content = existing?.content || '';
+      const content = hasFullExistingContent ? existing.content : (existing?.content || '');
+      const isPartialContent = isImg ? false : !hasFullExistingContent;
       return { 
         filename: entry.handle.name, 
         handle: entry.handle, 
@@ -1221,6 +1216,7 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         title, 
         dateSource: p.date ? 'filename' : (existing?.dateSource || ''), 
         content,
+        isPartialContent,
         isImage: isImg
       };
     });
@@ -1248,14 +1244,15 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
 
     // 【ダイジェスト・本文スニペットの先行即時取得】
     // 初回表示時に「.txtの後ろのダイジェスト」が後からピョコッと表示されて不自然になるのを防ぐため、
-    // 画面に即時表示される上位80件のテキストファイルの本文冒頭を先行ロード（約15ms）
-    const prioritySnippetFiles = initialFiles.filter(f => !f.isImage && !f.content && f.handle).slice(0, 80);
+    // 画面に即時表示される上位80件のテキストファイルの本文を先行ロード（約15ms）
+    const prioritySnippetFiles = initialFiles.filter(f => !f.isImage && f.isPartialContent && f.handle).slice(0, 80);
     if (prioritySnippetFiles.length > 0) {
       await Promise.all(prioritySnippetFiles.map(async f => {
         try {
           if (f.handle) {
             const file = await f.handle.getFile();
             f.content = await file.text();
+            f.isPartialContent = false;
           }
         } catch(e) {}
       }));
@@ -1360,17 +1357,18 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
         const chunk = initialFiles.slice(i, i + chunkSize);
         await Promise.all(chunk.map(async f => {
           try {
-            // 画像ファイル、または既に本文と日付がある場合は重いディスクI/O(getFile)をスキップ
+            // 画像ファイル、または既に全文と日付がある場合は重いディスクI/O(getFile)をスキップ
             if (f.isImage && f.date) {
               return;
             }
-            if (!f.isImage && f.content && f.date) {
+            if (!f.isImage && !f.isPartialContent && f.date) {
               return;
             }
             if (f.handle) {
               const file = await f.handle.getFile();
-              if (!f.isImage && !f.content) {
+              if (!f.isImage && (!f.content || f.isPartialContent)) {
                 f.content = await file.text();
+                f.isPartialContent = false;
               }
               if (!f.date) {
                 const lm = new Date(file.lastModified);
@@ -1673,11 +1671,19 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
           console.warn('Image load failed:', e);
         }
       }
-    } else if (!content && f.handle) {
+    } else if ((!content || f.isPartialContent) && f.handle) {
       try {
         const file = await f.handle.getFile();
         content = await file.text();
         f.content = content;
+        f.isPartialContent = false;
+        const origCat = f.isShortcut ? (f.originalCategory || null) : (f.category || null);
+        const origName = f.isShortcut ? (f.originalFilename || f.filename) : f.filename;
+        const rawMatch = rawFilesRef.current.find(rf => (rf.category || null) === origCat && rf.filename === origName);
+        if (rawMatch) {
+          rawMatch.content = content;
+          rawMatch.isPartialContent = false;
+        }
         if (!f.date) {
           const lm = new Date(file.lastModified);
           f.date = `${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;
@@ -1726,13 +1732,13 @@ AI Searchから出力されたリサーチ結果のMarkdownデータです。
       const origCat = currentFileObj.isShortcut ? (currentFileObj.originalCategory || '') : (currentFileObj.category || '');
       const origName = currentFileObj.isShortcut ? (currentFileObj.originalFilename || currentFileObj.filename) : currentFileObj.filename;
 
-      const updated = { ...currentFileObj, content: newContent };
+      const updated = { ...currentFileObj, content: newContent, isPartialContent: false };
       setCurrentFileObj(updated);
       setCurrentContent(newContent);
 
       const nextRaw = rawFiles.map(f => {
         if ((f.category || '') === origCat && f.filename === origName) {
-          return { ...f, content: newContent };
+          return { ...f, content: newContent, isPartialContent: false };
         }
         return f;
       });

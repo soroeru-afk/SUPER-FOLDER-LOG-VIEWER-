@@ -114,6 +114,7 @@ export const FolderExplorer: React.FC = () => {
   const [isRenameFolderModalOpen, setIsRenameFolderModalOpen] = useState(false);
   const [folderRenameTarget, setFolderRenameTarget] = useState<{ name: string; shortName: string; handle?: any } | null>(null);
   const [folderRenameInputVal, setFolderRenameInputVal] = useState('');
+  const explorerModalBackdropMouseDownRef = useRef(false);
 
   const [visualSettings, setVisualSettings] = useState<FolderVisualSettings>(loadFolderVisualSettings);
   const [coverModalTarget, setCoverModalTarget] = useState<{ path: string; name: string } | null>(null);
@@ -3187,7 +3188,16 @@ export const FolderExplorer: React.FC = () => {
       {isRenameFolderModalOpen && folderRenameTarget && (
         <div 
           className="explorer-modal-overlay"
-          onClick={() => setIsRenameFolderModalOpen(false)}
+          onMouseDown={e => {
+            explorerModalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = explorerModalBackdropMouseDownRef.current;
+            explorerModalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              setIsRenameFolderModalOpen(false);
+            }
+          }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -3354,7 +3364,16 @@ export const FolderExplorer: React.FC = () => {
       {coverModalTarget && (
         <div 
           className="folder-rename-modal-backdrop"
-          onClick={() => setCoverModalTarget(null)}
+          onMouseDown={e => {
+            explorerModalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = explorerModalBackdropMouseDownRef.current;
+            explorerModalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              setCoverModalTarget(null);
+            }
+          }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -3811,7 +3830,16 @@ export const FolderExplorer: React.FC = () => {
       {isResetModalOpen && (
         <div 
           className="explorer-modal-overlay"
-          onClick={() => setIsResetModalOpen(false)}
+          onMouseDown={e => {
+            explorerModalBackdropMouseDownRef.current = e.target === e.currentTarget;
+          }}
+          onClick={e => {
+            const startedOnBackdrop = explorerModalBackdropMouseDownRef.current;
+            explorerModalBackdropMouseDownRef.current = false;
+            if (startedOnBackdrop && e.target === e.currentTarget) {
+              setIsResetModalOpen(false);
+            }
+          }}
           style={{
             position: 'fixed',
             inset: 0,

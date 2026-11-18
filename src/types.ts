@@ -8,6 +8,7 @@ export interface FileObj {
   title: string;
   dateSource: string;
   content: string;
+  isPartialContent?: boolean;
   isShortcut?: boolean;
   originalCategory?: string | null;
   originalFilename?: string;
